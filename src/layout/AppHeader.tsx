@@ -86,12 +86,16 @@ const AppHeader: React.FC = () => {
           <Link to="/" className="lg:hidden">
             <img
               className="dark:hidden"
-              src="./images/logo/logo.svg"
+              src="./images/logo/i3-l-logo-light.png"
+              width={150}
+              height={40}
               alt="Logo"
             />
             <img
               className="hidden dark:block"
-              src="./images/logo/logo-dark.svg"
+              src="./images/logo/i3-l-logo-dark.png"
+              width={150}
+              height={40}
               alt="Logo"
             />
           </Link>
@@ -119,7 +123,7 @@ const AppHeader: React.FC = () => {
           <div className="hidden lg:block">
             <form>
               <div className="relative">
-                <span className="absolute -translate-y-1/2 pointer-events-none left-4 top-1/2">
+                <span className="absolute -translate-y-1/2 pointer-events-none left-4 top-1/2 text-gray-500 dark:text-gray-400">
                   <svg
                     className="fill-gray-500 dark:fill-gray-400"
                     width="20"
