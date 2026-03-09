@@ -2,13 +2,14 @@ import { useEffect, useRef, useState } from "react";
 
 import { Link } from "react-router";
 import { useSidebar } from "../context/SidebarContext";
+import { useAuth } from "../context/AuthContext";
 import { ThemeToggleButton } from "../components/common/ThemeToggleButton";
 import NotificationDropdown from "../components/header/NotificationDropdown";
 import UserDropdown from "../components/header/UserDropdown";
 
 const AppHeader: React.FC = () => {
   const [isApplicationMenuOpen, setApplicationMenuOpen] = useState(false);
-
+  const { isLoggedIn, isLoading } = useAuth();
   const { isMobileOpen, toggleSidebar, toggleMobileSidebar } = useSidebar();
 
   const handleToggle = () => {
@@ -167,8 +168,19 @@ const AppHeader: React.FC = () => {
             <NotificationDropdown />
             {/* <!-- Notification Menu Area --> */}
           </div>
-          {/* <!-- User Area --> */}
-          <UserDropdown />
+          {/* <!-- User Area: 로그인 시 드롭다운, 비로그인 시 로그인 버튼 --> */}
+          {!isLoading && (
+            isLoggedIn ? (
+              <UserDropdown />
+            ) : (
+              <Link
+                to="/signin"
+                className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white rounded-lg bg-brand-500 hover:bg-brand-600 dark:bg-brand-600 dark:hover:bg-brand-700"
+              >
+                로그인
+              </Link>
+            )
+          )}
         </div>
       </div>
     </header>

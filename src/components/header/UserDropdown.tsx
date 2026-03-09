@@ -1,10 +1,21 @@
 import { useState } from "react";
+import toast from "react-hot-toast";
 import { DropdownItem } from "../ui/dropdown/DropdownItem";
 import { Dropdown } from "../ui/dropdown/Dropdown";
 import { Link } from "react-router";
+import { useAuth } from "../../context/AuthContext";
+
+function getProfileInitial(user: { name?: string; employeeNo?: number } | null): string {
+  if (!user) return "?";
+  if (user.name?.trim()) return user.name.trim()[0].toUpperCase();
+  if (user.employeeNo != null) return String(user.employeeNo)[0];
+  return "?";
+}
 
 export default function UserDropdown() {
   const [isOpen, setIsOpen] = useState(false);
+  const { user, logout } = useAuth();
+  const initial = getProfileInitial(user);
 
   function toggleDropdown() {
     setIsOpen(!isOpen);
@@ -19,11 +30,15 @@ export default function UserDropdown() {
         onClick={toggleDropdown}
         className="flex items-center text-gray-700 dropdown-toggle dark:text-gray-400"
       >
-        <span className="mr-3 overflow-hidden rounded-full h-11 w-11">
-          <img src="/images/user/owner.jpg" alt="User" />
+        <span className="flex items-center justify-center flex-shrink-0 mr-3 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700 h-11 w-11">
+          <span className="text-sm font-medium text-gray-600 dark:text-gray-300">
+            {initial}
+          </span>
         </span>
 
-        <span className="block mr-1 font-medium text-theme-sm">Musharof</span>
+        <span className="block mr-1 font-medium text-theme-sm">
+          {user?.name ?? `사번 ${user?.employeeNo ?? ""}`}
+        </span>
         <svg
           className={`stroke-gray-500 dark:stroke-gray-400 transition-transform duration-200 ${
             isOpen ? "rotate-180" : ""
@@ -51,10 +66,10 @@ export default function UserDropdown() {
       >
         <div>
           <span className="block font-medium text-gray-700 text-theme-sm dark:text-gray-400">
-            Musharof Chowdhury
+            {user?.name ?? `사번 ${user?.employeeNo ?? ""}`}
           </span>
           <span className="mt-0.5 block text-theme-xs text-gray-500 dark:text-gray-400">
-            randomuser@pimjo.com
+            {user?.employeeNo}
           </span>
         </div>
 
@@ -135,9 +150,14 @@ export default function UserDropdown() {
             </DropdownItem>
           </li>
         </ul>
-        <Link
-          to="/signin"
-          className="flex items-center gap-3 px-3 py-2 mt-3 font-medium text-gray-700 rounded-lg group text-theme-sm hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
+        <button
+          type="button"
+          onClick={async () => {
+            closeDropdown();
+            await logout();
+            toast.success("로그아웃 성공");
+          }}
+          className="flex items-center w-full gap-3 px-3 py-2 mt-3 font-medium text-gray-700 rounded-lg group text-theme-sm hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
         >
           <svg
             className="fill-gray-500 group-hover:fill-gray-700 dark:group-hover:fill-gray-300"
@@ -154,8 +174,8 @@ export default function UserDropdown() {
               fill=""
             />
           </svg>
-          Sign out
-        </Link>
+          로그아웃
+        </button>
       </Dropdown>
     </div>
   );

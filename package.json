@@ -10,20 +10,21 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@react-jvectormap/core": "^1.0.4",
+    "@react-jvectormap/world": "^1.1.2",
     "@tailwindcss/vite": "^4.2.1",
     "apexcharts": "^5.10.1",
+    "clsx": "^2.1.1",
+    "flatpickr": "^4.6.13",
     "react": "^19.2.0",
     "react-apexcharts": "^2.1.0",
     "react-dom": "^19.2.0",
-    "react-router": "^7.1.5",
-    "tailwindcss": "^4.2.1",
-    "vite-plugin-svgr": "^4.5.0",
-    "@react-jvectormap/core": "^1.0.4",
-    "@react-jvectormap/world": "^1.1.2",
     "react-helmet-async": "^2.0.5",
+    "react-hot-toast": "^2.6.0",
+    "react-router": "^7.1.5",
     "tailwind-merge": "^3.0.1",
-    "clsx": "^2.1.1",
-    "flatpickr": "^4.6.13"
+    "tailwindcss": "^4.2.1",
+    "vite-plugin-svgr": "^4.5.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

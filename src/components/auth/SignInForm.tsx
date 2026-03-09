@@ -1,14 +1,47 @@
 import { useState } from "react";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
+import toast from "react-hot-toast";
 import { ChevronLeftIcon, EyeCloseIcon, EyeIcon } from "../../icons";
 import Label from "../form/Label";
 import Input from "../form/input/InputField";
 import Checkbox from "../form/input/Checkbox";
 import Button from "../ui/button/Button";
+import { useAuth } from "../../context/AuthContext";
 
 export default function SignInForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [isChecked, setIsChecked] = useState(false);
+  const [employeeNo, setEmployeeNo] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { login } = useAuth();
+  const navigate = useNavigate();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    const no = Number(employeeNo);
+    if (!employeeNo.trim() || !password.trim()) {
+      setError("사번과 비밀번호를 입력해주세요.");
+      return;
+    }
+    if (Number.isNaN(no)) {
+      setError("사번은 숫자로 입력해주세요.");
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      await login(no, password, isChecked);
+      toast.success("로그인 성공");
+      navigate("/", { replace: true });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "로그인에 실패했습니다.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <div className="flex flex-col flex-1">
       <div className="w-full max-w-md pt-10 mx-auto">
@@ -83,13 +116,23 @@ export default function SignInForm() {
                 </span>
               </div>
             </div> */}
-            <form>
+            <form onSubmit={handleSubmit}>
+              {error && (
+                <div className="p-3 mb-4 text-sm text-red-600 bg-red-50 rounded-lg dark:bg-red-900/20 dark:text-red-400">
+                  {error}
+                </div>
+              )}
               <div className="space-y-6">
                 <div>
                   <Label>
                     사번 <span className="text-error-500">*</span>{" "}
                   </Label>
-                  <Input type="text" placeholder="사번을 입력해주세요." />
+                  <Input
+                    type="text"
+                    placeholder="사번을 입력해주세요."
+                    value={employeeNo}
+                    onChange={(e) => setEmployeeNo(e.target.value)}
+                  />
                 </div>
                 <div>
                   <Label>
@@ -99,6 +142,8 @@ export default function SignInForm() {
                     <Input
                       type={showPassword ? "text" : "password"}
                       placeholder="비밀번호를 입력해주세요."
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
                     />
                     <span
                       onClick={() => setShowPassword(!showPassword)}
@@ -127,8 +172,13 @@ export default function SignInForm() {
                   </Link>
                 </div>
                 <div>
-                  <Button className="w-full" size="sm">
-                    로그인
+                  <Button
+                    type="submit"
+                    className="w-full"
+                    size="sm"
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? "로그인 중..." : "로그인"}
                   </Button>
                 </div>
               </div>
