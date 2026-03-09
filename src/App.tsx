@@ -7,6 +7,7 @@ import { ScrollToTop } from './components/common/ScrollToTop'
 import SignIn from './pages/AutpPages/SignIn'
 import SignUp from './pages/AutpPages/SIgnUp'
 import Order from './pages/Order'
+import Organization from './pages/Organization'
 
 function App() {
   return (
@@ -18,6 +19,7 @@ function App() {
 
 
           <Route path="order" element={<Order />} />
+          <Route path="organization" element={<Organization />} />
           {/* <Route path="signup" element={<SignUp />} /> */}
         </Route>
 

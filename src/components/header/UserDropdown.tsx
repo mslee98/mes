@@ -96,7 +96,7 @@ export default function UserDropdown() {
                   fill=""
                 />
               </svg>
-              Edit profile
+              프로필 수정
             </DropdownItem>
           </li>
           <li>
@@ -121,7 +121,7 @@ export default function UserDropdown() {
                   fill=""
                 />
               </svg>
-              Account settings
+              계정 설정
             </DropdownItem>
           </li>
           <li>
@@ -146,7 +146,7 @@ export default function UserDropdown() {
                   fill=""
                 />
               </svg>
-              Support
+              지원
             </DropdownItem>
           </li>
         </ul>

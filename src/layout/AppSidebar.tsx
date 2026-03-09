@@ -70,15 +70,34 @@ const navItems: NavItem[] = [
 //   },
 ];
 
+
 const othersItems: NavItem[] = [
   {
     icon: <PieChartIcon />,
-    name: "통계",
+    name: "Admin",
     subItems: [
-      { name: "Line Chart", path: "/line-chart", pro: false },
-      { name: "Bar Chart", path: "/bar-chart", pro: false },
+      { name: "조직도", path: "/organization", pro: true },
+      { name: "권한 관리", path: "/permission", pro: true },
+      { name: "사용자 관리", path: "/user", pro: true },
+      { name: "로그 관리", path: "/log", pro: true },
+      { name: "설정", path: "/setting", pro: true },
+      { name: "알림", path: "/notification", pro: true },
     ],
   },
+
+// const othersItems: NavItem[] = [
+//   {
+//     icon: <PieChartIcon />,
+//     name: "통계",
+//     subItems: [
+//       { name: "Line Chart", path: "/line-chart", pro: false },
+//       { name: "Bar Chart", path: "/bar-chart", pro: false },
+//     ],
+//   },
+
+
+
+
 //   {
 //     icon: <BoxCubeIcon />,
 //     name: "UI Elements",
