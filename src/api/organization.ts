@@ -1,3 +1,5 @@
+import { createApiError } from "../lib/apiError";
+
 const BASE =
   import.meta.env.VITE_AUTH_BASE_URL ?? "http://localhost:3000";
 
@@ -24,10 +26,7 @@ export async function getOrganizationTree(): Promise<OrganizationUnitNode[]> {
   });
 
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(
-      (err as { message?: string }).message ?? "조직도를 불러오지 못했습니다."
-    );
+    throw await createApiError(res, "조직도를 불러오지 못했습니다.");
   }
 
   return res.json();

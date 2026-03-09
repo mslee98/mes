@@ -33,13 +33,33 @@ export function usePagination({
   const [pageSize, setPageSize] = useState(initialPageSize);
 
   const totalPages = Math.ceil(totalCount / pageSize);
-  const startItem = (currentPage - 1) * pageSize + 1;
+  const startItem = totalCount === 0 ? 0 : (currentPage - 1) * pageSize + 1;
   const endItem = Math.min(currentPage * pageSize, totalCount);
 
   const pageNumbers = useMemo(() => {
-    const pages: (number | "ellipsis")[] = [1, 2];
-    if (currentPage > 2) pages.push(currentPage);
-    if (totalPages > 3) pages.push("ellipsis", totalPages);
+    if (totalPages <= 0) return [];
+    if (totalPages <= 5) {
+      return Array.from({ length: totalPages }, (_, index) => index + 1);
+    }
+
+    const pages: (number | "ellipsis")[] = [1];
+
+    if (currentPage > 3) {
+      pages.push("ellipsis");
+    }
+
+    const start = Math.max(2, currentPage - 1);
+    const end = Math.min(totalPages - 1, currentPage + 1);
+
+    for (let page = start; page <= end; page += 1) {
+      pages.push(page);
+    }
+
+    if (currentPage < totalPages - 2) {
+      pages.push("ellipsis");
+    }
+
+    pages.push(totalPages);
     return pages;
   }, [currentPage, totalPages]);
 

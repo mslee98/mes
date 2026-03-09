@@ -265,19 +265,30 @@ layer(base);
 }
 @utility custom-scrollbar {
   &::-webkit-scrollbar {
-    @apply size-1.5;
+    width: 10px;
+    height: 10px;
   }
 
   &::-webkit-scrollbar-track {
-    @apply rounded-full;
+    @apply rounded-full bg-gray-100 dark:bg-gray-800;
   }
 
   &::-webkit-scrollbar-thumb {
-    @apply bg-gray-200 rounded-full dark:bg-gray-700;
+    @apply rounded-full border-2 border-transparent bg-clip-padding bg-gray-300 dark:bg-gray-600;
   }
+
+  &::-webkit-scrollbar-thumb:hover {
+    @apply bg-gray-400 dark:bg-gray-500;
+  }
+
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-gray-300) var(--color-gray-100);
 }
 .dark .custom-scrollbar::-webkit-scrollbar-thumb {
-  background-color: #344054;
+  background-color: #475467;
+}
+.dark .custom-scrollbar {
+  scrollbar-color: #475467 #1d2939;
 }
 
 @layer utilities {

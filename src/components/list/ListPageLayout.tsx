@@ -56,7 +56,7 @@ export function ListPageLayout({
         </div>
 
         {/* 테이블 */}
-        <div className="max-w-full overflow-x-auto pt-4">
+        <div className="custom-scrollbar max-w-full overflow-x-auto pt-4">
           {children}
         </div>
 

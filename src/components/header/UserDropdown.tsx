@@ -2,7 +2,7 @@ import { useState } from "react";
 import toast from "react-hot-toast";
 import { DropdownItem } from "../ui/dropdown/DropdownItem";
 import { Dropdown } from "../ui/dropdown/Dropdown";
-import { Link } from "react-router";
+import { useNavigate } from "react-router";
 import { useAuth } from "../../context/AuthContext";
 
 function getProfileInitial(user: { name?: string; employeeNo?: number } | null): string {
@@ -15,6 +15,7 @@ function getProfileInitial(user: { name?: string; employeeNo?: number } | null):
 export default function UserDropdown() {
   const [isOpen, setIsOpen] = useState(false);
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const initial = getProfileInitial(user);
 
   function toggleDropdown() {
@@ -156,6 +157,7 @@ export default function UserDropdown() {
             closeDropdown();
             await logout();
             toast.success("로그아웃 성공");
+            navigate("/signin", { replace: true });
           }}
           className="flex items-center w-full gap-3 px-3 py-2 mt-3 font-medium text-gray-700 rounded-lg group text-theme-sm hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
         >

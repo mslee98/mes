@@ -1,73 +1,43 @@
-# React + TypeScript + Vite
+# OJT Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+사내 관리 화면용 React + TypeScript + Vite 프로젝트입니다.
 
-Currently, two official plugins are available:
+## 문서 진입점
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- 인증/로그인 흐름: [`docs/AUTH.md`](docs/AUTH.md)
+- 메뉴/권한/메뉴관리 흐름: [`docs/MENU.md`](docs/MENU.md)
 
-## React Compiler
+처음 확인할 때는 보통 아래 순서로 보면 됩니다.
 
-The React Compiler is currently not compatible with SWC. See [this issue](https://github.com/vitejs/vite-plugin-react/issues/428) for tracking the progress.
+1. `README.md`
+2. `docs/AUTH.md`
+3. `docs/MENU.md`
 
-## Expanding the ESLint configuration
+## 주요 기능
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+- 로그인 / 로그아웃 / 토큰 재발급
+- 권한 기반 메뉴 노출
+- 사이드바 동적 메뉴 렌더링
+- 메뉴 관리 페이지
+- 메뉴 트리 드래그앤드롭 정렬
+- 공통 권한 에러 처리 및 확인 모달
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## 실행
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## 주요 경로
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+- 앱 라우팅: `src/App.tsx`
+- 인증 상태: `src/context/AuthContext.tsx`
+- 사이드바: `src/layout/AppSidebar.tsx`
+- 메뉴 API: `src/api/menu.ts`
+- 메뉴 관리 페이지: `src/pages/Menu.tsx`
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+## 참고
+
+- 메뉴 노출 여부는 프론트 하드코딩이 아니라 `/menus/my` 응답 기준입니다.
+- 메뉴가 보이지 않을 때는 렌더링 문제보다 권한/응답 body를 먼저 확인하는 것이 좋습니다.
