@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "dist:add-txt": "node scripts/toggle-txt-extension.js add",
+    "dist:remove-txt": "node scripts/toggle-txt-extension.js remove"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -19,10 +21,13 @@
     "@tanstack/react-query": "^5.90.21",
     "apexcharts": "^5.10.1",
     "clsx": "^2.1.1",
+    "dnd-kit-sortable-tree": "^0.1.73",
     "flatpickr": "^4.6.13",
+    "lottie-react": "^2.4.1",
     "react": "^19.2.0",
     "react-apexcharts": "^2.1.0",
     "react-dom": "^19.2.0",
+    "react-dropzone": "^15.0.0",
     "react-helmet-async": "^2.0.5",
     "react-hot-toast": "^2.6.0",
     "react-router": "^7.1.5",

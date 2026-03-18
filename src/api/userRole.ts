@@ -1,7 +1,6 @@
 import { createApiError } from "../lib/apiError";
 
-const BASE =
-  import.meta.env.VITE_AUTH_BASE_URL ?? "http://localhost:3000";
+import { API_BASE } from "./apiBase";
 
 export interface UserRoleAssignment {
   id: number;
@@ -58,7 +57,7 @@ export async function getUserRoles(
   userId: number,
   accessToken: string
 ): Promise<UserRoleAssignment[]> {
-  const res = await fetch(`${BASE}/auth/users/${userId}/roles`, {
+  const res = await fetch(`${API_BASE}/auth/users/${userId}/roles`, {
     headers: authHeaders(accessToken),
     credentials: "include",
   });
@@ -76,7 +75,7 @@ export async function assignUserRole(
   payload: AssignUserRolePayload,
   accessToken: string
 ) {
-  const res = await fetch(`${BASE}/auth/users/${userId}/roles`, {
+  const res = await fetch(`${API_BASE}/auth/users/${userId}/roles`, {
     method: "POST",
     headers: authHeaders(accessToken),
     credentials: "include",
@@ -95,7 +94,7 @@ export async function updateUserRole(
   payload: UpdateUserRolePayload,
   accessToken: string
 ) {
-  const res = await fetch(`${BASE}/auth/user-roles/${userRoleId}`, {
+  const res = await fetch(`${API_BASE}/auth/user-roles/${userRoleId}`, {
     method: "PATCH",
     headers: authHeaders(accessToken),
     credentials: "include",
@@ -110,7 +109,7 @@ export async function updateUserRole(
 }
 
 export async function deleteUserRole(userRoleId: number, accessToken: string) {
-  const res = await fetch(`${BASE}/auth/user-roles/${userRoleId}`, {
+  const res = await fetch(`${API_BASE}/auth/user-roles/${userRoleId}`, {
     method: "DELETE",
     headers: {
       Authorization: `Bearer ${accessToken}`,

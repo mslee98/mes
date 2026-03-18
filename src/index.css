@@ -310,6 +310,9 @@ layer(base);
 }
 
 /* third-party libraries CSS */
+.dnd-sortable-tree_simple_tree-item {
+  border: none !important;
+}
 .apexcharts-legend-text {
   @apply !text-gray-700 dark:!text-gray-400;
 }

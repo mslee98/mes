@@ -1,7 +1,6 @@
 import { createApiError } from "../lib/apiError";
 
-const BASE =
-  import.meta.env.VITE_AUTH_BASE_URL ?? "http://localhost:3000";
+import { API_BASE } from "./apiBase";
 
 export interface RoleItem {
   id?: number | string;
@@ -29,7 +28,7 @@ function normalizeRoleList(payload: unknown): RoleItem[] {
 }
 
 export async function getRoles(accessToken: string): Promise<RoleItem[]> {
-  const res = await fetch(`${BASE}/auth/roles`, {
+  const res = await fetch(`${API_BASE}/auth/roles`, {
     headers: {
       Authorization: `Bearer ${accessToken}`,
     },

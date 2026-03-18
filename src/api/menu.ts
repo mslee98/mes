@@ -1,7 +1,5 @@
 import { createApiError } from "../lib/apiError";
-
-const BASE =
-  import.meta.env.VITE_AUTH_BASE_URL ?? "http://localhost:3000";
+import { API_BASE } from "./apiBase";
 
 export interface MenuItem {
   id: number;
@@ -78,7 +76,7 @@ function normalizeSingleMenu(payload: unknown): MenuItem | null {
 }
 
 export async function getMyMenus(accessToken: string): Promise<MenuItem[]> {
-  const res = await fetch(`${BASE}/menus/my`, {
+  const res = await fetch(`${API_BASE}/menus/my`, {
     headers: {
       Authorization: `Bearer ${accessToken}`,
     },
@@ -94,7 +92,7 @@ export async function getMyMenus(accessToken: string): Promise<MenuItem[]> {
 }
 
 export async function getMenus(accessToken: string): Promise<MenuItem[]> {
-  const res = await fetch(`${BASE}/menus`, {
+  const res = await fetch(`${API_BASE}/menus`, {
     headers: authHeaders(accessToken),
     credentials: "include",
   });
@@ -111,7 +109,7 @@ export async function getMenu(
   menuId: number,
   accessToken: string
 ): Promise<MenuItem> {
-  const res = await fetch(`${BASE}/menus/${menuId}`, {
+  const res = await fetch(`${API_BASE}/menus/${menuId}`, {
     headers: authHeaders(accessToken),
     credentials: "include",
   });
@@ -134,7 +132,7 @@ export async function createMenu(
   payload: MenuMutationPayload,
   accessToken: string
 ): Promise<MenuItem | null> {
-  const res = await fetch(`${BASE}/menus`, {
+  const res = await fetch(`${API_BASE}/menus`, {
     method: "POST",
     headers: authHeaders(accessToken),
     credentials: "include",
@@ -154,7 +152,7 @@ export async function updateMenu(
   payload: Partial<MenuMutationPayload>,
   accessToken: string
 ): Promise<MenuItem | null> {
-  const res = await fetch(`${BASE}/menus/${menuId}`, {
+  const res = await fetch(`${API_BASE}/menus/${menuId}`, {
     method: "PATCH",
     headers: authHeaders(accessToken),
     credentials: "include",
@@ -170,7 +168,7 @@ export async function updateMenu(
 }
 
 export async function deleteMenu(menuId: number, accessToken: string): Promise<void> {
-  const res = await fetch(`${BASE}/menus/${menuId}`, {
+  const res = await fetch(`${API_BASE}/menus/${menuId}`, {
     method: "DELETE",
     headers: authHeaders(accessToken),
     credentials: "include",
@@ -185,7 +183,7 @@ export async function getMenusByRole(
   roleId: number,
   accessToken: string
 ): Promise<MenuItem[]> {
-  const res = await fetch(`${BASE}/menus/roles/${roleId}`, {
+  const res = await fetch(`${API_BASE}/menus/roles/${roleId}`, {
     headers: authHeaders(accessToken),
     credentials: "include",
   });
@@ -203,7 +201,7 @@ export async function assignMenuToRole(
   payload: MenuRoleAssignmentPayload,
   accessToken: string
 ) {
-  const res = await fetch(`${BASE}/menus/roles/${roleId}`, {
+  const res = await fetch(`${API_BASE}/menus/roles/${roleId}`, {
     method: "POST",
     headers: authHeaders(accessToken),
     credentials: "include",
@@ -215,4 +213,89 @@ export async function assignMenuToRole(
   }
 
   return res.json().catch(() => null);
+}
+
+/** 역할-메뉴 연결 한 건 (목록 조회 시) */
+export interface RoleMenuAssignment {
+  id: number;
+  roleId: number;
+  menuId: number;
+  canView: boolean;
+  menu?: MenuItem;
+  [key: string]: unknown;
+}
+
+/** 백엔드 응답 한 건: id, canView, role: { id, code, name }, menu: { id, code, name, ... } */
+function normalizeRoleMenuAssignment(raw: {
+  id: number;
+  canView?: boolean;
+  role?: { id: number; code?: string; name?: string };
+  menu?: { id: number; code?: string; name?: string; [key: string]: unknown };
+}): RoleMenuAssignment {
+  return {
+    id: raw.id,
+    roleId: raw.role?.id ?? 0,
+    menuId: raw.menu?.id ?? 0,
+    canView: raw.canView ?? true,
+    menu: raw.menu as MenuItem | undefined,
+  };
+}
+
+/** 역할별 역할-메뉴 연결 목록 (GET /menus/roles/:roleId) */
+export async function getRoleMenus(
+  roleId: number,
+  accessToken: string
+): Promise<RoleMenuAssignment[]> {
+  const res = await fetch(`${API_BASE}/menus/roles/${roleId}`, {
+    headers: authHeaders(accessToken),
+    credentials: "include",
+  });
+
+  if (!res.ok) {
+    throw await createApiError(res, "역할별 메뉴 연결 목록을 불러오지 못했습니다.");
+  }
+
+  const payload = await res.json();
+  if (!Array.isArray(payload)) return [];
+  return payload.map((item: unknown) =>
+    normalizeRoleMenuAssignment(item as Parameters<typeof normalizeRoleMenuAssignment>[0])
+  );
+}
+
+export interface UpdateRoleMenuPayload {
+  canView: boolean;
+}
+
+/** 역할-메뉴 연결 수정 (canView 등) */
+export async function updateRoleMenu(
+  roleMenuId: number,
+  payload: UpdateRoleMenuPayload,
+  accessToken: string
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/menus/role-menus/${roleMenuId}`, {
+    method: "PATCH",
+    headers: authHeaders(accessToken),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    throw await createApiError(res, "역할-메뉴 연결 수정에 실패했습니다.");
+  }
+}
+
+/** 역할-메뉴 연결 삭제 */
+export async function deleteRoleMenu(
+  roleMenuId: number,
+  accessToken: string
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/menus/role-menus/${roleMenuId}`, {
+    method: "DELETE",
+    headers: authHeaders(accessToken),
+    credentials: "include",
+  });
+
+  if (!res.ok) {
+    throw await createApiError(res, "역할-메뉴 연결 삭제에 실패했습니다.");
+  }
 }

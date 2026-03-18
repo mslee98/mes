@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import ComponentCard from "../components/common/ComponentCard";
+import ListPageLoading from "../components/common/ListPageLoading";
 import { getOrganizationTree, type OrganizationUnitNode } from "../api/organization";
 import OrganizationTreeNode from "../components/organization/OrganizationTreeNode";
 
@@ -21,9 +22,7 @@ export default function Organization() {
       <PageBreadcrumb pageTitle="조직도" />
       <ComponentCard title="조직도">
         {isLoading && (
-          <div className="flex items-center justify-center min-h-[300px] text-gray-500 dark:text-gray-400">
-            <span className="text-sm">조직도를 불러오는 중...</span>
-          </div>
+          <ListPageLoading message="조직도를 불러오는 중..." minHeight={300} />
         )}
         {error && (
           <div className="flex items-center justify-center min-h-[300px]">

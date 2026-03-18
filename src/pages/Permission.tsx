@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getPermissions, type PermissionItem } from "../api/permission";
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
+import ListPageLoading from "../components/common/ListPageLoading";
 import Badge from "../components/ui/badge/Badge";
 import Input from "../components/form/input/InputField";
 import Select from "../components/form/Select";
@@ -184,9 +185,7 @@ export default function Permission() {
         }
       >
         {isAuthLoading || isLoading ? (
-          <div className="flex min-h-[320px] items-center justify-center text-gray-500 dark:text-gray-400">
-            <p className="text-sm">권한 목록을 불러오는 중...</p>
-          </div>
+          <ListPageLoading message="권한 목록을 불러오는 중..." />
         ) : !accessToken ? (
           <div className="flex min-h-[320px] items-center justify-center text-gray-500 dark:text-gray-400">
             <p className="text-sm">로그인 후 권한 목록을 조회할 수 있습니다.</p>

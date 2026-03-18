@@ -7,12 +7,22 @@ import { ScrollToTop } from "./components/common/ScrollToTop";
 import SignIn from "./pages/AutpPages/SignIn";
 import SignUp from "./pages/AutpPages/SIgnUp";
 import Order from "./pages/Order";
+import OrderDetail from "./pages/OrderDetail";
+import OrderForm from "./pages/OrderForm";
 import Organization from "./pages/Organization";
 import Menu from "./pages/Menu";
 import Permission from "./pages/Permission";
 import Role from "./pages/Role";
 import User from "./pages/User";
 import UserDetail from "./pages/UserDetail";
+import UserProfiles from "./pages/UserProfiles";
+import CommonCode from "./pages/CommonCode";
+
+import ItemCategories from "./pages/ItemCategories";
+import ItemTypes from "./pages/ItemTypes";
+import Items from "./pages/Items";
+import ItemDetail from "./pages/ItemDetail";
+import ItemForm from "./pages/ItemForm";
 import ApiFeedbackProvider from "./context/ApiFeedbackContext";
 import { useAuth } from "./context/AuthContext";
 import NotFound from "./pages/NotFound";
@@ -73,22 +83,43 @@ function App() {
           <Route element={<RequireAuth />}>
             <Route path="/" element={<AppLayout />}>
               <Route index element={<Home />} />
-              <Route path="menu" element={<Menu />} />
+
+
+              {/* 품목 관리 */}
+              <Route path="item-categories" element={<ItemCategories />} />
+              <Route path="item-types" element={<ItemTypes />} />
+              <Route path="items" element={<Items />} />
+              <Route path="items/new" element={<ItemForm />} />
+              <Route path="items/:itemId" element={<ItemDetail />} />
+              <Route path="items/:itemId/edit" element={<ItemForm />} />
+
+              {/* 발주 관리 */}
               <Route path="order" element={<Order />} />
+              <Route path="order/new" element={<OrderForm />} />
+              <Route path="order/:orderId" element={<OrderDetail />} />
+              <Route path="order/:orderId/edit" element={<OrderForm />} />
+
+              {/* 시스템 관리 */}
               <Route path="organization" element={<Organization />} />
               <Route path="role" element={<Role />} />
               <Route path="permission" element={<Permission />} />
+              <Route path="common-code" element={<CommonCode />} />
+              <Route path="menu" element={<Menu />} />
+
+              {/* 사용자 관리 */}
               <Route path="user" element={<User />} />
               <Route path="user/:userId" element={<UserDetail />} />
-              {/* <Route path="signup" element={<SignUp />} /> */}
+              <Route path="profile" element={<UserProfiles />} />
             </Route>
           </Route>
 
           <Route element={<RedirectIfAuthenticated />}>
+            {/* 로그인 관리 */}
             <Route path="/signin" element={<SignIn />} />
             <Route path="/signup" element={<SignUp />} />
           </Route>
 
+          {/* 404 오류 페이지 */}
           <Route path="*" element={<NotFound />} />
         </Routes>
       </ApiFeedbackProvider>

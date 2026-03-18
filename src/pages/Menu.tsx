@@ -14,12 +14,18 @@ import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import ComponentCard from "../components/common/ComponentCard";
 import ConfirmModal from "../components/common/ConfirmModal";
+import ListPageLoading from "../components/common/ListPageLoading";
 import MenuDetailPanel, {
   type MenuFormValues,
 } from "../components/menu/MenuDetailPanel";
 import MenuTree from "../components/menu/MenuTree";
+import RoleMenuCard from "../components/menu/RoleMenuCard";
 import { useAuth } from "../context/AuthContext";
-import { findMenuItem, flattenMenuTree } from "../components/menu/menuTreeUtils";
+import {
+  findMenuItem,
+  flattenMenuTree,
+  moveMenuItemToRoot,
+} from "../components/menu/menuTreeUtils";
 
 const EMPTY_MENUS: MenuItem[] = [];
 const EMPTY_MENU_FORM: MenuFormValues = {
@@ -150,6 +156,7 @@ export default function Menu() {
   const [createParentId, setCreateParentId] = useState<number | null>(null);
   const [formValues, setFormValues] = useState<MenuFormValues>(EMPTY_MENU_FORM);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [menuActiveTab, setMenuActiveTab] = useState<"tree" | "roleMenus">("tree");
 
   useEffect(() => {
     setEditableMenuTree(menus);
@@ -395,6 +402,20 @@ export default function Menu() {
     deleteMutation.mutate();
   };
 
+  const handleMoveToRoot = () => {
+    if (selectedMenuId == null || flattenedItems.length === 0) return;
+    const current = flattenedItems.find((item) => item.id === selectedMenuId);
+    if (!current || current.depth === 0) return;
+    const nextItems = moveMenuItemToRoot(editableMenuTree, selectedMenuId);
+    setEditableMenuTree(nextItems);
+    handleSelectMenu(selectedMenuId);
+    reorderMutation.mutate({
+      menuId: selectedMenuId,
+      previousItems: editableMenuTree,
+      nextItems,
+    });
+  };
+
   return (
     <>
       <PageMeta title="메뉴 관리" description="메뉴 관리 페이지" />
@@ -402,9 +423,7 @@ export default function Menu() {
 
       {isAuthLoading || isLoading ? (
         <ComponentCard title="메뉴 관리">
-          <div className="flex min-h-[480px] items-center justify-center text-gray-500 dark:text-gray-400">
-            <p className="text-sm">메뉴 정보를 불러오는 중...</p>
-          </div>
+          <ListPageLoading message="메뉴 정보를 불러오는 중..." minHeight={480} />
         </ComponentCard>
       ) : !accessToken ? (
         <ComponentCard title="메뉴 관리">
@@ -423,10 +442,40 @@ export default function Menu() {
           </div>
         </ComponentCard>
       ) : (
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.3fr)_minmax(340px,0.9fr)]">
+        <>
+          <nav
+            className="flex flex-wrap border-b border-gray-200 dark:border-gray-800 text-center text-sm font-medium"
+            aria-label="메뉴 관리 탭"
+          >
+            <button
+              type="button"
+              onClick={() => setMenuActiveTab("tree")}
+              className={`inline-block rounded-t-lg px-4 py-4 transition-colors ${
+                menuActiveTab === "tree"
+                  ? "bg-brand-50 text-brand-600 dark:bg-brand-500/10 dark:text-brand-400"
+                  : "text-gray-500 hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-white/90"
+              }`}
+            >
+              메뉴 트리
+            </button>
+            <button
+              type="button"
+              onClick={() => setMenuActiveTab("roleMenus")}
+              className={`inline-block rounded-t-lg px-4 py-4 transition-colors ${
+                menuActiveTab === "roleMenus"
+                  ? "bg-brand-50 text-brand-600 dark:bg-brand-500/10 dark:text-brand-400"
+                  : "text-gray-500 hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-white/90"
+              }`}
+            >
+              역할별 메뉴 연결
+            </button>
+          </nav>
+          {menuActiveTab === "tree" && (
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.3fr)_minmax(340px,0.9fr)] rounded-b-xl border border-t-0 border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-white/[0.03]">
           <ComponentCard
             title="메뉴 트리"
             desc="드래그해서 정렬 순서와 상하위 관계를 조정할 수 있습니다."
+            className="border-0"
             bodyClassName="p-3 sm:p-4"
             contentClassName="space-y-0"
           >
@@ -485,8 +534,16 @@ export default function Menu() {
             onCancelCreate={handleCancelCreate}
             onSave={handleSave}
             onDelete={handleDelete}
+            onMoveToRoot={handleMoveToRoot}
           />
         </div>
+          )}
+          {menuActiveTab === "roleMenus" && (
+            <div className="rounded-b-xl border border-t-0 border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-white/[0.03]">
+              <RoleMenuCard accessToken={accessToken} />
+            </div>
+          )}
+        </>
       )}
 
       <ConfirmModal

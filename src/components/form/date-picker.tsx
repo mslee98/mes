@@ -5,14 +5,12 @@ import { Korean } from "flatpickr/dist/l10n/ko.js";
 import Label from "./Label";
 import { CalenderIcon } from "../../icons";
 import type { Instance } from "flatpickr/dist/types/instance";
-import Hook = flatpickr.Options.Hook;
-import DateOption = flatpickr.Options.DateOption;
 
 type PropsType = {
   id: string;
   mode?: "single" | "multiple" | "range" | "time";
-  onChange?: Hook | Hook[];
-  defaultDate?: DateOption;
+  onChange?: flatpickr.Options.Hook | flatpickr.Options.Hook[];
+  defaultDate?: flatpickr.Options.DateOption;
   label?: string;
   placeholder?: string;
   value?: string;

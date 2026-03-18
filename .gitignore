@@ -12,6 +12,12 @@ dist
 dist-ssr
 *.local
 
+# Cursor
+.cursor/
+
+# 로컬 백업 (원본은 브랜치/히스토리에 보관)
+backup/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

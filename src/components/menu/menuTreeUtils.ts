@@ -6,13 +6,6 @@ export interface FlatMenuItem extends MenuItem {
   childrenCount: number;
 }
 
-export interface MenuProjection {
-  depth: number;
-  maxDepth: number;
-  minDepth: number;
-  parentId: number | null;
-}
-
 export function flattenMenuTree(
   items: MenuItem[],
   parentId: number | null = null,
@@ -61,169 +54,55 @@ export function normalizeMenuSortOrder(items: MenuItem[]): MenuItem[] {
   }));
 }
 
-export function buildMenuTree(items: FlatMenuItem[]): MenuItem[] {
-  const itemMap = new Map<number, MenuItem>();
-  const rootItems: MenuItem[] = [];
+/** 선택한 메뉴(와 하위)를 최상위로 올리고 맨 앞에 둠. "최상위로 이동" 버튼용. */
+export function moveMenuItemToRoot(items: MenuItem[], menuId: number): MenuItem[] {
+  const flat = flattenMenuTree(items);
+  const blockIds = new Set([menuId, ...getDescendantIds(flat, menuId)]);
+  const movingBlock = flat.filter((item) => blockIds.has(item.id));
+  const remainingItems = flat.filter((item) => !blockIds.has(item.id));
 
-  items.forEach((item) => {
-    const { parentId: _parentId, depth: _depth, childrenCount: _childrenCount, ...rest } =
-      item;
-    itemMap.set(item.id, {
-      ...rest,
-      children: [],
-    });
-  });
+  if (movingBlock.length === 0) return items;
 
-  items.forEach((item) => {
-    const node = itemMap.get(item.id);
-    if (!node) return;
-
-    if (item.parentId == null) {
-      rootItems.push(node);
-      return;
-    }
-
-    const parent = itemMap.get(item.parentId);
-    if (parent) {
-      parent.children.push(node);
-    } else {
-      rootItems.push(node);
-    }
-  });
-
-  return rootItems;
-}
-
-export function getMenuProjection(
-  items: FlatMenuItem[],
-  activeId: number,
-  overId: number,
-  dragOffset: number,
-  indentationWidth: number
-): MenuProjection | null {
-  const activeIndex = items.findIndex((item) => item.id === activeId);
-  const overIndex = items.findIndex((item) => item.id === overId);
-
-  if (activeIndex === -1 || overIndex === -1) {
-    return null;
-  }
-
-  const activeItem = items[activeIndex];
-  const descendantIds = getDescendantIds(items, activeId);
-
-  if (descendantIds.includes(overId)) {
-    return null;
-  }
-
-  const blockIds = new Set([activeId, ...descendantIds]);
-  const remainingItems = items.filter((item) => !blockIds.has(item.id));
-  const targetIndex = remainingItems.findIndex((item) => item.id === overId);
-  const insertIndex =
-    targetIndex === -1
-      ? remainingItems.length
-      : overIndex > activeIndex
-      ? targetIndex + 1
-      : targetIndex;
-
-  const previousItem = remainingItems[insertIndex - 1];
-  const nextItem = remainingItems[insertIndex];
-
-  const dragDepth = Math.round(dragOffset / indentationWidth);
-  const projectedDepth = activeItem.depth + dragDepth;
-  const maxDepth = previousItem ? previousItem.depth + 1 : 0;
-  const minDepth = nextItem ? nextItem.depth : 0;
-
-  let depth = projectedDepth;
-  if (depth > maxDepth) depth = maxDepth;
-  if (depth < minDepth) depth = minDepth;
-
-  let parentId: number | null = null;
-
-  if (depth === 0 || !previousItem) {
-    parentId = null;
-  } else if (depth === previousItem.depth) {
-    parentId = previousItem.parentId;
-  } else if (depth > previousItem.depth) {
-    parentId = previousItem.id;
-  } else {
-    const parentMatch = [...remainingItems.slice(0, insertIndex)]
-      .reverse()
-      .find((item) => item.depth === depth);
-    parentId = parentMatch ? parentMatch.parentId : null;
-  }
-
-  return {
-    depth,
-    maxDepth,
-    minDepth,
-    parentId,
-  };
-}
-
-export function moveMenuTreeItem(
-  items: MenuItem[],
-  activeId: number,
-  overId: number,
-  depth: number,
-  parentId: number | null
-): MenuItem[] {
-  const flattenedItems = flattenMenuTree(items);
-  const activeIndex = flattenedItems.findIndex((item) => item.id === activeId);
-  const overIndex = flattenedItems.findIndex((item) => item.id === overId);
-
-  if (activeIndex === -1 || overIndex === -1) {
-    return items;
-  }
-
-  const descendantIds = getDescendantIds(flattenedItems, activeId);
-  if (descendantIds.includes(overId)) {
-    return items;
-  }
-
-  const blockIds = new Set([activeId, ...descendantIds]);
-  const movingBlock = flattenedItems.filter((item) => blockIds.has(item.id));
-  const remainingItems = flattenedItems.filter((item) => !blockIds.has(item.id));
-  const targetIndex = remainingItems.findIndex((item) => item.id === overId);
-  const insertIndex =
-    targetIndex === -1
-      ? remainingItems.length
-      : overIndex > activeIndex
-      ? targetIndex + 1
-      : targetIndex;
-
-  const depthDelta = depth - movingBlock[0].depth;
+  const depthDelta = -movingBlock[0].depth;
   const adjustedBlock = movingBlock.map((item, index) => ({
     ...item,
-    parentId: index === 0 ? parentId : item.parentId,
+    parentId: index === 0 ? null : item.parentId,
     depth: item.depth + depthDelta,
   }));
 
-  const nextItems = [
-    ...remainingItems.slice(0, insertIndex),
-    ...adjustedBlock,
-    ...remainingItems.slice(insertIndex),
-  ];
-
-  return normalizeMenuSortOrder(buildMenuTree(nextItems));
+  const nextFlat: FlatMenuItem[] = [...adjustedBlock, ...remainingItems];
+  return normalizeMenuSortOrder(buildMenuTree(nextFlat));
 }
 
 function getDescendantIds(items: FlatMenuItem[], parentId: number): number[] {
   const parentIndex = items.findIndex((item) => item.id === parentId);
-
-  if (parentIndex === -1) {
-    return [];
-  }
-
+  if (parentIndex === -1) return [];
   const parentDepth = items[parentIndex].depth;
   const descendants: number[] = [];
-
-  for (let index = parentIndex + 1; index < items.length; index += 1) {
-    const currentItem = items[index];
-    if (currentItem.depth <= parentDepth) {
-      break;
-    }
-    descendants.push(currentItem.id);
+  for (let i = parentIndex + 1; i < items.length; i++) {
+    if (items[i].depth <= parentDepth) break;
+    descendants.push(items[i].id);
   }
-
   return descendants;
+}
+
+function buildMenuTree(items: FlatMenuItem[]): MenuItem[] {
+  const itemMap = new Map<number, MenuItem>();
+  const rootItems: MenuItem[] = [];
+  items.forEach((item) => {
+    const { parentId: _p, depth: _d, childrenCount: _c, ...rest } = item;
+    itemMap.set(item.id, { ...rest, children: [] });
+  });
+  items.forEach((item) => {
+    const node = itemMap.get(item.id);
+    if (!node) return;
+    if (item.parentId == null) {
+      rootItems.push(node);
+      return;
+    }
+    const parent = itemMap.get(item.parentId);
+    if (parent) parent.children.push(node);
+    else rootItems.push(node);
+  });
+  return rootItems;
 }

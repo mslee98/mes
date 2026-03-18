@@ -1,8 +1,8 @@
-import { FC } from "react";
+import type { ChangeEvent, FC } from "react";
 
 interface FileInputProps {
   className?: string;
-  onChange?: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  onChange?: (event: ChangeEvent<HTMLInputElement>) => void;
 }
 
 const FileInput: FC<FileInputProps> = ({ className, onChange }) => {

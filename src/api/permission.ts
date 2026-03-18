@@ -1,7 +1,6 @@
 import { createApiError } from "../lib/apiError";
 
-const BASE =
-  import.meta.env.VITE_AUTH_BASE_URL ?? "http://localhost:3000";
+import { API_BASE } from "./apiBase";
 
 export interface PermissionItem {
   id?: number | string;
@@ -31,7 +30,7 @@ function normalizePermissionList(payload: unknown): PermissionItem[] {
 export async function getPermissions(
   accessToken: string
 ): Promise<PermissionItem[]> {
-  const res = await fetch(`${BASE}/auth/permissions`, {
+  const res = await fetch(`${API_BASE}/auth/permissions`, {
     headers: {
       Authorization: `Bearer ${accessToken}`,
     },

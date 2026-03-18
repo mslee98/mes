@@ -9,10 +9,12 @@ import toast from "react-hot-toast";
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import ComponentCard from "../components/common/ComponentCard";
+import LoadingLottie from "../components/common/LoadingLottie";
 import Badge from "../components/ui/badge/Badge";
 import DatePicker from "../components/form/date-picker";
 import Select from "../components/form/Select";
 import { useAuth } from "../context/AuthContext";
+import { UserSolidIcon } from "../icons";
 import { getUsers, type UserItem } from "../api/user";
 import { getRoles } from "../api/role";
 import {
@@ -209,8 +211,8 @@ export default function UserDetail() {
 
       {isLoading ? (
         <ComponentCard title="사용자 역할 관리">
-          <div className="flex min-h-[320px] items-center justify-center text-gray-500 dark:text-gray-400">
-            <p className="text-sm">사용자 역할 정보를 불러오는 중...</p>
+          <div className="flex min-h-[320px] items-center justify-center">
+            <LoadingLottie message="사용자 역할 정보를 불러오는 중..." />
           </div>
         </ComponentCard>
       ) : error ? (
@@ -232,6 +234,19 @@ export default function UserDetail() {
       ) : (
         <div className="space-y-6">
           <ComponentCard title="사용자 정보">
+            <div className="mb-4 flex items-center gap-3">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-800">
+                <UserSolidIcon className="h-6 w-6 text-gray-500 dark:text-gray-400" />
+              </span>
+              <div>
+                <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+                  {currentUser.name}
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  사번 {currentUser.employeeNo}
+                </p>
+              </div>
+            </div>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
               <div>
                 <p className="mb-1 text-xs text-gray-500 dark:text-gray-400">사번</p>

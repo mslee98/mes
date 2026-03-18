@@ -4,19 +4,20 @@ import { DropdownItem } from "../ui/dropdown/DropdownItem";
 import { Dropdown } from "../ui/dropdown/Dropdown";
 import { useNavigate } from "react-router";
 import { useAuth } from "../../context/AuthContext";
+import { UserSolidIcon } from "../../icons";
 
-function getProfileInitial(user: { name?: string; employeeNo?: number } | null): string {
-  if (!user) return "?";
-  if (user.name?.trim()) return user.name.trim()[0].toUpperCase();
-  if (user.employeeNo != null) return String(user.employeeNo)[0];
-  return "?";
+
+function getProfilePhotoUrl(user: Record<string, unknown> | null): string | null {
+  if (!user) return null;
+  const url = user.profileImageUrl ?? user.photo;
+  return typeof url === "string" ? url : null;
 }
 
 export default function UserDropdown() {
   const [isOpen, setIsOpen] = useState(false);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const initial = getProfileInitial(user);
+  const profilePhotoUrl = getProfilePhotoUrl(user);
 
   function toggleDropdown() {
     setIsOpen(!isOpen);
@@ -31,10 +32,16 @@ export default function UserDropdown() {
         onClick={toggleDropdown}
         className="flex items-center text-gray-700 dropdown-toggle dark:text-gray-400"
       >
-        <span className="flex items-center justify-center flex-shrink-0 mr-3 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700 h-11 w-11">
-          <span className="text-sm font-medium text-gray-600 dark:text-gray-300">
-            {initial}
-          </span>
+        <span className="flex flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700 mr-3 h-11 w-11">
+          {profilePhotoUrl ? (
+            <img
+              src={profilePhotoUrl}
+              alt=""
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <UserSolidIcon className="h-6 w-6 text-gray-500 dark:text-gray-400" />
+          )}
         </span>
 
         <span className="block mr-1 font-medium text-theme-sm">

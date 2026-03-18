@@ -1,4 +1,4 @@
-import { ReactNode } from "react";
+import type { FC, ReactNode } from "react";
 
 interface ButtonProps {
   children: ReactNode; // Button text or content
@@ -12,7 +12,7 @@ interface ButtonProps {
   className?: string; // Disabled state
 }
 
-const Button: React.FC<ButtonProps> = ({
+const Button: FC<ButtonProps> = ({
   children,
   type = "button",
   size = "md",

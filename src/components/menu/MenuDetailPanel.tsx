@@ -36,6 +36,7 @@ interface MenuDetailPanelProps {
   onCancelCreate: () => void;
   onSave: () => void;
   onDelete: () => void;
+  onMoveToRoot?: () => void;
 }
 
 export default function MenuDetailPanel({
@@ -56,9 +57,11 @@ export default function MenuDetailPanel({
   onCancelCreate,
   onSave,
   onDelete,
+  onMoveToRoot,
 }: MenuDetailPanelProps) {
   const isCreateMode = mode === "create";
   const canDelete = !isCreateMode && !!selectedMenu;
+  const canMoveToRoot = !isCreateMode && depth > 0 && !!onMoveToRoot;
 
   return (
     <div className="space-y-6">
@@ -69,7 +72,7 @@ export default function MenuDetailPanel({
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
           드래그로 변경한 메뉴 순서와 계층은 즉시 서버에 저장됩니다.
         </div>
-        <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row flex-wrap">
           <button
             type="button"
             onClick={onCreateRoot}
@@ -85,6 +88,16 @@ export default function MenuDetailPanel({
           >
             하위 메뉴 추가
           </button>
+          {canMoveToRoot && (
+            <button
+              type="button"
+              onClick={onMoveToRoot}
+              disabled={isSaving}
+              className="inline-flex h-11 items-center justify-center rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+            >
+              최상위로 이동
+            </button>
+          )}
           {isCreateMode && (
             <button
               type="button"

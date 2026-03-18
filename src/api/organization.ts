@@ -1,7 +1,6 @@
 import { createApiError } from "../lib/apiError";
 
-const BASE =
-  import.meta.env.VITE_AUTH_BASE_URL ?? "http://localhost:3000";
+import { API_BASE } from "./apiBase";
 
 export type OrganizationUnitType =
   | "COMPANY"
@@ -21,7 +20,7 @@ export interface OrganizationUnitNode {
 }
 
 export async function getOrganizationTree(): Promise<OrganizationUnitNode[]> {
-  const res = await fetch(`${BASE}/organization-unit/tree`, {
+  const res = await fetch(`${API_BASE}/organization-unit/tree`, {
     credentials: "include",
   });
 

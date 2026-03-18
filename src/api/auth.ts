@@ -1,5 +1,4 @@
-const AUTH_BASE =
-  import.meta.env.VITE_AUTH_BASE_URL ?? "http://localhost:3000";
+import { API_BASE } from "./apiBase";
 
 export interface LoginRequest {
   employeeNo: number;
@@ -27,7 +26,7 @@ export interface RefreshResponse {
 }
 
 export async function login(body: LoginRequest): Promise<LoginResponse> {
-  const res = await fetch(`${AUTH_BASE}/auth/login`, {
+  const res = await fetch(`${API_BASE}/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -50,7 +49,7 @@ export async function login(body: LoginRequest): Promise<LoginResponse> {
  * - body 없음. 응답: access_token, expires_in_seconds + 새 refresh_token은 Set-Cookie로 설정됨
  */
 export async function refresh(): Promise<RefreshResponse> {
-  const res = await fetch(`${AUTH_BASE}/auth/refresh`, {
+  const res = await fetch(`${API_BASE}/auth/refresh`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
@@ -70,7 +69,7 @@ export async function refresh(): Promise<RefreshResponse> {
  * 로그아웃 - 서버에서 Refresh Token 쿠키 삭제
  */
 export async function logout(): Promise<void> {
-  await fetch(`${AUTH_BASE}/auth/logout`, {
+  await fetch(`${API_BASE}/auth/logout`, {
     method: "POST",
     credentials: "include",
   });
