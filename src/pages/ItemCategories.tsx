@@ -166,7 +166,7 @@ export default function ItemCategories() {
     mutationFn: (payload: ItemCategoryCreatePayload) =>
       createItemCategory(payload, accessToken!),
     onSuccess: () => {
-      toast.success("품목 분류가 등록되었습니다.");
+      toast.success("제품 분류가 등록되었습니다.");
       queryClient.invalidateQueries({ queryKey: ["itemCategories"] });
       formModal.closeModal();
       setForm(initialForm());
@@ -183,7 +183,7 @@ export default function ItemCategories() {
       payload: ItemCategoryCreatePayload;
     }) => updateItemCategory(id, payload, accessToken!),
     onSuccess: () => {
-      toast.success("품목 분류가 수정되었습니다.");
+      toast.success("제품 분류가 수정되었습니다.");
       queryClient.invalidateQueries({ queryKey: ["itemCategories"] });
       formModal.closeModal();
       setForm(initialForm());
@@ -194,7 +194,7 @@ export default function ItemCategories() {
   const deleteMutation = useMutation({
     mutationFn: (id: number) => deleteItemCategory(id, accessToken!),
     onSuccess: () => {
-      toast.success("품목 분류가 삭제되었습니다.");
+      toast.success("제품 분류가 삭제되었습니다.");
       queryClient.invalidateQueries({ queryKey: ["itemCategories"] });
       deleteModal.closeModal();
       setCategoryToDelete(null);
@@ -261,12 +261,12 @@ export default function ItemCategories() {
 
   return (
     <>
-      <PageMeta title="품목 분류" description="품목 분류 관리" />
-      <PageBreadcrumb pageTitle="품목 분류" />
+      <PageMeta title="제품 분류" description="제품 분류 관리" />
+      <PageBreadcrumb pageTitle="제품 분류" />
       <div className="space-y-6">
         <ComponentCard
-          title="품목 분류 (트리)"
-          desc="품목 분류를 트리로 조회하고, 추가/수정/삭제할 수 있습니다. 하위 분류가 있으면 삭제할 수 없습니다."
+          title="제품 분류 (트리)"
+          desc="제품 분류를 트리로 조회하고, 추가/수정/삭제할 수 있습니다. 하위 분류가 있으면 삭제할 수 없습니다."
         >
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <Input
@@ -287,7 +287,7 @@ export default function ItemCategories() {
 
           {isAuthLoading || isLoading ? (
             <div className="flex min-h-[240px] items-center justify-center py-8">
-              <LoadingLottie message="품목 분류를 불러오는 중..." />
+              <LoadingLottie message="제품 분류를 불러오는 중..." />
             </div>
           ) : !accessToken ? (
             <div className="flex min-h-[240px] items-center justify-center text-gray-500 dark:text-gray-400">
@@ -298,13 +298,13 @@ export default function ItemCategories() {
               <p className="text-sm text-red-600 dark:text-red-400">
                 {error instanceof Error
                   ? error.message
-                  : "품목 분류를 불러오지 못했습니다."}
+                  : "제품 분류를 불러오지 못했습니다."}
               </p>
             </div>
           ) : filteredTree.length === 0 ? (
             <div className="flex min-h-[240px] items-center justify-center text-gray-500 dark:text-gray-400">
               <p className="text-sm">
-                {keyword.trim() ? "조건에 맞는 분류가 없습니다." : "등록된 품목 분류가 없습니다."}
+                {keyword.trim() ? "조건에 맞는 분류가 없습니다." : "등록된 제품 분류가 없습니다."}
               </p>
             </div>
           ) : (
@@ -338,7 +338,7 @@ export default function ItemCategories() {
         className="mx-4 max-w-lg p-6 dark:bg-gray-900 sm:p-8"
       >
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-          {form.id != null ? "품목 분류 수정" : "품목 분류 추가"}
+          {form.id != null ? "제품 분류 수정" : "제품 분류 추가"}
         </h2>
         <form onSubmit={handleSubmitForm} className="mt-6 space-y-4">
           <div>
@@ -431,7 +431,7 @@ export default function ItemCategories() {
 
       <ConfirmModal
         isOpen={deleteModal.isOpen}
-        title="품목 분류 삭제"
+        title="제품 분류 삭제"
         message={
           categoryToDelete
             ? `"${categoryToDelete.name}" 분류를 삭제하시겠습니까? 하위 분류가 있으면 삭제할 수 없습니다.`

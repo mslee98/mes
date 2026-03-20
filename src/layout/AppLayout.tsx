@@ -19,8 +19,8 @@ const LayoutContent: React.FC = () => {
         } ${isMobileOpen ? "ml-0" : ""}`}
       >
         <AppHeader />
-        <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto">
-          <div className="mx-auto max-w-(--breakpoint-2xl) p-4 md:p-6">
+        <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto bg-gray-50/90 dark:bg-gray-900/90">
+          <div className="mx-auto max-w-(--breakpoint-2xl) p-4 md:p-6 ">
           <Outlet />
           </div>
         </div>

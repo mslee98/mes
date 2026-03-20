@@ -9,6 +9,8 @@ import PageMeta from "../components/common/PageMeta";
 import ComponentCard from "../components/common/ComponentCard";
 import Input from "../components/form/input/InputField";
 import Select from "../components/form/Select";
+import SearchableSelectWithCreate from "../components/form/SearchableSelectWithCreate";
+import PartnerQuickCreateModal from "../components/form/PartnerQuickCreateModal";
 import {
   Table,
   TableBody,
@@ -30,12 +32,19 @@ import {
   type Partner,
   type CodeItem,
 } from "../api/purchaseOrder";
+import {
+  getCommonCodesByGroup,
+  COMMON_CODE_GROUP_PURCHASE_ORDER_STATUS,
+  commonCodesToSelectOptions,
+  type CommonCodeItem,
+} from "../api/commonCode";
 import { formatCurrency } from "../lib/formatCurrency";
 
 const PAGE_SIZE = 10;
 
 function getBadgeColor(statusName: string): "success" | "warning" | "error" | "primary" {
   const s = statusName?.toLowerCase() ?? "";
+  if (s.includes("미승인") || s.includes("미지정")) return "primary";
   if (s.includes("완료") || s.includes("승인") || s.includes("확정")) return "success";
   if (s.includes("대기") || s.includes("진행")) return "warning";
   if (s.includes("반려") || s.includes("취소")) return "error";
@@ -54,6 +63,7 @@ export default function Order() {
   const [dateStart, setDateStart] = useState("");
   const [dateEnd, setDateEnd] = useState("");
   const [searchKey, setSearchKey] = useState(0);
+  const [partnerCreateOpen, setPartnerCreateOpen] = useState(false);
   const dateRangeInputRef = useRef<HTMLInputElement>(null);
   const flatpickrAnchorRef = useRef<HTMLDivElement>(null);
 
@@ -75,9 +85,13 @@ export default function Order() {
     enabled: !!accessToken && !isAuthLoading,
   });
 
-  const { data: orderStatusCodes = [] } = useQuery({
-    queryKey: ["codeGroups", "PURCHASE_ORDER_STATUS"],
-    queryFn: () => getCodeGroupCodes("PURCHASE_ORDER_STATUS", accessToken!),
+  const { data: orderStatusCodes = [] } = useQuery<CommonCodeItem[]>({
+    queryKey: ["commonCodes", "PURCHASE_ORDER_STATUS"],
+    queryFn: () =>
+      getCommonCodesByGroup(
+        COMMON_CODE_GROUP_PURCHASE_ORDER_STATUS,
+        accessToken!
+      ),
     enabled: !!accessToken && !isAuthLoading,
   });
 
@@ -117,15 +131,20 @@ export default function Order() {
     };
   }, [searchKey]);
 
-  const partnerOptions = useMemo(() => {
+  const partnerFilterOptions = useMemo(() => {
     const list: { value: string; label: string }[] = [{ value: "", label: "전체" }];
-    (partners as Partner[]).forEach((p) => list.push({ value: String(p.id), label: p.name || p.code || "-" }));
+    (partners as Partner[]).forEach((p) =>
+      list.push({
+        value: String(p.id),
+        label: `${p.name || "-"} (${p.code || "-"})`,
+      })
+    );
     return list;
   }, [partners]);
 
   const orderStatusOptions = useMemo(() => {
     const list: { value: string; label: string }[] = [{ value: "", label: "전체" }];
-    (orderStatusCodes as CodeItem[]).forEach((c) => list.push({ value: c.code, label: c.name || c.code }));
+    commonCodesToSelectOptions(orderStatusCodes).forEach((o) => list.push(o));
     return list;
   }, [orderStatusCodes]);
 
@@ -174,10 +193,18 @@ export default function Order() {
     setSearchKey((k) => k + 1);
   };
 
-  const getOrderStatusName = (code: string | undefined) =>
-    (orderStatusCodes as CodeItem[]).find((c) => c.code === code)?.name ?? code ?? "-";
-  const getApprovalStatusName = (code: string | undefined) =>
-    (approvalStatusCodes as CodeItem[]).find((c) => c.code === code)?.name ?? code ?? "-";
+  const getOrderStatusName = (code: string | undefined) => {
+    const c = code?.trim();
+    if (!c) return "미지정";
+    return orderStatusCodes.find((x) => x.code === c)?.name ?? c;
+  };
+  const getApprovalStatusName = (code: string | undefined) => {
+    const c = code?.trim();
+    if (!c) return "미승인";
+    return (
+      (approvalStatusCodes as CodeItem[]).find((x) => x.code === c)?.name ?? c
+    );
+  };
 
   return (
     <>
@@ -323,13 +350,19 @@ export default function Order() {
               <div className="overflow-hidden">
                 <div className="flex flex-col gap-3 border-b border-gray-100 pb-4 pt-1 dark:border-white/[0.05] sm:flex-row sm:flex-wrap sm:items-end sm:gap-4">
                   <div key={`partner-${searchKey}`} className="min-w-0 flex-1 sm:max-w-[12rem]">
-                    <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">거래처</label>
-                    <Select
-                      size="sm"
-                      options={partnerOptions}
-                      placeholder="전체"
-                      defaultValue={partnerId}
+                    <SearchableSelectWithCreate
+                      id={`order-list-partner-${searchKey}`}
+                      label="거래처"
+                      value={partnerId}
                       onChange={setPartnerId}
+                      options={partnerFilterOptions}
+                      placeholder="전체 또는 검색"
+                      compact
+                      addTrigger="popover"
+                      popoverDescription="필터에 쓸 거래처가 없으면 정보 아이콘에서 등록한 뒤 목록이 갱신됩니다."
+                      popoverAriaLabel="거래처 등록 안내"
+                      addButtonLabel="거래처 등록"
+                      onAddClick={() => setPartnerCreateOpen(true)}
                     />
                   </div>
                   <div key={`orderStatus-${searchKey}`} className="min-w-0 flex-1 sm:max-w-[12rem]">
@@ -430,8 +463,12 @@ export default function Order() {
                             <TableCell className="px-4 py-3 text-gray-500 text-theme-sm dark:text-gray-400">
                               {(row.partner as Partner)?.name ?? (row.partner as Partner)?.code ?? "-"}
                             </TableCell>
-                            <TableCell className="px-4 py-3 text-gray-500 text-theme-sm dark:text-gray-400">{row.orderDate ?? "-"}</TableCell>
-                            <TableCell className="px-4 py-3 text-gray-500 text-theme-sm dark:text-gray-400">{row.dueDate ?? "-"}</TableCell>
+                            <TableCell className="px-4 py-3 text-gray-500 text-theme-sm dark:text-gray-400">
+                              {row.orderDate?.trim() ? row.orderDate : "-"}
+                            </TableCell>
+                            <TableCell className="px-4 py-3 text-gray-500 text-theme-sm dark:text-gray-400">
+                              {row.dueDate?.trim() ? row.dueDate : "-"}
+                            </TableCell>
                             <TableCell className="px-4 py-3 text-center">
                               <Badge size="sm" color={getBadgeColor(getOrderStatusName(row.orderStatus))}>
                                 {getOrderStatusName(row.orderStatus)}
@@ -457,6 +494,12 @@ export default function Order() {
           </div>
         </ComponentCard>
       </div>
+
+      <PartnerQuickCreateModal
+        isOpen={partnerCreateOpen}
+        onClose={() => setPartnerCreateOpen(false)}
+        onCreated={(p) => setPartnerId(String(p.id))}
+      />
     </>
   );
 }

@@ -23,6 +23,19 @@ export interface CommonCodeItem {
   [key: string]: unknown;
 }
 
+/** 발주 유형·상태 — `GET /api/common-codes/groups/{groupCode}/codes` */
+export const COMMON_CODE_GROUP_PURCHASE_ORDER_TYPE = "PURCHASE_ORDER_TYPE";
+export const COMMON_CODE_GROUP_PURCHASE_ORDER_STATUS = "PURCHASE_ORDER_STATUS";
+
+/** 활성 항목만, value=code·label=name (목록은 API에서 sortOrder·id 순 정렬됨) */
+export function commonCodesToSelectOptions(
+  items: CommonCodeItem[]
+): { value: string; label: string }[] {
+  return items
+    .filter((c) => c.isActive !== false)
+    .map((c) => ({ value: c.code, label: c.name || c.code }));
+}
+
 function authHeaders(accessToken: string) {
   return {
     Authorization: `Bearer ${accessToken}`,

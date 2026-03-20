@@ -26,6 +26,8 @@ interface SelectInputProps {
   size?: "sm" | "md";
   disabled?: boolean;
   className?: string;
+  /** 왼쪽 native select에 추가 클래스(테이블 좁은 열에서 `min-w-[3.5rem]` 등) */
+  selectClassName?: string;
   /** input 포맷(숫자 천단위 등) - onInputChange에 이미 포맷된 문자열 전달 시 true */
   formatNumber?: boolean;
   maxFractionDigits?: number;
@@ -51,6 +53,7 @@ export default function SelectInput({
   size = "md",
   disabled = false,
   className = "",
+  selectClassName = "",
   formatNumber = false,
   maxFractionDigits = 2,
 }: SelectInputProps) {
@@ -102,7 +105,7 @@ export default function SelectInput({
           value={selectValue}
           onChange={(e) => onSelectChange(e.target.value)}
           disabled={disabled}
-          className={`inline-flex items-center ${sizeStyles[size]} ${baseBorder} rounded-l-lg border-r-0 rounded-r-none text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 focus:z-10 appearance-none pl-4 pr-8 min-w-[6rem] ${disabledClass}`}
+          className={`inline-flex items-center ${sizeStyles[size]} ${baseBorder} rounded-l-lg border-r-0 rounded-r-none text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 focus:z-10 appearance-none pl-4 pr-8 min-w-[6rem] ${selectClassName} ${disabledClass}`}
           aria-label={selectPlaceholder}
         >
           {selectPlaceholder && (

@@ -159,7 +159,7 @@ function normalizeItemType(raw: unknown): ItemType {
   };
 }
 
-/** API 응답 품목: standardPrice → unitPrice, description → spec, category/itemType 정규화 */
+/** API 응답 제품: standardPrice → unitPrice, description → spec, category/itemType 정규화 */
 function normalizeItem(raw: unknown): Item {
   const o = raw as Record<string, unknown>;
   const categoryRaw = o.category;
@@ -177,10 +177,10 @@ function normalizeItem(raw: unknown): Item {
       : o.statusCode === "ACTIVE" || o.statusCode === "active";
   return {
     id: Number(o.id ?? 0),
-    code: String(o.code ?? ""),
-    name: String(o.name ?? ""),
-    categoryId: Number(o.categoryId ?? 0),
-    itemTypeId: Number(o.itemTypeId ?? 0),
+    code: String(o.code ?? o.itemCode ?? ""),
+    name: String(o.name ?? o.itemName ?? ""),
+    categoryId: Number(o.categoryId ?? o.category_id ?? 0),
+    itemTypeId: Number(o.itemTypeId ?? o.item_type_id ?? 0),
     category:
       categoryRaw && typeof categoryRaw === "object"
         ? normalizeItemCategory(categoryRaw)
@@ -202,7 +202,7 @@ function normalizeItem(raw: unknown): Item {
   };
 }
 
-// --- 품목 분류 (item-categories) ---
+// --- 제품 분류 (item-categories) ---
 
 export async function getItemCategories(
   accessToken: string,
@@ -217,7 +217,7 @@ export async function getItemCategories(
     credentials: "include",
   });
   if (!res.ok) {
-    throw await createApiError(res, "품목 분류 목록을 불러오지 못했습니다.");
+    throw await createApiError(res, "제품 분류 목록을 불러오지 못했습니다.");
   }
   const data = await res.json();
   const list = normalizeList<unknown>(data);
@@ -233,7 +233,7 @@ export async function getItemCategory(
     credentials: "include",
   });
   if (!res.ok) {
-    throw await createApiError(res, "품목 분류를 불러오지 못했습니다.");
+    throw await createApiError(res, "제품 분류를 불러오지 못했습니다.");
   }
   const data = await res.json();
   return normalizeItemCategory(data);
@@ -257,7 +257,7 @@ export async function createItemCategory(
     credentials: "include",
   });
   if (!res.ok) {
-    throw await createApiError(res, "품목 분류를 등록하지 못했습니다.");
+    throw await createApiError(res, "제품 분류를 등록하지 못했습니다.");
   }
   const data = await res.json();
   return normalizeItemCategory(data);
@@ -281,7 +281,7 @@ export async function updateItemCategory(
     credentials: "include",
   });
   if (!res.ok) {
-    throw await createApiError(res, "품목 분류를 수정하지 못했습니다.");
+    throw await createApiError(res, "제품 분류를 수정하지 못했습니다.");
   }
   const data = await res.json();
   return normalizeItemCategory(data);
@@ -297,11 +297,11 @@ export async function deleteItemCategory(
     credentials: "include",
   });
   if (!res.ok) {
-    throw await createApiError(res, "품목 분류를 삭제하지 못했습니다. 하위 분류가 있으면 삭제할 수 없습니다.");
+    throw await createApiError(res, "제품 분류를 삭제하지 못했습니다. 하위 분류가 있으면 삭제할 수 없습니다.");
   }
 }
 
-// --- 품목 유형 (item-types) ---
+// --- 제품 유형 (item-types) ---
 
 export async function getItemTypes(accessToken: string): Promise<ItemType[]> {
   const res = await fetch(`${API_BASE}/item-types`, {
@@ -309,7 +309,7 @@ export async function getItemTypes(accessToken: string): Promise<ItemType[]> {
     credentials: "include",
   });
   if (!res.ok) {
-    throw await createApiError(res, "품목 유형 목록을 불러오지 못했습니다.");
+    throw await createApiError(res, "제품 유형 목록을 불러오지 못했습니다.");
   }
   const data = await res.json();
   const list = normalizeList<unknown>(data);
@@ -325,7 +325,7 @@ export async function getItemType(
     credentials: "include",
   });
   if (!res.ok) {
-    throw await createApiError(res, "품목 유형을 불러오지 못했습니다.");
+    throw await createApiError(res, "제품 유형을 불러오지 못했습니다.");
   }
   const data = await res.json();
   return normalizeItemType(data);
@@ -349,7 +349,7 @@ export async function createItemType(
     credentials: "include",
   });
   if (!res.ok) {
-    throw await createApiError(res, "품목 유형을 등록하지 못했습니다.");
+    throw await createApiError(res, "제품 유형을 등록하지 못했습니다.");
   }
   const data = await res.json();
   return normalizeItemType(data);
@@ -373,7 +373,7 @@ export async function updateItemType(
     credentials: "include",
   });
   if (!res.ok) {
-    throw await createApiError(res, "품목 유형을 수정하지 못했습니다.");
+    throw await createApiError(res, "제품 유형을 수정하지 못했습니다.");
   }
   const data = await res.json();
   return normalizeItemType(data);
@@ -389,11 +389,11 @@ export async function deleteItemType(
     credentials: "include",
   });
   if (!res.ok) {
-    throw await createApiError(res, "품목 유형을 삭제하지 못했습니다.");
+    throw await createApiError(res, "제품 유형을 삭제하지 못했습니다.");
   }
 }
 
-// --- 품목 마스터 (items) ---
+// --- 제품 마스터 (items) ---
 
 export async function getItems(
   accessToken: string,
@@ -411,7 +411,7 @@ export async function getItems(
     credentials: "include",
   });
   if (!res.ok) {
-    throw await createApiError(res, "품목 목록을 불러오지 못했습니다.");
+    throw await createApiError(res, "제품 목록을 불러오지 못했습니다.");
   }
   const data = await res.json();
   const list = normalizeList<unknown>(data);
@@ -429,7 +429,7 @@ export async function getItem(
     credentials: "include",
   });
   if (!res.ok) {
-    throw await createApiError(res, "품목을 불러오지 못했습니다.");
+    throw await createApiError(res, "제품을 불러오지 못했습니다.");
   }
   const data = await res.json();
   return normalizeItem(data);
@@ -458,7 +458,7 @@ export async function createItem(
     credentials: "include",
   });
   if (!res.ok) {
-    throw await createApiError(res, "품목을 등록하지 못했습니다.");
+    throw await createApiError(res, "제품을 등록하지 못했습니다.");
   }
   const data = await res.json();
   return normalizeItem(data);
@@ -488,7 +488,7 @@ export async function updateItem(
     credentials: "include",
   });
   if (!res.ok) {
-    throw await createApiError(res, "품목을 수정하지 못했습니다.");
+    throw await createApiError(res, "제품을 수정하지 못했습니다.");
   }
   const data = await res.json();
   return normalizeItem(data);
@@ -504,6 +504,6 @@ export async function deleteItem(
     credentials: "include",
   });
   if (!res.ok) {
-    throw await createApiError(res, "품목을 비활성화하지 못했습니다.");
+    throw await createApiError(res, "제품을 비활성화하지 못했습니다.");
   }
 }

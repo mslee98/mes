@@ -85,7 +85,7 @@ function App() {
               <Route index element={<Home />} />
 
 
-              {/* 품목 관리 */}
+              {/* 제품 관리 */}
               <Route path="item-categories" element={<ItemCategories />} />
               <Route path="item-types" element={<ItemTypes />} />
               <Route path="items" element={<Items />} />

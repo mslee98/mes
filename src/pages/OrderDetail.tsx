@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   useQuery,
   useMutation,
@@ -15,26 +15,23 @@ import { Modal } from "../components/ui/modal";
 import { useAuth } from "../context/AuthContext";
 import {
   getPurchaseOrder,
-  getPurchaseOrderApprovals,
-  getPurchaseOrderHistories,
   getPurchaseOrderFiles,
   getDeliveries,
   createDelivery,
-  submitPurchaseOrderApproval,
-  approvePurchaseOrderApproval,
-  rejectPurchaseOrderApproval,
   uploadPurchaseOrderFile,
   type PurchaseOrderDetail,
-  type PurchaseOrderApproval,
   type PurchaseOrderFile,
-  type PurchaseOrderHistory,
   type Delivery,
   type DeliveryItemPayload,
   type DeliveryCreatePayload,
   type Partner,
   type PurchaseOrderItem,
 } from "../api/purchaseOrder";
-import { getUsers as getApiUsers, type UserItem } from "../api/user";
+import {
+  getCommonCodesByGroup,
+  COMMON_CODE_GROUP_PURCHASE_ORDER_TYPE,
+  COMMON_CODE_GROUP_PURCHASE_ORDER_STATUS,
+} from "../api/commonCode";
 import {
   Table,
   TableBody,
@@ -46,6 +43,10 @@ import Input from "../components/form/input/InputField";
 import FileInput from "../components/form/input/FileInput";
 import Label from "../components/form/Label";
 import { formatCurrency } from "../lib/formatCurrency";
+import {
+  lineItemsToAmountSummaries,
+  OrderLineAmountSummary,
+} from "../lib/orderLineAmountSummary";
 
 function formatDate(s: string | null | undefined): string {
   return s ?? "-";
@@ -57,10 +58,6 @@ export default function OrderDetail() {
   const queryClient = useQueryClient();
   const { accessToken, isLoading: isAuthLoading } = useAuth();
 
-  const [submitApprovalOpen, setSubmitApprovalOpen] = useState(false);
-  const [approverIds, setApproverIds] = useState<number[]>([]);
-  const [rejectOpen, setRejectOpen] = useState<{ approvalId: number } | null>(null);
-  const [rejectComment, setRejectComment] = useState("");
   const [deliveryModalOpen, setDeliveryModalOpen] = useState(false);
   const [deliveryDate, setDeliveryDate] = useState("");
   const [deliveryRemark, setDeliveryRemark] = useState("");
@@ -71,18 +68,6 @@ export default function OrderDetail() {
     queryKey: ["purchaseOrder", id],
     queryFn: () => getPurchaseOrder(id, accessToken!),
     enabled: !!accessToken && !isAuthLoading && Number.isFinite(id),
-  });
-
-  const { data: approvals = [] } = useQuery({
-    queryKey: ["purchaseOrderApprovals", id],
-    queryFn: () => getPurchaseOrderApprovals(id, accessToken!),
-    enabled: !!accessToken && Number.isFinite(id),
-  });
-
-  const { data: histories = [] } = useQuery({
-    queryKey: ["purchaseOrderHistories", id],
-    queryFn: () => getPurchaseOrderHistories(id, accessToken!),
-    enabled: !!accessToken && Number.isFinite(id),
   });
 
   const { data: files = [] } = useQuery({
@@ -97,51 +82,41 @@ export default function OrderDetail() {
     enabled: !!accessToken && Number.isFinite(id),
   });
 
-  const { data: usersData = [] } = useQuery({
-    queryKey: ["users"],
-    queryFn: () => getApiUsers(accessToken!),
-    enabled: !!accessToken && submitApprovalOpen,
+  const { data: purchaseOrderTypeCodes = [] } = useQuery({
+    queryKey: ["commonCodes", COMMON_CODE_GROUP_PURCHASE_ORDER_TYPE],
+    queryFn: () =>
+      getCommonCodesByGroup(
+        COMMON_CODE_GROUP_PURCHASE_ORDER_TYPE,
+        accessToken!
+      ),
+    enabled: !!accessToken && !isAuthLoading,
   });
 
-  const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: ["purchaseOrder", id] });
-    queryClient.invalidateQueries({ queryKey: ["purchaseOrderApprovals", id] });
-    queryClient.invalidateQueries({ queryKey: ["purchaseOrderHistories", id] });
-    queryClient.invalidateQueries({ queryKey: ["purchaseOrders"] });
-  };
-
-  const submitApprovalMutation = useMutation({
-    mutationFn: () => submitPurchaseOrderApproval(id, approverIds, accessToken!),
-    onSuccess: () => {
-      toast.success("상신되었습니다.");
-      setSubmitApprovalOpen(false);
-      setApproverIds([]);
-      invalidate();
-    },
-    onError: (e: Error) => toast.error(e.message || "상신에 실패했습니다."),
+  const { data: purchaseOrderStatusCodes = [] } = useQuery({
+    queryKey: ["commonCodes", COMMON_CODE_GROUP_PURCHASE_ORDER_STATUS],
+    queryFn: () =>
+      getCommonCodesByGroup(
+        COMMON_CODE_GROUP_PURCHASE_ORDER_STATUS,
+        accessToken!
+      ),
+    enabled: !!accessToken && !isAuthLoading,
   });
 
-  const approveMutation = useMutation({
-    mutationFn: ({ approvalId, comment }: { approvalId: number; comment: string | null }) =>
-      approvePurchaseOrderApproval(approvalId, comment, accessToken!),
-    onSuccess: () => {
-      toast.success("승인했습니다.");
-      invalidate();
-    },
-    onError: (e: Error) => toast.error(e.message || "승인 처리에 실패했습니다."),
-  });
+  const orderTypeDisplayName = useMemo(() => {
+    if (!order) return "-";
+    const d = order as PurchaseOrderDetail;
+    const code = String(d.orderType ?? "").trim();
+    const hit = purchaseOrderTypeCodes.find((c) => c.code === code);
+    return hit?.name || code || "-";
+  }, [order, purchaseOrderTypeCodes]);
 
-  const rejectMutation = useMutation({
-    mutationFn: ({ approvalId, comment }: { approvalId: number; comment: string }) =>
-      rejectPurchaseOrderApproval(approvalId, comment, accessToken!),
-    onSuccess: () => {
-      toast.success("반려했습니다.");
-      setRejectOpen(null);
-      setRejectComment("");
-      invalidate();
-    },
-    onError: (e: Error) => toast.error(e.message || "반려 처리에 실패했습니다."),
-  });
+  const orderStatusDisplayName = useMemo(() => {
+    if (!order) return "-";
+    const d = order as PurchaseOrderDetail;
+    const code = String(d.status ?? d.orderStatus ?? "").trim();
+    const hit = purchaseOrderStatusCodes.find((c) => c.code === code);
+    return hit?.name || code || "-";
+  }, [order, purchaseOrderStatusCodes]);
 
   const fileUploadMutation = useMutation({
     mutationFn: (file: File) => uploadPurchaseOrderFile(id, file, accessToken!),
@@ -168,9 +143,14 @@ export default function OrderDetail() {
     onError: (e: Error) => toast.error(e.message || "납품 등록에 실패했습니다."),
   });
 
-  const canSubmitApproval =
-    order &&
-    (order.approvalStatus === "NONE" || order.approvalStatus === "DRAFT" || !order.approvalStatus);
+  const orderLineSummaries = useMemo(() => {
+    if (!order) return [];
+    const d = order as PurchaseOrderDetail;
+    return lineItemsToAmountSummaries(
+      d.orderItems ?? d.items ?? [],
+      d.currencyCode ?? "KRW"
+    );
+  }, [order]);
 
   if (orderLoading || !order) {
     return (
@@ -188,7 +168,13 @@ export default function OrderDetail() {
   }
 
   const po = order as PurchaseOrderDetail;
+  /** GET 상세의 orderItems(매퍼가 items와 동일 배열로 정규화) */
+  const orderLines = po.orderItems ?? po.items ?? [];
   const partnerName = (po.partner as Partner)?.name ?? (po.partner as Partner)?.code ?? "-";
+  const headerCurrency = po.currencyCode ?? "KRW";
+  const orderSummaryTh =
+    "w-[11%] min-w-[5.5rem] whitespace-nowrap bg-gray-50 px-3 py-2.5 text-left text-theme-xs font-medium text-gray-600 dark:bg-gray-800/60 dark:text-gray-400";
+  const orderSummaryTd = "px-3 py-2.5 text-sm text-gray-900 dark:text-gray-100";
 
   return (
     <>
@@ -197,127 +183,328 @@ export default function OrderDetail() {
 
       <div className="space-y-6">
         <ComponentCard title="발주 정보">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-4">
-              <div>
-                <span className="text-theme-xs text-gray-500 dark:text-gray-400">발주번호</span>
-                <p className="font-medium text-gray-900 dark:text-white">{po.orderNo}</p>
-              </div>
-              <div>
-                <span className="text-theme-xs text-gray-500 dark:text-gray-400">제목</span>
-                <p className="font-medium text-gray-900 dark:text-white">{po.title ?? "-"}</p>
-              </div>
-              <div>
-                <span className="text-theme-xs text-gray-500 dark:text-gray-400">거래처</span>
-                <p className="font-medium text-gray-900 dark:text-white">{partnerName}</p>
-              </div>
-              <div>
-                <span className="text-theme-xs text-gray-500 dark:text-gray-400">발주일</span>
-                <p className="font-medium text-gray-900 dark:text-white">{formatDate(po.orderDate)}</p>
-              </div>
-              <div>
-                <span className="text-theme-xs text-gray-500 dark:text-gray-400">요청납기</span>
-                <p className="font-medium text-gray-900 dark:text-white">{formatDate(po.dueDate)}</p>
-              </div>
-              <div>
-                <span className="text-theme-xs text-gray-500 dark:text-gray-400">발주 상태</span>
-                <p className="font-medium text-gray-900 dark:text-white">{po.orderStatus ?? "-"}</p>
-              </div>
-              <div>
-                <span className="text-theme-xs text-gray-500 dark:text-gray-400">승인 상태</span>
-                <p className="font-medium text-gray-900 dark:text-white">{po.approvalStatus ?? "-"}</p>
-              </div>
-              <div>
-                <span className="text-theme-xs text-gray-500 dark:text-gray-400">총 금액</span>
-                <p className="font-medium text-gray-900 dark:text-white">
-                  {formatCurrency(po.totalAmount, po.currencyCode ?? "KRW")}
-                </p>
+          <div className="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
+            <div className="flex flex-col gap-3 border-b border-gray-100 bg-gray-50/90 px-4 py-3 dark:border-white/10 dark:bg-white/[0.04] sm:flex-row sm:items-center sm:justify-between">
+              <dl className="flex min-w-0 flex-wrap gap-x-5 gap-y-2 text-theme-xs">
+                <div className="flex min-w-0 max-w-full items-baseline gap-1.5">
+                  <dt className="shrink-0 text-gray-500 dark:text-gray-400">발주 상태</dt>
+                  <dd className="font-semibold text-gray-900 dark:text-white">
+                    {orderStatusDisplayName}
+                  </dd>
+                </div>
+                <div className="flex min-w-0 max-w-full items-baseline gap-1.5">
+                  <dt className="shrink-0 text-gray-500 dark:text-gray-400">부서</dt>
+                  <dd className="max-w-md break-words font-medium text-gray-900 dark:text-gray-100">
+                    {po.requesterDepartment?.trim() || "-"}
+                  </dd>
+                </div>
+                <div className="flex items-baseline gap-1.5">
+                  <dt className="shrink-0 text-gray-500 dark:text-gray-400">담당</dt>
+                  <dd className="font-medium text-gray-900 dark:text-gray-100">
+                    {po.requesterName?.trim() || "-"}
+                  </dd>
+                </div>
+                {po.createdBy?.name ? (
+                  <div className="flex items-baseline gap-1.5">
+                    <dt className="shrink-0 text-gray-500 dark:text-gray-400">등록</dt>
+                    <dd className="font-medium text-gray-900 dark:text-gray-100">
+                      {po.createdBy.name}
+                    </dd>
+                  </div>
+                ) : null}
+              </dl>
+              <div className="flex flex-wrap gap-2 sm:shrink-0 sm:justify-end">
+                <Link
+                  to={`/order/${id}/edit`}
+                  className="inline-flex rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+                >
+                  수정
+                </Link>
+                <Link
+                  to="/order"
+                  className="inline-flex rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+                >
+                  목록
+                </Link>
               </div>
             </div>
-            <div className="flex gap-2">
-              {canSubmitApproval && (
-                <button
-                  type="button"
-                  onClick={() => setSubmitApprovalOpen(true)}
-                  className="rounded-lg border border-brand-500 bg-white px-4 py-2 text-sm font-medium text-brand-600 hover:bg-brand-50 dark:border-brand-600 dark:bg-gray-800 dark:text-brand-400 dark:hover:bg-gray-700"
-                >
-                  상신
-                </button>
-              )}
-              <Link
-                to={`/order/${id}/edit`}
-                className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-              >
-                수정
-              </Link>
-              <Link
-                to="/order"
-                className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-              >
-                목록
-              </Link>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[36rem] border-collapse text-sm">
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                <tr>
+                  <th scope="row" className={orderSummaryTh}>
+                    발주번호
+                  </th>
+                  <td className={orderSummaryTd}>{po.orderNo}</td>
+                  <th scope="row" className={orderSummaryTh}>
+                    제목
+                  </th>
+                  <td className={orderSummaryTd}>{po.title?.trim() || "-"}</td>
+                </tr>
+                <tr>
+                  <th scope="row" className={orderSummaryTh}>
+                    거래처
+                  </th>
+                  <td className={orderSummaryTd}>{partnerName}</td>
+                  <th scope="row" className={orderSummaryTh}>
+                    발주일
+                  </th>
+                  <td className={orderSummaryTd}>{formatDate(po.orderDate)}</td>
+                </tr>
+                <tr>
+                  <th scope="row" className={orderSummaryTh}>
+                    발주 유형
+                  </th>
+                  <td className={orderSummaryTd}>{orderTypeDisplayName}</td>
+                  <th scope="row" className={orderSummaryTh}>
+                    우선순위
+                  </th>
+                  <td className={orderSummaryTd}>{po.priority ?? "-"}</td>
+                </tr>
+                <tr>
+                  <th scope="row" className={orderSummaryTh}>
+                    요청 납기
+                  </th>
+                  <td className={orderSummaryTd}>{formatDate(po.dueDate)}</td>
+                  <th scope="row" className={orderSummaryTh}>
+                    납품 요청일
+                  </th>
+                  <td className={orderSummaryTd}>{formatDate(po.requestDeliveryDate)}</td>
+                </tr>
+                <tr>
+                  <th scope="row" className={orderSummaryTh}>
+                    업체 발주번호
+                  </th>
+                  <td className={orderSummaryTd} colSpan={3}>
+                    {po.vendorOrderNo?.trim() || "—"}
+                  </td>
+                </tr>
+                {po.vendorRequest ? (
+                  <tr>
+                    <th
+                      scope="row"
+                      className={`${orderSummaryTh} align-top`}
+                    >
+                      업체 요청사항
+                    </th>
+                    <td className={orderSummaryTd} colSpan={3}>
+                      <span className="whitespace-pre-wrap">{po.vendorRequest}</span>
+                    </td>
+                  </tr>
+                ) : null}
+                {po.specialNote ? (
+                  <tr>
+                    <th
+                      scope="row"
+                      className={`${orderSummaryTh} align-top`}
+                    >
+                      특이사항
+                    </th>
+                    <td className={orderSummaryTd} colSpan={3}>
+                      <span className="whitespace-pre-wrap">{po.specialNote}</span>
+                    </td>
+                  </tr>
+                ) : null}
+                <tr>
+                  <th scope="row" className={orderSummaryTh}>
+                    공급가액
+                  </th>
+                  <td
+                    className={`${orderSummaryTd} font-medium tabular-nums`}
+                    colSpan={3}
+                  >
+                    {po.supplyAmount != null ? (
+                      <>
+                        {formatCurrency(po.supplyAmount, headerCurrency)}
+                        <span className="ml-1.5 text-theme-xs font-normal text-gray-500 dark:text-gray-400">
+                          ({headerCurrency})
+                        </span>
+                      </>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row" className={orderSummaryTh}>
+                    합계
+                  </th>
+                  <td
+                    className={`${orderSummaryTd} font-medium tabular-nums`}
+                    colSpan={3}
+                  >
+                    {po.totalAmountVatIncluded != null ? (
+                      <>
+                        {formatCurrency(po.totalAmountVatIncluded, headerCurrency)}
+                        <span className="ml-1.5 text-theme-xs font-normal text-gray-500 dark:text-gray-400">
+                          ({headerCurrency})
+                        </span>
+                      </>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
+                </tr>
+                {po.memo != null && String(po.memo).trim() !== "" ? (
+                  <tr>
+                    <th
+                      scope="row"
+                      className={`${orderSummaryTh} align-top`}
+                    >
+                      메모
+                    </th>
+                    <td className={orderSummaryTd} colSpan={3}>
+                      <span className="whitespace-pre-wrap">{String(po.memo)}</span>
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
             </div>
           </div>
-          {(po.vendorOrderNo || po.vendorRequest || po.specialNote) && (
-            <div className="mt-4 grid gap-2 border-t border-gray-100 pt-4 dark:border-white/5 sm:grid-cols-1">
-              {po.vendorOrderNo && (
-                <div>
-                  <span className="text-theme-xs text-gray-500 dark:text-gray-400">업체 발주번호</span>
-                  <p className="text-theme-sm text-gray-800 dark:text-gray-200">{po.vendorOrderNo}</p>
-                </div>
-              )}
-              {po.vendorRequest && (
-                <div>
-                  <span className="text-theme-xs text-gray-500 dark:text-gray-400">업체 요청사항</span>
-                  <p className="text-theme-sm text-gray-800 dark:text-gray-200">{po.vendorRequest}</p>
-                </div>
-              )}
-              {po.specialNote && (
-                <div>
-                  <span className="text-theme-xs text-gray-500 dark:text-gray-400">특이사항</span>
-                  <p className="text-theme-sm text-gray-800 dark:text-gray-200">{po.specialNote}</p>
-                </div>
-              )}
-            </div>
-          )}
         </ComponentCard>
 
-        <ComponentCard title="발주 품목">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader className="border-b border-gray-100 dark:border-white/5">
-                <TableRow>
-                  <TableCell isHeader className="text-theme-xs">품목명</TableCell>
-                  <TableCell isHeader className="text-theme-xs">규격</TableCell>
-                  <TableCell isHeader className="text-theme-xs">단위</TableCell>
-                  <TableCell isHeader className="text-theme-xs text-end">수량</TableCell>
-                  <TableCell isHeader className="text-theme-xs text-end">단가</TableCell>
-                  <TableCell isHeader className="text-theme-xs text-end">금액</TableCell>
-                  <TableCell isHeader className="text-theme-xs text-end">납품수량</TableCell>
-                </TableRow>
-              </TableHeader>
-              <TableBody className="divide-y divide-gray-100 dark:divide-white/5">
-                {(po.items ?? []).length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="py-6 text-center text-theme-sm text-gray-500">
-                      품목이 없습니다.
+        <ComponentCard title="발주 제품">
+          <div className="space-y-4 dark:border-gray-700">
+            <div className="relative overflow-x-auto border-b dark:border-gray-800">
+              <Table className="w-full text-left text-sm text-gray-900 dark:text-white md:table-fixed">
+                <TableHeader className="border-b border-gray-100 dark:border-white/5">
+                  <TableRow className="hover:bg-transparent">
+                    <TableCell
+                      isHeader
+                      className="whitespace-nowrap py-3 font-medium text-gray-600 dark:text-gray-400 md:w-[18%]"
+                    >
+                      제품
+                    </TableCell>
+                    <TableCell
+                      isHeader
+                      className="whitespace-nowrap p-3 font-medium text-gray-600 dark:text-gray-400 md:w-[12%]"
+                    >
+                      규격
+                    </TableCell>
+                    <TableCell
+                      isHeader
+                      className="whitespace-nowrap p-3 font-medium text-gray-600 dark:text-gray-400 md:w-[14%]"
+                    >
+                      단위 · 수량
+                    </TableCell>
+                    <TableCell
+                      isHeader
+                      className="whitespace-nowrap p-3 font-medium text-gray-600 dark:text-gray-400 md:w-[16%]"
+                    >
+                      통화 · 단가
+                    </TableCell>
+                    <TableCell
+                      isHeader
+                      className="whitespace-nowrap p-3 text-end font-medium text-gray-600 dark:text-gray-400 md:w-[12%]"
+                    >
+                      금액
+                    </TableCell>
+                    <TableCell
+                      isHeader
+                      className="whitespace-nowrap p-3 font-medium text-gray-600 dark:text-gray-400 md:w-[12%]"
+                    >
+                      납품 요청일
+                    </TableCell>
+                    <TableCell
+                      isHeader
+                      className="whitespace-nowrap p-3 font-medium text-gray-600 dark:text-gray-400 md:w-[10%]"
+                    >
+                      비고
+                    </TableCell>
+                    <TableCell
+                      isHeader
+                      className="whitespace-nowrap p-3 text-end font-medium text-gray-600 dark:text-gray-400 md:w-[6%]"
+                    >
+                      납품
                     </TableCell>
                   </TableRow>
-                ) : (
-                  (po.items ?? []).map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell className="text-theme-sm">{item.itemName ?? item.item?.name ?? "-"}</TableCell>
-                      <TableCell className="text-theme-sm">{item.spec ?? "-"}</TableCell>
-                      <TableCell className="text-theme-sm">{item.unit ?? "-"}</TableCell>
-                      <TableCell className="text-end text-theme-sm">{item.qty}</TableCell>
-                      <TableCell className="text-end text-theme-sm">{formatCurrency(item.unitPrice, item.currencyCode ?? po.currencyCode ?? "KRW")}</TableCell>
-                      <TableCell className="text-end text-theme-sm">{formatCurrency(item.amount, item.currencyCode ?? po.currencyCode ?? "KRW")}</TableCell>
-                      <TableCell className="text-end text-theme-sm">{item.deliveredQty ?? 0}</TableCell>
+                </TableHeader>
+                <TableBody className="divide-y divide-gray-200 dark:divide-gray-800">
+                  {orderLines.length === 0 ? (
+                    <TableRow>
+                      <TableCell
+                        colSpan={8}
+                        className="py-6 text-center text-theme-sm text-gray-500 dark:text-gray-400"
+                      >
+                        등록된 제품이 없습니다.
+                      </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+                  ) : (
+                    orderLines.map((item) => {
+                      const lineCc =
+                        item.currencyCode ?? po.currencyCode ?? "KRW";
+                      return (
+                        <TableRow
+                          key={item.id}
+                          className="align-middle hover:bg-transparent"
+                        >
+                          <TableCell className="whitespace-nowrap py-3 align-middle font-medium text-gray-900 dark:text-white">
+                            {item.itemName ?? item.item?.name ?? "-"}
+                          </TableCell>
+                          <TableCell className="p-3 align-middle text-gray-600 dark:text-gray-400">
+                            {item.spec ?? "-"}
+                          </TableCell>
+                          <TableCell className="p-3 align-middle tabular-nums text-gray-800 dark:text-gray-200">
+                            <span>{item.unit ?? "-"}</span>
+                            <span className="mx-1 text-gray-300 dark:text-gray-600">
+                              ·
+                            </span>
+                            <span>{item.qty}</span>
+                          </TableCell>
+                          <TableCell className="p-3 align-middle tabular-nums text-gray-800 dark:text-gray-200">
+                            <span className="text-gray-500 dark:text-gray-400">
+                              {lineCc}
+                            </span>
+                            <span className="mx-1 text-gray-300 dark:text-gray-600">
+                              ·
+                            </span>
+                            <span>
+                              {item.unitPrice != null
+                                ? formatCurrency(item.unitPrice, lineCc)
+                                : "-"}
+                            </span>
+                          </TableCell>
+                          <TableCell className="p-3 align-middle text-end font-medium tabular-nums text-gray-900 dark:text-white">
+                            {item.amount != null
+                              ? formatCurrency(item.amount, lineCc)
+                              : "-"}
+                          </TableCell>
+                          <TableCell className="p-3 align-middle text-gray-600 dark:text-gray-400">
+                            {item.requestDeliveryDate ?? "-"}
+                          </TableCell>
+                          <TableCell className="p-3 align-middle text-gray-600 dark:text-gray-400">
+                            {item.remark ?? "-"}
+                          </TableCell>
+                          <TableCell className="p-3 align-middle text-end tabular-nums text-gray-800 dark:text-gray-200">
+                            {item.deliveredQty ?? 0}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+            <div className="mt-4 space-y-6">
+              <h3 className="text-base font-medium text-gray-800 dark:text-white/90">
+                주문 요약
+              </h3>
+              <OrderLineAmountSummary
+                summaries={
+                  orderLineSummaries.length > 0
+                    ? orderLineSummaries
+                    : [
+                        {
+                          currencyCode: po.currencyCode || "KRW",
+                          subtotal: 0,
+                          vat: 0,
+                          total: 0,
+                        },
+                      ]
+                }
+              />
+            </div>
           </div>
         </ComponentCard>
 
@@ -350,96 +537,6 @@ export default function OrderDetail() {
           </div>
         </ComponentCard>
 
-        <ComponentCard title="결재 라인">
-          <div className="space-y-2">
-            {(approvals as PurchaseOrderApproval[]).length === 0 ? (
-              <p className="text-theme-sm text-gray-500">결재 라인이 없습니다.</p>
-            ) : (
-              (approvals as PurchaseOrderApproval[]).map((a) => (
-                <div
-                  key={a.id}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-gray-100 bg-gray-50/50 p-3 dark:border-white/5 dark:bg-white/[0.03]"
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="text-theme-sm font-medium">
-                      {a.approvalStep != null ? `${a.approvalStep}차` : ""} 결재자
-                    </span>
-                    <span className="text-theme-sm text-gray-600 dark:text-gray-400">
-                      {(a.approver as { name?: string })?.name ?? a.approverId}
-                    </span>
-                    <Badge
-                      size="sm"
-                      color={
-                        a.approvalStatus === "APPROVED"
-                          ? "success"
-                          : a.approvalStatus === "REJECTED"
-                            ? "error"
-                            : "warning"
-                      }
-                    >
-                      {a.approvalStatus}
-                    </Badge>
-                    {a.approvalComment && (
-                      <span className="text-theme-xs text-gray-500">{a.approvalComment}</span>
-                    )}
-                    {a.approvedAt && (
-                      <span className="text-theme-xs text-gray-500">{formatDate(a.approvedAt)}</span>
-                    )}
-                  </div>
-                  {a.approvalStatus === "PENDING" && (
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          approveMutation.mutate({ approvalId: a.id, comment: null })
-                        }
-                        disabled={approveMutation.isPending}
-                        className="rounded border border-green-600 bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
-                      >
-                        승인
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setRejectOpen({ approvalId: a.id })}
-                        disabled={rejectMutation.isPending}
-                        className="rounded border border-red-600 bg-white px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50 dark:bg-gray-800 dark:hover:bg-gray-700"
-                      >
-                        반려
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))
-            )}
-          </div>
-        </ComponentCard>
-
-        <ComponentCard title="변경 이력">
-          <ul className="space-y-2">
-            {(histories as PurchaseOrderHistory[]).length === 0 ? (
-              <li className="text-theme-sm text-gray-500">이력이 없습니다.</li>
-            ) : (
-              (histories as PurchaseOrderHistory[]).map((h) => (
-                <li
-                  key={h.id}
-                  className="flex flex-wrap gap-2 rounded border border-gray-100 p-2 text-theme-sm dark:border-white/5"
-                >
-                  <span className="font-medium">{h.changeType}</span>
-                  <span className="text-gray-600 dark:text-gray-400">
-                    {(h.changedBy as { name?: string })?.name ?? "-"} · {formatDate(h.changedAt)}
-                  </span>
-                  {h.beforeValue != null && (
-                    <span className="text-gray-500">이전: {String(h.beforeValue)}</span>
-                  )}
-                  {h.afterValue != null && (
-                    <span className="text-gray-700 dark:text-gray-300">→ {String(h.afterValue)}</span>
-                  )}
-                </li>
-              ))
-            )}
-          </ul>
-        </ComponentCard>
-
         <ComponentCard title="납품 목록">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex-1" />
@@ -449,7 +546,7 @@ export default function OrderDetail() {
                 setDeliveryDate(new Date().toISOString().slice(0, 10));
                 setDeliveryRemark("");
                 const init: Record<number, { deliveryQty: number; lotNo: string; remark: string }> = {};
-                (po?.items ?? []).forEach((item) => {
+                orderLines.forEach((item) => {
                   init[item.id] = { deliveryQty: 0, lotNo: "", remark: "" };
                 });
                 setDeliveryItems(init);
@@ -490,101 +587,6 @@ export default function OrderDetail() {
         </ComponentCard>
       </div>
 
-      {/* 상신 모달: 결재자 선택 */}
-      <Modal
-        isOpen={submitApprovalOpen}
-        onClose={() => {
-          setSubmitApprovalOpen(false);
-          setApproverIds([]);
-        }}
-        className="mx-4 max-w-lg p-6"
-      >
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">결재자 지정 (상신)</h3>
-        <p className="mt-1 text-theme-sm text-gray-500">
-          결재할 사용자를 순서대로 선택하세요.
-        </p>
-        <div className="mt-4 space-y-2">
-          {(usersData as UserItem[]).slice(0, 20).map((u) => (
-            <label key={u.id} className="flex cursor-pointer items-center gap-2">
-              <input
-                type="checkbox"
-                checked={approverIds.includes(u.id)}
-                onChange={(e) => {
-                  if (e.target.checked) {
-                    setApproverIds((prev) => [...prev, u.id].sort((a, b) => a - b));
-                  } else {
-                    setApproverIds((prev) => prev.filter((x) => x !== u.id));
-                  }
-                }}
-                className="h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
-              />
-              <span className="text-theme-sm">
-                {u.name ?? u.employeeNo ?? u.id}
-              </span>
-            </label>
-          ))}
-        </div>
-        <div className="mt-6 flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={() => setSubmitApprovalOpen(false)}
-            className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300"
-          >
-            취소
-          </button>
-          <button
-            type="button"
-            onClick={() => submitApprovalMutation.mutate()}
-            disabled={approverIds.length === 0 || submitApprovalMutation.isPending}
-            className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white hover:bg-brand-600 disabled:opacity-50"
-          >
-            {submitApprovalMutation.isPending ? "처리 중..." : "상신"}
-          </button>
-        </div>
-      </Modal>
-
-      {/* 반려 모달 */}
-      <Modal
-        isOpen={!!rejectOpen}
-        onClose={() => {
-          setRejectOpen(null);
-          setRejectComment("");
-        }}
-        className="mx-4 max-w-md p-6"
-      >
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">반려 사유</h3>
-        <div className="mt-3">
-          <Label htmlFor="reject-comment">사유 (선택)</Label>
-          <Input
-            id="reject-comment"
-            value={rejectComment}
-            onChange={(e) => setRejectComment(e.target.value)}
-            placeholder="반려 사유를 입력하세요"
-            className="mt-1"
-          />
-        </div>
-        <div className="mt-6 flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={() => setRejectOpen(null)}
-            className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300"
-          >
-            취소
-          </button>
-          <button
-            type="button"
-            onClick={() =>
-              rejectOpen &&
-              rejectMutation.mutate({ approvalId: rejectOpen.approvalId, comment: rejectComment || "반려" })
-            }
-            disabled={rejectMutation.isPending}
-            className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
-          >
-            {rejectMutation.isPending ? "처리 중..." : "반려"}
-          </button>
-        </div>
-      </Modal>
-
       {/* 납품 등록 모달 */}
       <Modal
         isOpen={deliveryModalOpen}
@@ -613,12 +615,12 @@ export default function OrderDetail() {
             />
           </div>
           <div>
-            <span className="text-theme-sm font-medium text-gray-700 dark:text-gray-300">품목별 납품 수량</span>
+            <span className="text-theme-sm font-medium text-gray-700 dark:text-gray-300">제품별 납품 수량</span>
             <div className="mt-2 overflow-x-auto">
               <Table>
                 <TableHeader className="border-b border-gray-100 dark:border-white/5">
                   <TableRow>
-                    <TableCell isHeader className="text-theme-xs">품목</TableCell>
+                    <TableCell isHeader className="text-theme-xs">제품</TableCell>
                     <TableCell isHeader className="text-theme-xs text-end">납품 수량</TableCell>
                     <TableCell isHeader className="text-theme-xs">LOT번호</TableCell>
                     <TableCell isHeader className="text-theme-xs">비고</TableCell>
@@ -703,7 +705,7 @@ export default function OrderDetail() {
           <button
             type="button"
             onClick={() => {
-              const items: DeliveryItemPayload[] = (po?.items ?? [])
+              const items: DeliveryItemPayload[] = orderLines
                 .filter((item: PurchaseOrderItem) => (deliveryItems[item.id]?.deliveryQty ?? 0) > 0)
                 .map((item: PurchaseOrderItem) => ({
                   purchaseOrderItemId: item.id,

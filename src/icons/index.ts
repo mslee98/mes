@@ -58,6 +58,7 @@ import { ReactComponent as WrenchScrewdriverIcon } from "./wrench-screwdriver.sv
 import { ReactComponent as TruckIcon } from "./truck.svg?react";
 import { ReactComponent as UserCircleSolidIcon } from "./user-circle-solid.svg?react";
 import { ReactComponent as UserSolidIcon } from "./user-solid.svg?react";
+import { ReactComponent as InformationCircleIcon } from "./information-circle.svg?react";
 
 export {
   ErrorHexaIcon,
@@ -120,4 +121,5 @@ export {
   TruckIcon,
   UserCircleSolidIcon,
   UserSolidIcon,
+  InformationCircleIcon,
 };

@@ -143,27 +143,27 @@ export default function Items() {
 
   return (
     <>
-      <PageMeta title="품목 목록" description="품목 마스터 목록" />
-      <PageBreadcrumb pageTitle="품목 목록" />
+      <PageMeta title="제품 목록" description="제품 마스터 목록" />
+      <PageBreadcrumb pageTitle="제품 목록" />
       <p className="mb-3 text-sm text-gray-500 dark:text-gray-400">
-        2단계: 품목 분류 · 유형을 먼저 정의하려면{" "}
+        2단계: 제품 분류 · 유형을 먼저 정의하려면{" "}
         <Link to="/item-categories" className="text-brand-600 underline hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300">
-          품목 분류
+          제품 분류
         </Link>
         ,{" "}
         <Link to="/item-types" className="text-brand-600 underline hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300">
-          품목 유형
+          제품 유형
         </Link>
         을 이용하세요.
       </p>
       <ListPageLayout
-        title="품목 목록"
+        title="제품 목록"
         toolbar={
           <div className="flex w-full flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div className="w-full md:max-w-md">
               <Input
                 type="text"
-                placeholder="품목 코드, 품목명 검색"
+                placeholder="제품 코드, 제품명 검색"
                 value={searchKeyword}
                 onChange={(e) => setSearchKeyword(e.target.value)}
               />
@@ -174,7 +174,7 @@ export default function Items() {
                 onClick={() => navigate("/items/new")}
                 className="inline-flex h-11 items-center justify-center rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600 dark:bg-brand-600 dark:hover:bg-brand-700"
               >
-                품목 추가
+                제품 추가
               </button>
               <button
                 type="button"
@@ -191,7 +191,7 @@ export default function Items() {
           <>
             <div className="w-full sm:w-[200px]">
               <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">
-                품목 분류
+                제품 분류
               </p>
               <Select
                 options={categoryOptions}
@@ -202,7 +202,7 @@ export default function Items() {
             </div>
             <div className="w-full sm:w-[200px]">
               <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">
-                품목 유형
+                제품 유형
               </p>
               <Select
                 options={itemTypeOptions}
@@ -245,7 +245,7 @@ export default function Items() {
         }
       >
         {isAuthLoading || isLoading ? (
-          <ListPageLoading message="품목 목록을 불러오는 중..." />
+          <ListPageLoading message="제품 목록을 불러오는 중..." />
         ) : !accessToken ? (
           <div className="flex min-h-[320px] items-center justify-center text-gray-500 dark:text-gray-400">
             <p className="text-sm">로그인 후 목록을 조회할 수 있습니다.</p>
@@ -255,12 +255,12 @@ export default function Items() {
             <p className="text-sm text-red-600 dark:text-red-400">
               {error instanceof Error
                 ? error.message
-                : "품목 목록을 불러오지 못했습니다."}
+                : "제품 목록을 불러오지 못했습니다."}
             </p>
           </div>
         ) : filteredItems.length === 0 ? (
           <div className="flex min-h-[320px] items-center justify-center text-gray-500 dark:text-gray-400">
-            <p className="text-sm">조건에 맞는 품목이 없습니다.</p>
+            <p className="text-sm">조건에 맞는 제품이 없습니다.</p>
           </div>
         ) : (
           <Table>
@@ -276,7 +276,7 @@ export default function Items() {
                   isHeader
                   className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400"
                 >
-                  품목명
+                  제품명
                 </TableCell>
                 <TableCell
                   isHeader

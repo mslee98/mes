@@ -54,10 +54,10 @@ export default function ItemDetail() {
   if (!Number.isFinite(id)) {
     return (
       <>
-        <PageMeta title="품목 상세" description="품목 정보" />
-        <PageBreadcrumb pageTitle="품목 상세" />
+        <PageMeta title="제품 상세" description="제품 정보" />
+        <PageBreadcrumb pageTitle="제품 상세" />
         <div className="flex min-h-[320px] items-center justify-center text-gray-500 dark:text-gray-400">
-          <p className="text-sm">잘못된 품목 ID입니다.</p>
+          <p className="text-sm">잘못된 제품 ID입니다.</p>
         </div>
       </>
     );
@@ -66,10 +66,10 @@ export default function ItemDetail() {
   if (isAuthLoading || isLoading) {
     return (
       <>
-        <PageMeta title="품목 상세" description="품목 정보" />
-        <PageBreadcrumb pageTitle="품목 상세" />
+        <PageMeta title="제품 상세" description="제품 정보" />
+        <PageBreadcrumb pageTitle="제품 상세" />
         <div className="flex min-h-[320px] items-center justify-center">
-          <LoadingLottie message="품목 정보를 불러오는 중..." />
+          <LoadingLottie message="제품 정보를 불러오는 중..." />
         </div>
       </>
     );
@@ -78,11 +78,11 @@ export default function ItemDetail() {
   if (error || !item) {
     return (
       <>
-        <PageMeta title="품목 상세" description="품목 정보" />
-        <PageBreadcrumb pageTitle="품목 상세" />
+        <PageMeta title="제품 상세" description="제품 정보" />
+        <PageBreadcrumb pageTitle="제품 상세" />
         <div className="flex min-h-[320px] items-center justify-center">
           <p className="text-sm text-red-600 dark:text-red-400">
-            {error instanceof Error ? error.message : "품목을 불러오지 못했습니다."}
+            {error instanceof Error ? error.message : "제품을 불러오지 못했습니다."}
           </p>
         </div>
       </>
@@ -95,18 +95,18 @@ export default function ItemDetail() {
 
   return (
     <>
-      <PageMeta title={`품목: ${i.name}`} description="품목 상세 정보" />
-      <PageBreadcrumb pageTitle="품목 상세" />
+      <PageMeta title={`제품: ${i.name}`} description="제품 상세 정보" />
+      <PageBreadcrumb pageTitle="제품 상세" />
 
       <div className="space-y-6">
         <ComponentCard
-          title="품목 정보"
-          desc="품목 마스터 기본 정보 및 속성값(2단계)입니다."
+          title="제품 정보"
+          desc="제품 마스터 기본 정보 및 속성값(2단계)입니다."
         >
           <div>
             <dl className="min-w-0 flex-1">
               <DetailRow label="코드" value={<code>{i.code}</code>} />
-              <DetailRow label="품목명" value={i.name} />
+              <DetailRow label="제품명" value={i.name} />
               <DetailRow label="분류" value={displayCategoryName} />
               <DetailRow label="유형" value={displayTypeName} />
               <DetailRow label="규격" value={i.spec || "-"} />
@@ -144,7 +144,7 @@ export default function ItemDetail() {
         </ComponentCard>
 
         {i.attributes && i.attributes.length > 0 && (
-          <ComponentCard title="속성값" desc="품목 속성(2단계) 값입니다.">
+          <ComponentCard title="속성값" desc="제품 속성(2단계) 값입니다.">
             <Table>
               <TableHeader className="border-b border-gray-100 dark:border-white/[0.05]">
                 <TableRow>

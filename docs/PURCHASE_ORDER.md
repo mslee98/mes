@@ -2,7 +2,7 @@
 
 **의미**: 타 업체가 **우리 회사에게** 발주 요청한 건을 관리하는 모듈입니다. (우리 회사 → 타 업체 발주가 아님)
 
-**품목 관리(선행)**: 발주 시 품목을 선택하므로, 그 전에 **품목 분류·품목 유형·품목 마스터**를 등록해 두어야 합니다. 품목 관리 라우트·API·화면은 [docs/ITEMS.md](ITEMS.md) 참고.
+**제품 관리(선행)**: 발주 시 제품을 선택하므로, 그 전에 **제품 분류·제품 유형·제품 마스터**를 등록해 두어야 합니다. 제품 관리 라우트·API·화면은 [docs/ITEMS.md](ITEMS.md) 참고.
 
 ---
 
@@ -13,7 +13,7 @@
 | **라우트** | `/order` 목록, `/order/new` 등록, `/order/:orderId` 상세, `/order/:orderId/edit` 수정 |
 | **API Base** | **공통** `src/api/apiBase.ts`의 `API_BASE` (호스트 + `/api`, 예: `http://localhost:3000/api`) — auth·메뉴·유저·발주 등 전체가 동일 prefix 사용 |
 | **인증** | `Authorization: Bearer <access_token>` 필수 (로그인 후 사용) |
-| **주요 화면** | 발주 목록(필터/검색), 발주 상세(결재·납품·첨부), 발주 등록/수정 폼 |
+| **주요 화면** | 발주 목록(필터/검색), 발주 상세(납품·첨부), 발주 등록/수정 폼 |
 
 ---
 
@@ -22,9 +22,9 @@
 | 경로 | 컴포넌트 | 설명 |
 |------|----------|------|
 | `/order` | `pages/Order.tsx` | 발주 목록, 필터(거래처/발주상태/승인상태), 검색, 페이지네이션 |
-| `/order/new` | `pages/OrderForm.tsx` | 발주 신규 등록 (헤더 + 품목 여러 건) |
-| `/order/:orderId` | `pages/OrderDetail.tsx` | 발주 상세, 결재 상신/승인/반려, 납품 등록, 첨부파일 |
-| `/order/:orderId/edit` | `pages/OrderForm.tsx` | 발주 헤더만 수정 (품목 수정 불가) |
+| `/order/new` | `pages/OrderForm.tsx` | 발주 신규 등록 (헤더 + 제품 여러 건) |
+| `/order/:orderId` | `pages/OrderDetail.tsx` | 발주 상세, 납품 등록, 첨부파일 |
+| `/order/:orderId/edit` | `pages/OrderForm.tsx` | 발주 헤더만 수정 (제품 수정 불가) |
 
 ---
 
@@ -36,44 +36,47 @@
 - 호스트 = `import.meta.env.VITE_AUTH_BASE_URL ?? "http://localhost:3000"`
 - 이미 `/api`로 끝나면 그대로 사용, 아니면 뒤에 `/api` 붙임 → auth, menus, users, 발주 등 **모든 API**가 `API_BASE` 사용
 
-### 3.2 타입 (주요)
+### 3.2 UI (검색 셀렉트 + 추가)
+
+- 발주 등록/수정·발주 목록 필터에서 **거래처**는 `react-select` 기반 `SearchableSelectWithCreate`로 검색 후 선택합니다.
+- **거래처**는 라벨 옆 **information-circle** 팝오버에서 **「거래처 등록」**으로 `PartnerQuickCreateModal`을 엽니다(발주 등록·목록 필터). 제품 행은 기존처럼 셀렉트 아래 점선 **추가** 버튼을 유지합니다.
+- 발주 등록의 **제품** 행도 동일 패턴으로 **「제품 추가」** → `ItemQuickCreateModal` → `POST /items` (제품 분류·유형 필수).
+
+### 3.3 타입 (주요)
 
 | 타입명 | 용도 |
 |--------|------|
 | `Partner` | 거래처 (id, code, name, …) |
-| `Item` | 품목 (id, code, name, spec, unit, …) |
+| `PartnerCreatePayload` | 거래처 생성 Body |
+| `Item` | 제품 (id, code, name, spec, unit, …) |
 | `PurchaseOrderListItem` | 목록 1건 (id, orderNo, title, partnerId, partner, orderDate, dueDate, orderStatus, approvalStatus, totalQty, totalAmount, …) |
 | `PurchaseOrderDetail` | 상세 1건 (ListItem 확장 + requestDeliveryDate, vendorOrderNo, vendorRequest, specialNote, items, createdBy) |
-| `PurchaseOrderItem` | 발주 품목 1건 (id, itemId, item, itemName, spec, unit, qty, unitPrice, amount, deliveredQty, …) |
+| `PurchaseOrderItem` | 발주 제품 1건 (id, itemId, item, itemName, spec, unit, qty, unitPrice, amount, deliveredQty, …) |
 | `PurchaseOrderCreatePayload` | 발주 생성 Body (title, partnerId, orderDate, dueDate, requestDeliveryDate, vendorOrderNo, vendorRequest, specialNote, **items[]**) |
-| `PurchaseOrderUpdatePayload` | 발주 수정 Body (헤더 필드만, 품목 없음) |
+| `PurchaseOrderUpdatePayload` | 발주 수정 Body (헤더 필드만, 제품 없음) |
 | `PurchaseOrderFile` | 첨부파일 1건 |
-| `PurchaseOrderApproval` | 결재 라인 1건 (approvalStep, approverId, approver, approvalStatus, approvalComment, approvedAt) |
-| `PurchaseOrderHistory` | 변경 이력 1건 |
 | `Delivery`, `DeliveryCreatePayload`, `DeliveryItemPayload` | 납품 관련 |
 | `CodeItem` | 공통코드 1건 (groupCode, code, name, …) |
 
-### 3.3 API 함수 목록
+### 3.4 API 함수 목록
 
 | 분류 | 함수명 | 메서드/경로 | 설명 |
 |------|--------|-------------|------|
 | **발주** | `getPurchaseOrders(accessToken, params?)` | GET `/purchase-orders` | 목록 (query: partnerId, orderStatus, approvalStatus) |
-| | `getPurchaseOrder(id, accessToken)` | GET `/purchase-orders/:id` | 상세 |
+| | `getPurchaseOrder(id, accessToken)` | GET `/purchase-orders/:id` | 상세(응답에 `orderItems` + `item` 관계 권장) |
 | | `createPurchaseOrder(payload, accessToken)` | POST `/purchase-orders` | 생성 |
 | | `updatePurchaseOrder(id, payload, accessToken)` | PUT `/purchase-orders/:id` | 헤더 수정 |
-| **품목** | `getPurchaseOrderItems(id, accessToken)` | GET `/purchase-orders/:id/items` | 발주 품목 목록 |
+| **제품** | `getPurchaseOrderItems(id, accessToken)` | GET `/purchase-orders/:id/lines` | 품목 라인만(상세에 라인 없을 때 보조) |
 | **첨부** | `uploadPurchaseOrderFile(id, file, accessToken)` | POST `/purchase-orders/:id/files` | multipart 업로드 |
 | | `getPurchaseOrderFiles(id, accessToken)` | GET `/purchase-orders/:id/files` | 첨부 목록 |
-| **결재** | `getPurchaseOrderApprovals(id, accessToken)` | GET `/purchase-orders/:id/approvals` | 결재 라인 목록 |
-| | `submitPurchaseOrderApproval(id, approverIds, accessToken)` | POST `/purchase-orders/:id/submit-approval` | 상신 |
-| | `approvePurchaseOrderApproval(approvalId, comment, accessToken)` | POST `/purchase-order-approvals/:id/approve` | 승인 |
-| | `rejectPurchaseOrderApproval(approvalId, comment, accessToken)` | POST `/purchase-order-approvals/:id/reject` | 반려 |
-| **이력** | `getPurchaseOrderHistories(id, accessToken)` | GET `/purchase-orders/:id/histories` | 변경 이력 |
 | **납품** | `createDelivery(purchaseOrderId, payload, accessToken)` | POST `/purchase-orders/:id/deliveries` | 납품 등록 |
 | | `getDeliveries(purchaseOrderId, accessToken)` | GET `/purchase-orders/:id/deliveries` | 납품 목록 |
 | **드롭다운** | `getPartners(accessToken)` | GET `/partners` | 거래처 목록 |
-| | `getItems(accessToken)` | GET `/items` | 품목 목록 |
+| | `createPartner(payload, accessToken)` | POST `/partners` | 거래처 등록 (빠른 등록 모달) |
+| | `getItems(accessToken)` | GET `/items` | 제품 목록 |
 | | `getCodeGroupCodes(groupCode, accessToken)` | GET `/code-groups/:groupCode/codes` | 공통코드 목록 |
+
+> **백엔드 참고**: 발주 **상태 이력**은 `GET /purchase-orders/:id/status-histories`로 제공됩니다. 현재 프론트 모듈에서는 연동하지 않으며, 구 경로 `…/approvals`, `…/histories`는 사용하지 않습니다.
 
 ---
 
@@ -89,26 +92,23 @@
 
 ### 4.2 발주 상세 (`OrderDetail.tsx`)
 
-- **데이터**: `getPurchaseOrder`, `getPurchaseOrderApprovals`, `getPurchaseOrderHistories`, `getPurchaseOrderFiles`, `getDeliveries`
-- **표시**: 발주 정보, 발주 품목 테이블, 첨부파일 목록, 결재 라인, 변경 이력, 납품 목록
+- **데이터**: `getPurchaseOrder`, `getPurchaseOrderFiles`, `getDeliveries`
+- **표시**: 발주 정보, 발주 제품 테이블, 첨부파일 목록, 납품 목록
 - **액션**  
-  - **상신**: approvalStatus가 NONE/DRAFT일 때만. 모달에서 결재자(사용자) 선택 → `submitPurchaseOrderApproval(id, approverIds)`  
-  - **승인/반려**: 결재 라인 상태가 PENDING일 때. 반려 시 사유 입력 모달 → `approvePurchaseOrderApproval` / `rejectPurchaseOrderApproval`  
   - **수정**: `/order/:orderId/edit` 링크  
   - **첨부**: 파일 선택 → `uploadPurchaseOrderFile(id, file)`  
-  - **납품 등록**: 모달에서 납품일, 품목별 납품 수량/LOT/비고 입력 → `createDelivery(purchaseOrderId, payload)`
+  - **납품 등록**: 모달에서 납품일, 제품별 납품 수량/LOT/비고 입력 → `createDelivery(purchaseOrderId, payload)`
 
 ### 4.3 발주 등록 (`OrderForm.tsx`, `orderId === "new"`)
 
-- **필수**: 제목, 거래처, 발주일
-- **선택**: 요청납기, 납품 요청일, 업체 발주번호, 업체 요청사항, 특이사항
-- **품목**: 행 추가/삭제, 품목 선택(getItems), 수량·단가·납품 요청일·비고
-- **제출**: `createPurchaseOrder(payload)` → 성공 시 `/order/:id` 이동
+- **기본 정보**: 발주 ID(자동 부여 안내·비활성), 제목, 발주일자·납품예정일자·납품요청일자(DatePicker/flatpickr), 업체명(검색 셀렉트), 업체발주번호, 업체요청사항·특이사항(TextArea)
+- **발주 제품**: 제품 기본 통화(Select), 행 추가/삭제, 제품(SearchableSelect+제품 빠른 등록 모달), 수량, 통화·단가(SelectInput), 납품 요청일(DatePicker), 비고
+- **제출**: `createPurchaseOrder(payload)` (헤더 + `items[]`) → 성공 시 `/order/:id` 이동
 
 ### 4.4 발주 수정 (`OrderForm.tsx`, `orderId` 숫자)
 
-- **수정 가능**: 제목, 거래처, 발주일, 요청납기, 납품 요청일, 업체 발주번호, 업체 요청사항, 특이사항
-- **품목**: API로 수정 불가(화면에서 편집 불가)
+- **수정 가능**: 기본 정보 필드(발주 ID는 표시만 비활성)
+- **제품**: 읽기 전용 테이블(API는 헤더 `PUT`만 가정). 변경은 상세 등 다른 화면에서.
 - **제출**: `updatePurchaseOrder(id, payload)` → 성공 시 `/order/:id` 이동
 
 ---

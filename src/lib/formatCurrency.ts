@@ -1,6 +1,6 @@
 /**
  * 단가/금액을 통화별로 포맷합니다.
- * 품목·발주 등에서 원(KRW), 달러(USD), 엔(JPY) 등 다통화 지원 시 사용합니다.
+ * 제품·발주 등에서 원(KRW), 달러(USD), 엔(JPY) 등 다통화 지원 시 사용합니다.
  * API에 currencyCode 필드가 생기면 해당 값을 넘기면 됩니다.
  */
 const DEFAULT_CURRENCY = "KRW";
