@@ -1,3 +1,10 @@
+/**
+ * 품목(Item) 마스터·품목 분류·품목 유형 REST 클라이언트.
+ * Base는 `apiBase.ts`의 `API_BASE`. 인증이 필요한 호출은 Bearer 토큰 사용.
+ *
+ * @see docs/ITEMS.md
+ * @see docs/FRONTEND_API.md
+ */
 import { createApiError } from "../lib/apiError";
 import { API_BASE } from "./apiBase";
 

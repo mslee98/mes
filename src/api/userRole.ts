@@ -1,3 +1,8 @@
+/**
+ * 사용자–역할 배정 API.
+ *
+ * @see docs/FRONTEND_API.md
+ */
 import { createApiError } from "../lib/apiError";
 
 import { API_BASE } from "./apiBase";

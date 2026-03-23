@@ -21,6 +21,7 @@ import SelectInput from "../components/form/SelectInput";
 import SearchableSelectWithCreate from "../components/form/SearchableSelectWithCreate";
 import PartnerQuickCreateModal from "../components/form/PartnerQuickCreateModal";
 import ItemQuickCreateModal from "../components/form/ItemQuickCreateModal";
+import FileUploadDropzone from "../components/form/FileUploadDropzone";
 import {
   Table,
   TableBody,
@@ -59,9 +60,13 @@ import {
 import {
   getPurchaseOrder,
   getPurchaseOrderItems,
+  getPurchaseOrderFiles,
   getPartners,
   createPurchaseOrder,
+  uploadPurchaseOrderFile,
+  deletePurchaseOrderFile,
   updatePurchaseOrder,
+  createPurchaseOrderLine,
   updatePurchaseOrderLine,
   deletePurchaseOrderLine,
   type PurchaseOrderCreatePayload,
@@ -69,6 +74,7 @@ import {
   type PurchaseOrderItemPayload,
   type PurchaseOrderLinePatchPayload,
   type Partner,
+  type PurchaseOrderFile,
   type PurchaseOrderItem,
 } from "../api/purchaseOrder";
 
@@ -225,6 +231,7 @@ export default function OrderForm() {
   const [itemCreateRowIndex, setItemCreateRowIndex] = useState<number | null>(
     null
   );
+  const [pendingFilesForCreate, setPendingFilesForCreate] = useState<File[]>([]);
   const itemCreateRowRef = useRef<number | null>(null);
 
   const { data: order, isLoading: orderLoading } = useQuery({
@@ -245,6 +252,12 @@ export default function OrderForm() {
     queryKey: ["purchaseOrder", id, "lineItems"],
     queryFn: () => getPurchaseOrderItems(id, accessToken!),
     enabled: shouldFetchOrderLineItems,
+  });
+
+  const { data: files = [] } = useQuery({
+    queryKey: ["purchaseOrderFiles", id],
+    queryFn: () => getPurchaseOrderFiles(id, accessToken!),
+    enabled: !isNew && !!accessToken && Number.isFinite(id),
   });
 
   const { data: partners = [] } = useQuery({
@@ -297,7 +310,7 @@ export default function OrderForm() {
     isError: orgTreeError,
   } = useQuery({
     queryKey: ["organizationTree"],
-    queryFn: getOrganizationTree,
+    queryFn: () => getOrganizationTree(accessToken ?? undefined),
     enabled: !!accessToken,
   });
 
@@ -560,9 +573,32 @@ export default function OrderForm() {
   const createMutation = useMutation({
     mutationFn: (payload: PurchaseOrderCreatePayload) =>
       createPurchaseOrder(payload, accessToken!),
-    onSuccess: (data) => {
-      toast.success("발주가 등록되었습니다.");
+    onSuccess: async (data) => {
       queryClient.invalidateQueries({ queryKey: ["purchaseOrders"] });
+      if (pendingFilesForCreate.length > 0) {
+        const uploadResults = await Promise.allSettled(
+          pendingFilesForCreate.map((file) =>
+            uploadPurchaseOrderFile(data.id, file, accessToken!)
+          )
+        );
+        const uploadedCount = uploadResults.filter(
+          (result) => result.status === "fulfilled"
+        ).length;
+        const failedCount = uploadResults.length - uploadedCount;
+        if (uploadedCount > 0) {
+          toast.success(
+            `발주가 등록되었고 첨부파일 ${uploadedCount}건이 업로드되었습니다.`
+          );
+        } else {
+          toast.success("발주가 등록되었습니다.");
+        }
+        if (failedCount > 0) {
+          toast.error(`첨부파일 ${failedCount}건 업로드에 실패했습니다.`);
+        }
+        setPendingFilesForCreate([]);
+      } else {
+        toast.success("발주가 등록되었습니다.");
+      }
       navigate(`/order/${data.id}`);
     },
     onError: (e: Error) => toast.error(e.message || "등록에 실패했습니다."),
@@ -597,6 +633,42 @@ export default function OrderForm() {
       toast.error(e.message || "발주 제품 수정에 실패했습니다."),
   });
 
+  const lineCreateMutation = useMutation({
+    mutationFn: ({
+      payload,
+    }: {
+      index: number;
+      payload: PurchaseOrderItemPayload;
+    }) => createPurchaseOrderLine(id, payload, accessToken!),
+    onSuccess: (created, { index }) => {
+      toast.success("발주 제품이 추가되었습니다.");
+      queryClient.invalidateQueries({ queryKey: ["purchaseOrder", id] });
+      queryClient.invalidateQueries({ queryKey: ["purchaseOrder", id, "lineItems"] });
+      if (created) {
+        setItems((prev) => {
+          const next = [...prev];
+          const row = next[index];
+          if (!row) return prev;
+          next[index] = {
+            lineId: created.id,
+            itemId: created.itemId,
+            unitCode: String(created.unit ?? firstUnitValue ?? "").trim(),
+            qty: Number(created.qty ?? 0),
+            unitPrice: formatLineUnitPriceDisplay(created.unitPrice),
+            currencyCode:
+              String(created.currencyCode ?? order?.currencyCode ?? "KRW").trim() ||
+              "KRW",
+            requestDeliveryDate: created.requestDeliveryDate ?? "",
+            remark: created.remark ?? "",
+          };
+          return next;
+        });
+      }
+    },
+    onError: (e: Error) =>
+      toast.error(e.message || "발주 제품 추가에 실패했습니다."),
+  });
+
   const lineDeleteMutation = useMutation({
     mutationFn: (lineId: number) => deletePurchaseOrderLine(id, lineId, accessToken!),
     onSuccess: () => {
@@ -608,6 +680,26 @@ export default function OrderForm() {
       toast.error(e.message || "발주 제품 삭제에 실패했습니다."),
   });
 
+  const fileUploadMutation = useMutation({
+    mutationFn: (file: File) => uploadPurchaseOrderFile(id, file, accessToken!),
+    onSuccess: () => {
+      toast.success("파일이 업로드되었습니다.");
+      queryClient.invalidateQueries({ queryKey: ["purchaseOrderFiles", id] });
+    },
+    onError: (e: Error) => toast.error(e.message || "업로드에 실패했습니다."),
+  });
+
+  const fileDeleteMutation = useMutation({
+    mutationFn: (fileLinkId: number) =>
+      deletePurchaseOrderFile(id, fileLinkId, accessToken!),
+    onSuccess: () => {
+      toast.success("첨부파일이 삭제되었습니다.");
+      queryClient.invalidateQueries({ queryKey: ["purchaseOrderFiles", id] });
+      queryClient.invalidateQueries({ queryKey: ["purchaseOrder", id] });
+    },
+    onError: (e: Error) => toast.error(e.message || "삭제에 실패했습니다."),
+  });
+
   const addItemRow = () =>
     setItems((prev) => [
       ...prev,
@@ -617,6 +709,17 @@ export default function OrderForm() {
     setItems((prev) =>
       prev.length <= 1 ? prev : prev.filter((_, i) => i !== index)
     );
+
+  const addPendingFileForCreate = (file: File) => {
+    setPendingFilesForCreate((prev) => [...prev, file]);
+    toast.success(`첨부 대기 목록에 추가되었습니다: ${file.name}`);
+  };
+
+  const removePendingFileForCreate = (targetIndex: number) => {
+    setPendingFilesForCreate((prev) =>
+      prev.filter((_, index) => index !== targetIndex)
+    );
+  };
   const updateItemRow = (
     index: number,
     field: keyof ItemRow,
@@ -643,7 +746,7 @@ export default function OrderForm() {
 
   const saveLine = (index: number) => {
     const row = items[index];
-    if (!row?.lineId) return;
+    if (!row) return;
     if (row.itemId <= 0) {
       toast.error("제품을 선택하세요.");
       return;
@@ -659,6 +762,21 @@ export default function OrderForm() {
     const unitPrice = parseLineUnitPrice(row.unitPrice);
     if (!Number.isFinite(unitPrice) || unitPrice < 0) {
       toast.error("단가를 확인하세요.");
+      return;
+    }
+
+    if (!row.lineId) {
+      if (isNew) return;
+      const createPayload: PurchaseOrderItemPayload = {
+        itemId: row.itemId,
+        qty: row.qty,
+        unitPrice,
+        unit: row.unitCode.trim() || null,
+        currencyCode: row.currencyCode.trim() || "KRW",
+        requestDeliveryDate: row.requestDeliveryDate || null,
+        remark: row.remark.trim() || null,
+      };
+      lineCreateMutation.mutate({ index, payload: createPayload });
       return;
     }
 
@@ -683,7 +801,11 @@ export default function OrderForm() {
 
   const removeLine = (index: number) => {
     const row = items[index];
-    if (!row?.lineId) return;
+    if (!row) return;
+    if (!row.lineId) {
+      removeItemRow(index);
+      return;
+    }
     lineDeleteMutation.mutate(row.lineId);
   };
 
@@ -895,7 +1017,7 @@ export default function OrderForm() {
   const orderNoDisplay =
     !isNew && order
       ? (order.orderNo ?? `#${order.id}`)
-      : "등록 시 자동 부여";
+      : "자동 채번";
 
   return (
     <>
@@ -1138,13 +1260,101 @@ export default function OrderForm() {
                 placeholder="특이사항을 입력하세요."
               />
             </div>
+            <div className="sm:col-span-2">
+              <Label className="mb-2.5 block text-sm font-medium text-gray-800 dark:text-white/90">
+                첨부파일
+              </Label>
+              <div className="space-y-3">
+                {isNew ? (
+                  <>
+                    <FileUploadDropzone
+                      onSelectFile={addPendingFileForCreate}
+                      onError={(message) => toast.error(message)}
+                      disabled={isPending}
+                      maxFileSizeMb={30}
+                      buttonLabel="파일 선택"
+                      uploadGuideText="파일을 먼저 선택하면 등록 시 자동으로 함께 업로드됩니다."
+                    />
+                    <ul className="divide-y divide-gray-100 text-theme-sm dark:divide-white/5">
+                      {pendingFilesForCreate.length === 0 ? (
+                        <li className="py-2 text-gray-500">
+                          선택된 첨부파일이 없습니다.
+                        </li>
+                      ) : (
+                        pendingFilesForCreate.map((file, index) => (
+                          <li
+                            key={`${file.name}-${file.size}-${index}`}
+                            className="flex items-center justify-between py-2"
+                          >
+                            <span className="truncate pr-3 text-gray-800 dark:text-gray-200">
+                              {file.name}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => removePendingFileForCreate(index)}
+                              className="rounded-lg border border-gray-300 px-2 py-1 text-theme-xs text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+                            >
+                              제거
+                            </button>
+                          </li>
+                        ))
+                      )}
+                    </ul>
+                  </>
+                ) : (
+                  <>
+                    <FileUploadDropzone
+                      onSelectFile={(file) => fileUploadMutation.mutate(file)}
+                      onError={(message) => toast.error(message)}
+                      disabled={fileUploadMutation.isPending}
+                      maxFileSizeMb={30}
+                      buttonLabel="파일 선택"
+                      uploadGuideText="아래 버튼을 눌러 파일을 업로드하세요."
+                    />
+                    {fileUploadMutation.isPending ? (
+                      <span className="text-theme-xs text-gray-500">업로드 중...</span>
+                    ) : null}
+                    <ul className="divide-y divide-gray-100 text-theme-sm dark:divide-white/5">
+                      {(files as PurchaseOrderFile[]).length === 0 ? (
+                        <li className="py-2 text-gray-500">첨부파일이 없습니다.</li>
+                      ) : (
+                        (files as PurchaseOrderFile[]).map((f) => (
+                          <li
+                            key={f.id}
+                            className="flex items-center justify-between py-2"
+                          >
+                            <span className="text-gray-800 dark:text-gray-200">
+                              {f.fileName ?? "-"}
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-gray-500">
+                                {f.uploadedAt ?? f.createdAt ?? ""}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => fileDeleteMutation.mutate(f.id)}
+                                disabled={fileDeleteMutation.isPending}
+                                title="첨부파일 삭제"
+                                aria-label="첨부파일 삭제"
+                                className="inline-flex size-8 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 disabled:pointer-events-none disabled:opacity-40 dark:hover:bg-red-500/10 dark:hover:text-red-400"
+                              >
+                                <TrashBinIcon className="size-4" aria-hidden />
+                              </button>
+                            </div>
+                          </li>
+                        ))
+                      )}
+                    </ul>
+                  </>
+                )}
+              </div>
+            </div>
           </div>
         </ComponentCard>
 
         <ComponentCard
           title="발주 제품"
           headerEnd={
-            isNew ? (
             <button
               type="button"
               onClick={addItemRow}
@@ -1152,47 +1362,46 @@ export default function OrderForm() {
             >
               + 품목 추가
             </button>
-            ) : undefined
           }
         >
           <div className="space-y-4 dark:border-gray-700">
                 <div className="relative overflow-x-auto border-b dark:border-gray-800">
-                  <Table className="w-full text-left text-sm text-gray-900 dark:text-white md:table-fixed">
+                  <Table className="w-full text-center text-sm text-gray-900 dark:text-white md:table-fixed">
                     <TableHeader className="border-b border-gray-100 dark:border-white/5">
                       <TableRow className="hover:bg-transparent">
                         <TableCell
                           isHeader
-                          className="whitespace-nowrap py-3 font-medium text-gray-600 dark:text-gray-400 md:w-[24%]"
+                          className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[24%]"
                         >
                           제품 *
                         </TableCell>
                         <TableCell
                           isHeader
-                          className="whitespace-nowrap p-3 font-medium text-gray-600 dark:text-gray-400 md:w-[16%]"
+                          className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[16%]"
                         >
                           단위 · 수량 *
                         </TableCell>
                         <TableCell
                           isHeader
-                          className="whitespace-nowrap p-3 font-medium text-gray-600 dark:text-gray-400 md:w-[24%]"
+                          className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[24%]"
                         >
                           통화 · 단가 *
                         </TableCell>
                         <TableCell
                           isHeader
-                          className="whitespace-nowrap p-3 font-medium text-gray-600 dark:text-gray-400 md:w-[14%]"
+                          className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[14%]"
                         >
                           납품 요청일
                         </TableCell>
                         <TableCell
                           isHeader
-                          className="whitespace-nowrap p-3 font-medium text-gray-600 dark:text-gray-400 md:w-[16%]"
+                          className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[16%]"
                         >
                           비고
                         </TableCell>
                         <TableCell
                           isHeader
-                          className="w-[88px] p-3 text-center font-medium text-gray-600 dark:text-gray-400"
+                          className="w-[88px] px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400"
                         >
                           <span className="sr-only">행 작업</span>
                         </TableCell>
@@ -1202,14 +1411,17 @@ export default function OrderForm() {
                       {items.map((row, index) => (
                         <TableRow key={index} className="align-middle hover:bg-transparent">
                           {(() => {
+                            const isDraftRow = !isNew && !row.lineId;
                             const isLineEditing =
                               !isNew &&
                               !!row.lineId &&
                               editingLineIds.includes(row.lineId);
-                            const isEditReadonly = !isNew && !isLineEditing;
+                            const isEditReadonly =
+                              !isNew && !!row.lineId && !isLineEditing;
                             return (
                               <>
-                          <TableCell className="whitespace-nowrap py-3 align-middle">
+                          <TableCell className="px-3 py-3 text-center align-middle">
+                            <div className="flex justify-center">
                             <SearchableSelectWithCreate
                               id={`order-item-${index}`}
                               value={row.itemId ? String(row.itemId) : ""}
@@ -1225,8 +1437,10 @@ export default function OrderForm() {
                               isClearable={false}
                               isDisabled={isEditReadonly}
                             />
+                            </div>
                           </TableCell>
-                          <TableCell className="p-3 align-middle">
+                          <TableCell className="px-3 py-3 text-center align-middle">
+                            <div className="flex justify-center">
                             <SelectInput
                               id={`order-line-${index}-qty`}
                               size="sm"
@@ -1258,8 +1472,10 @@ export default function OrderForm() {
                               className="shadow-none max-w-full"
                               disabled={isEditReadonly}
                             />
+                            </div>
                           </TableCell>
-                          <TableCell className="p-3 align-middle">
+                          <TableCell className="px-3 py-3 text-center align-middle">
+                            <div className="flex justify-center">
                             <SelectInput
                               id={`order-line-${index}-unitPrice`}
                               size="sm"
@@ -1279,8 +1495,10 @@ export default function OrderForm() {
                               className="shadow-none max-w-full"
                               disabled={isEditReadonly}
                             />
+                            </div>
                           </TableCell>
-                          <TableCell className="p-3 align-middle">
+                          <TableCell className="px-3 py-3 text-center align-middle">
+                            <div className="flex justify-center">
                             <DatePicker
                               id={`order-line-req-${index}`}
                               placeholder="년-월-일"
@@ -1292,8 +1510,10 @@ export default function OrderForm() {
                               className="max-w-full min-w-0"
                               disabled={isEditReadonly}
                             />
+                            </div>
                           </TableCell>
-                          <TableCell className="p-3 align-middle">
+                          <TableCell className="px-3 py-3 text-center align-middle">
+                            <div className="flex justify-center">
                             <input
                               type="text"
                               value={row.remark}
@@ -1301,12 +1521,13 @@ export default function OrderForm() {
                                 updateItemRow(index, "remark", e.target.value)
                               }
                               placeholder="비고"
-                              className="h-9 w-full min-w-[6rem] rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-theme-xs text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/20 dark:border-gray-600 dark:bg-gray-900 dark:text-white dark:placeholder:text-white/30 dark:focus:border-brand-800"
+                              className="h-9 w-full min-w-[6rem] rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-center text-theme-xs text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/20 dark:border-gray-600 dark:bg-gray-900 dark:text-white dark:placeholder:text-white/30 dark:focus:border-brand-800"
                               aria-label="비고"
                               disabled={isEditReadonly}
                             />
+                            </div>
                           </TableCell>
-                          <TableCell className="p-3 align-middle text-center">
+                          <TableCell className="px-3 py-3 text-center align-middle">
                             {isNew ? (
                               <button
                                 type="button"
@@ -1318,12 +1539,41 @@ export default function OrderForm() {
                               >
                                 <TrashBinIcon className="size-[18px]" aria-hidden />
                               </button>
+                            ) : isDraftRow ? (
+                              <div className="inline-flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => saveLine(index)}
+                                  disabled={
+                                    lineCreateMutation.isPending ||
+                                    lineUpdateMutation.isPending
+                                  }
+                                  title="행 추가 저장"
+                                  aria-label="행 추가 저장"
+                                  className="inline-flex size-9 items-center justify-center rounded-lg text-brand-600 transition-colors hover:bg-brand-50 disabled:pointer-events-none disabled:opacity-40 dark:text-brand-400 dark:hover:bg-brand-500/10"
+                                >
+                                  <ArrowDownOnSquareIcon className="size-[18px]" aria-hidden />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => removeItemRow(index)}
+                                  disabled={items.length <= 1}
+                                  title="행 취소"
+                                  aria-label="행 취소"
+                                  className="inline-flex size-9 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 disabled:pointer-events-none disabled:opacity-40 dark:hover:bg-white/10 dark:hover:text-gray-200"
+                                >
+                                  <XCircleSolidIcon className="size-[18px]" aria-hidden />
+                                </button>
+                              </div>
                             ) : isLineEditing ? (
                               <div className="inline-flex items-center gap-1">
                                 <button
                                   type="button"
                                   onClick={() => saveLine(index)}
-                                  disabled={lineUpdateMutation.isPending}
+                                  disabled={
+                                    lineCreateMutation.isPending ||
+                                    lineUpdateMutation.isPending
+                                  }
                                   title="행 저장"
                                   aria-label="행 저장"
                                   className="inline-flex size-9 items-center justify-center rounded-lg text-brand-600 transition-colors hover:bg-brand-50 disabled:pointer-events-none disabled:opacity-40 dark:text-brand-400 dark:hover:bg-brand-500/10"

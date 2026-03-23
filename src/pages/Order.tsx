@@ -67,11 +67,14 @@ export default function Order() {
   const dateRangeInputRef = useRef<HTMLInputElement>(null);
   const flatpickrAnchorRef = useRef<HTMLDivElement>(null);
 
-  const listParams = useMemo(() => ({
-    partnerId: partnerId ? Number(partnerId) : undefined,
-    orderStatus: orderStatus || undefined,
-    approvalStatus: approvalStatus || undefined,
-  }), [partnerId, orderStatus, approvalStatus]);
+  /** 서버는 `?status=` 만 지원. `approvalStatus`는 아래 클라이언트 필터에서만 사용 */
+  const listParams = useMemo(
+    () => ({
+      partnerId: partnerId ? Number(partnerId) : undefined,
+      status: orderStatus || undefined,
+    }),
+    [partnerId, orderStatus]
+  );
 
   const { data: orders = [], isLoading, error } = useQuery({
     queryKey: ["purchaseOrders", listParams],
@@ -172,8 +175,13 @@ export default function Order() {
     if (dateEnd) {
       list = list.filter((o) => o.orderDate <= dateEnd);
     }
+    if (approvalStatus) {
+      list = list.filter(
+        (o) => String(o.approvalStatus ?? "").trim() === approvalStatus
+      );
+    }
     return list;
-  }, [orders, searchKeyword, dateStart, dateEnd]);
+  }, [orders, searchKeyword, dateStart, dateEnd, approvalStatus]);
 
   const totalCount = filteredByKeywordAndDate.length;
   const pagination = usePagination({ totalCount, initialPageSize: PAGE_SIZE });

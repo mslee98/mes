@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
-import { getUsers, type UserItem } from "../api/user";
+import {
+  getUsers,
+  userIsTeamLeaderForActiveOrgs,
+  type UserItem,
+} from "../api/user";
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import ListPageLoading from "../components/common/ListPageLoading";
@@ -229,6 +233,12 @@ export default function User() {
                 </TableCell>
                 <TableCell
                   isHeader
+                  className="px-5 py-3 text-center text-theme-xs font-medium text-gray-500 dark:text-gray-400"
+                >
+                  팀장
+                </TableCell>
+                <TableCell
+                  isHeader
                   className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400"
                 >
                   상태
@@ -257,6 +267,13 @@ export default function User() {
                   </TableCell>
                   <TableCell className="px-5 py-4 text-sm text-gray-500 dark:text-gray-400">
                     {getUserPhone(user)}
+                  </TableCell>
+                  <TableCell className="px-5 py-4 text-sm text-center">
+                    {userIsTeamLeaderForActiveOrgs(user) ? (
+                      <Badge size="sm" color="primary">팀장</Badge>
+                    ) : (
+                      <span className="text-theme-xs text-gray-400">—</span>
+                    )}
                   </TableCell>
                   <TableCell className="px-5 py-4 text-sm">
                     <Badge

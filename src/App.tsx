@@ -23,9 +23,12 @@ import ItemTypes from "./pages/ItemTypes";
 import Items from "./pages/Items";
 import ItemDetail from "./pages/ItemDetail";
 import ItemForm from "./pages/ItemForm";
+import ApprovalDocumentSample from "./pages/ApprovalDocumentSample";
 import ApiFeedbackProvider from "./context/ApiFeedbackContext";
 import { useAuth } from "./context/AuthContext";
 import NotFound from "./pages/NotFound";
+import Delivery from "./pages/Delivery";
+import DeliveryDetail from "./pages/DeliveryDetail";
 
 function RequireAuth() {
   const { isLoggedIn, isLoading } = useAuth();
@@ -98,6 +101,13 @@ function App() {
               <Route path="order/new" element={<OrderForm />} />
               <Route path="order/:orderId" element={<OrderDetail />} />
               <Route path="order/:orderId/edit" element={<OrderForm />} />
+
+              {/* 납품 관리 */}
+              <Route path="delivery" element={<Delivery />} />
+              <Route path="delivery/:deliveryId" element={<DeliveryDetail />} />
+
+              {/* 전자결재 공통 헤더 UI 샘플 (approval_document 메타 구조 참고) */}
+              <Route path="approval-document/sample" element={<ApprovalDocumentSample />} />
 
               {/* 시스템 관리 */}
               <Route path="organization" element={<Organization />} />

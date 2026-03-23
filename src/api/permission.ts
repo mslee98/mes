@@ -1,3 +1,8 @@
+/**
+ * 권한(Permission) 목록 API.
+ *
+ * @see docs/FRONTEND_API.md
+ */
 import { createApiError } from "../lib/apiError";
 
 import { API_BASE } from "./apiBase";

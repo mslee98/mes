@@ -1,7 +1,10 @@
 /**
- * refreshToken 쿠키 저장/조회/삭제
+ * refreshToken 브라우저 쿠키 저장/조회/삭제 (클라이언트 전용).
+ *
  * - 앱과 같은 도메인에만 저장 (새로고침 시 복구용)
- * - /auth/refresh 호출 시 쿠키에서 읽어서 body로 전달
+ * - 백엔드가 Set-Cookie로 준 HttpOnly 쿠키와 별개일 수 있음 — 구현·환경에 맞게 사용
+ *
+ * @see docs/FRONTEND_API.md §2
  */
 
 const COOKIE_NAME =

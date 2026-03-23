@@ -1,3 +1,8 @@
+/**
+ * 인증: 로그인·토큰 갱신·로그아웃. 쿠키 기반 refresh와 연동 (`credentials: "include"`).
+ *
+ * @see docs/FRONTEND_API.md §2
+ */
 import { API_BASE } from "./apiBase";
 
 export interface LoginRequest {

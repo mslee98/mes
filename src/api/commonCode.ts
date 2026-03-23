@@ -1,3 +1,10 @@
+/**
+ * 공통코드 그룹·코드 항목 API (`/common-codes/...` 계열).
+ * 발주 화면 등에서 드롭다운용으로 사용. `COMMON_CODE_GROUP_*` 상수 참고.
+ *
+ * @see docs/COMMON_CODE.md
+ * @see docs/FRONTEND_API.md
+ */
 import { createApiError } from "../lib/apiError";
 
 import { API_BASE } from "./apiBase";
@@ -26,6 +33,8 @@ export interface CommonCodeItem {
 /** 발주 유형·상태 — `GET /api/common-codes/groups/{groupCode}/codes` */
 export const COMMON_CODE_GROUP_PURCHASE_ORDER_TYPE = "PURCHASE_ORDER_TYPE";
 export const COMMON_CODE_GROUP_PURCHASE_ORDER_STATUS = "PURCHASE_ORDER_STATUS";
+/** 납품 상태 — `GET /api/common-codes/groups/DELIVERY_STATUS/codes` */
+export const COMMON_CODE_GROUP_DELIVERY_STATUS = "DELIVERY_STATUS";
 
 /** 활성 항목만, value=code·label=name (목록은 API에서 sortOrder·id 순 정렬됨) */
 export function commonCodesToSelectOptions(

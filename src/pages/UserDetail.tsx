@@ -15,7 +15,7 @@ import DatePicker from "../components/form/date-picker";
 import Select from "../components/form/Select";
 import { useAuth } from "../context/AuthContext";
 import { UserSolidIcon } from "../icons";
-import { getUsers, type UserItem } from "../api/user";
+import { getUsers, getOrganizationPath, type UserItem } from "../api/user";
 import { getRoles } from "../api/role";
 import {
   assignUserRole,
@@ -274,6 +274,45 @@ export default function UserDetail() {
               </div>
             </div>
           </ComponentCard>
+
+          {currentUser.userOrganizations &&
+          currentUser.userOrganizations.length > 0 ? (
+            <ComponentCard title="조직 소속 · 팀장 여부">
+              <ul className="space-y-3">
+                {currentUser.userOrganizations.map((uo) => (
+                  <li
+                    key={uo.id}
+                    className="rounded-lg border border-gray-100 px-4 py-3 dark:border-white/[0.05]"
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+                        {getOrganizationPath(uo.organizationUnit)}
+                      </p>
+                      {uo.isPrimary ? (
+                        <Badge size="sm" color="info">주 소속</Badge>
+                      ) : null}
+                      {uo.isTeamLeader ? (
+                        <Badge size="sm" color="primary">팀장</Badge>
+                      ) : (
+                        <span className="text-theme-xs text-gray-400">—</span>
+                      )}
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-x-4 text-theme-xs text-gray-500 dark:text-gray-400">
+                      {uo.position?.name ? (
+                        <span>직위: {uo.position.name}</span>
+                      ) : null}
+                      {uo.jobTitle?.name ? (
+                        <span>직급: {uo.jobTitle.name}</span>
+                      ) : null}
+                      {uo.isActive === false ? (
+                        <span className="text-error-500">비활성 소속</span>
+                      ) : null}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </ComponentCard>
+          ) : null}
 
           <ComponentCard title="역할 부여">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">

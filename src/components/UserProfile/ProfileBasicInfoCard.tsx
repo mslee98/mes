@@ -2,6 +2,7 @@ import type { UserItem } from "../../api/user";
 import { getOrganizationPath } from "../../api/user";
 import { UserSolidIcon } from "../../icons";
 import ComponentCard from "../common/ComponentCard";
+import Badge from "../ui/badge/Badge";
 
 interface ProfileBasicInfoCardProps {
   user: UserItem | null;
@@ -78,6 +79,9 @@ export default function ProfileBasicInfoCard({
                     )}
                     {uo.isPrimary && (
                       <span className="text-brand-600 dark:text-brand-400">주 소속</span>
+                    )}
+                    {uo.isTeamLeader && (
+                      <Badge size="sm" color="primary">팀장</Badge>
                     )}
                   </div>
                 </div>

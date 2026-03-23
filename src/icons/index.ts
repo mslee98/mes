@@ -59,7 +59,8 @@ import { ReactComponent as TruckIcon } from "./truck.svg?react";
 import { ReactComponent as UserCircleSolidIcon } from "./user-circle-solid.svg?react";
 import { ReactComponent as UserSolidIcon } from "./user-solid.svg?react";
 import { ReactComponent as InformationCircleIcon } from "./information-circle.svg?react";
-
+import { ReactComponent as ArrowDownOnSquareIcon } from "./arrow-down-on-square.svg?react";
+import { ReactComponent as XCircleSolidIcon } from "./x-circle.svg?react";
 export {
   ErrorHexaIcon,
   AlertHexaIcon,
@@ -122,4 +123,6 @@ export {
   UserCircleSolidIcon,
   UserSolidIcon,
   InformationCircleIcon,
+  ArrowDownOnSquareIcon,
+  XCircleSolidIcon,
 };

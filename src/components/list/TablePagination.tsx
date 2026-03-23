@@ -98,8 +98,8 @@ export function TablePagination({
         <li>
           <button
             type="button"
-            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-            disabled={currentPage === totalPages}
+            onClick={() => setCurrentPage((p) => Math.min(Math.max(totalPages, 1), p + 1))}
+            disabled={totalPages === 0 || currentPage >= totalPages}
             className={btnPrevNextLast}
             aria-label="다음"
           >

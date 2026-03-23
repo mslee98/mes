@@ -1,3 +1,8 @@
+/**
+ * 메뉴 트리·CRUD·역할별 메뉴 권한 API.
+ *
+ * @see docs/FRONTEND_API.md
+ */
 import { createApiError } from "../lib/apiError";
 import { API_BASE } from "./apiBase";
 
