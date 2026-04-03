@@ -11,8 +11,13 @@ interface SelectProps {
   placeholder?: string;
   onChange: (value: string) => void;
   className?: string;
+  /** 비제어 모드 초기값 */
   defaultValue?: string;
+  /** 있으면 제어 컴포넌트로 동작 */
+  value?: string;
   size?: "sm" | "md";
+  disabled?: boolean;
+  id?: string;
 }
 
 const sizeStyles = {
@@ -31,20 +36,29 @@ const Select: React.FC<SelectProps> = ({
   onChange,
   className = "",
   defaultValue = "",
+  value: valueProp,
   size = "md",
+  disabled = false,
+  id,
 }) => {
-  const [selectedValue, setSelectedValue] = useState<string>(defaultValue);
+  const isControlled = valueProp !== undefined;
+  const [uncontrolledValue, setUncontrolledValue] = useState<string>(defaultValue);
+  const selectedValue = isControlled ? valueProp : uncontrolledValue;
 
   const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const value = e.target.value;
-    setSelectedValue(value);
-    onChange(value);
+    const next = e.target.value;
+    if (!isControlled) {
+      setUncontrolledValue(next);
+    }
+    onChange(next);
   };
 
   return (
     <div className={`relative ${className}`}>
       <select
-        className={`w-full appearance-none border border-gray-300 bg-white shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800 ${
+        id={id}
+        disabled={disabled}
+        className={`w-full appearance-none border border-gray-300 bg-white shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800 dark:disabled:bg-gray-800/80 ${
           sizeStyles[size]
         } ${
           selectedValue

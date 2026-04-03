@@ -10,11 +10,15 @@ import {
 } from "react";
 import {
   login as apiLogin,
-  refresh as apiRefresh,
   logout as apiLogout,
   type LoginResponse,
-  type RefreshResponse,
 } from "../api/auth";
+import { setAuthAccessToken, subscribeAuthAccessToken } from "../lib/authAccessStore";
+import {
+  refreshAccessTokenSingle,
+  onRefreshUserPayload,
+  type RefreshedUser,
+} from "../lib/authRefreshCoordinator";
 
 type AuthUser = {
   employeeNo: number;
@@ -64,34 +68,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // 앱 시작 시: 백엔드가 설정한 refresh_token 쿠키로 access_token 재발급 (credentials: 'include'로 쿠키 자동 전송)
+  useEffect(() => {
+    return subscribeAuthAccessToken((t) => setAccessToken(t));
+  }, []);
+
+  useEffect(() => {
+    return onRefreshUserPayload((u: RefreshedUser | undefined) => {
+      if (!u || u.employeeNo == null) return;
+      setUser((prev) => {
+        const merged = { ...(prev ?? {}), ...u } as AuthUser;
+        if (u.name) setStoredUser(merged);
+        return merged;
+      });
+    });
+  }, []);
+
+  // 앱 시작 시: refresh_token(HttpOnly 쿠키)로 access 재발급 — credentials: include
   useEffect(() => {
     let cancelled = false;
 
     async function tryRefresh() {
       try {
-        const res = (await apiRefresh()) as RefreshResponse;
+        await refreshAccessTokenSingle();
         if (cancelled) return;
-        const newAccess =
-          res.accessToken ?? (res.access_token as string | undefined);
-        if (newAccess) setAccessToken(newAccess);
-        // refresh 응답에 user가 있으면 사용, 없거나 name이 없으면 이전에 저장해 둔 user 복원 (로그인 시 이름 유지)
-        const responseUser = res.user as AuthUser | undefined;
-        if (responseUser?.name) {
-          setUser(responseUser);
-          setStoredUser(responseUser);
-        } else if (responseUser?.employeeNo) {
-          const merged = { ...getStoredUser(), ...responseUser } as AuthUser;
-          setUser(merged);
-          setStoredUser(merged);
-        } else {
-          const stored = getStoredUser();
-          if (stored) setUser(stored);
-        }
+        setUser((prev) => {
+          if (prev?.employeeNo != null) return prev;
+          return getStoredUser();
+        });
       } catch {
         if (!cancelled) {
           setUser(null);
-          setAccessToken(null);
+          setAuthAccessToken(null);
           setStoredUser(null);
         }
       } finally {
@@ -117,7 +124,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
       const u = userData as AuthUser;
       setUser(u);
-      setAccessToken(access);
+      setAuthAccessToken(access);
       setStoredUser(u); // 새로고침 후 refresh 응답에 user가 없어도 이름 표시 유지용
       // refresh_token은 백엔드가 Set-Cookie로 설정함 (credentials: 'include' 사용 중)
     },
@@ -129,7 +136,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       await apiLogout(); // 서버에서 refresh_token 쿠키 삭제
     } finally {
       setUser(null);
-      setAccessToken(null);
+      setAuthAccessToken(null);
       setStoredUser(null);
     }
   }, []);

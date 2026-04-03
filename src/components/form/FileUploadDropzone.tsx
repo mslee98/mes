@@ -1,5 +1,6 @@
 import { useId, useRef, useState, type ChangeEvent, type DragEvent } from "react";
-import { ReactComponent as ArrowDownOnSquareIcon } from "../../icons/arrow-down-on-square.svg?react";
+
+import { ReactComponent as ArchiveBoxArrowDownIcon } from "../../icons/archive-box-arrow-down.svg?react";
 
 type FileUploadDropzoneProps = {
   onSelectFile: (file: File) => void;
@@ -81,7 +82,7 @@ export default function FileUploadDropzone({
         }`}
       >
         <div className="flex flex-col items-center text-center">
-          <ArrowDownOnSquareIcon
+          <ArchiveBoxArrowDownIcon
             className="mb-3 h-8 w-8 text-gray-500 dark:text-gray-400"
             aria-hidden
           />

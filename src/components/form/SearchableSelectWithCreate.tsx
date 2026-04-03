@@ -57,6 +57,10 @@ function buildStyles(
   const fontSize = compact ? 12 : 14;
 
   return {
+    container: (base) => ({
+      ...base,
+      width: "100%",
+    }),
     control: (base, state) => ({
       ...base,
       minHeight,
@@ -71,6 +75,12 @@ function buildStyles(
       ...base,
       backgroundColor: bg,
       zIndex: 10001,
+      // 테이블 셀 등 좁은 트리거에서도 옵션 한 줄에 가깝게 보이도록 메뉴만 넓힘
+      ...(compact
+        ? {
+            minWidth: "max(100%, 28rem)",
+          }
+        : {}),
     }),
     menuPortal: (base) => ({ ...base, zIndex: 100020 }),
     menuList: (base) => ({ ...base, padding: 4 }),

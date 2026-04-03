@@ -1,14 +1,20 @@
 import { useState } from "react";
 import type { OrganizationUnitNode } from "../../api/organization";
 
-const TYPE_LABELS: Record<string, string> = {
+/** 공통코드 미조회 시 최소 폴백 (ORG_TYPE 시드와 맞춤) */
+const TYPE_LABELS_FALLBACK: Record<string, string> = {
   COMPANY: "회사",
   HEADQUARTERS: "본사",
+  FACTORY: "공장",
   DEPARTMENT: "부서",
+  TEAM: "팀",
 };
 
-function getTypeLabel(type: string): string {
-  return TYPE_LABELS[type] ?? type;
+function getTypeLabel(
+  type: string,
+  orgTypeLabels?: Record<string, string>
+): string {
+  return orgTypeLabels?.[type] ?? TYPE_LABELS_FALLBACK[type] ?? type;
 }
 
 function getTypeBadgeClass(type: string): string {
@@ -27,11 +33,14 @@ function getTypeBadgeClass(type: string): string {
 interface OrganizationTreeNodeProps {
   node: OrganizationUnitNode;
   depth?: number;
+  /** 공통코드 `ORG_TYPE` code → name */
+  orgTypeLabels?: Record<string, string>;
 }
 
 export default function OrganizationTreeNode({
   node,
   depth = 0,
+  orgTypeLabels,
 }: OrganizationTreeNodeProps) {
   const [isOpen, setIsOpen] = useState(true);
   const hasChildren = node.children && node.children.length > 0;
@@ -68,7 +77,7 @@ export default function OrganizationTreeNode({
         <span
           className={`text-xs px-2 py-0.5 rounded shrink-0 ${getTypeBadgeClass(node.type)}`}
         >
-          {getTypeLabel(node.type)}
+          {getTypeLabel(node.type, orgTypeLabels)}
         </span>
         {!node.isActive && (
           <span className="text-xs text-red-500 dark:text-red-400 shrink-0">비활성</span>
@@ -80,7 +89,12 @@ export default function OrganizationTreeNode({
             .slice()
             .sort((a, b) => a.sortOrder - b.sortOrder)
             .map((child) => (
-              <OrganizationTreeNode key={child.id} node={child} depth={depth + 1} />
+              <OrganizationTreeNode
+                key={child.id}
+                node={child}
+                depth={depth + 1}
+                orgTypeLabels={orgTypeLabels}
+              />
             ))}
         </div>
       )}

@@ -27,18 +27,19 @@ import { useAuth } from "../context/AuthContext";
 import {
   getPurchaseOrders,
   getPartners,
-  getCodeGroupCodes,
   type PurchaseOrderListItem,
   type Partner,
-  type CodeItem,
 } from "../api/purchaseOrder";
 import {
   getCommonCodesByGroup,
   COMMON_CODE_GROUP_PURCHASE_ORDER_STATUS,
+  COMMON_CODE_GROUP_APPROVAL_STATUS,
+  COMMON_CODE_GROUP_COUNTRY,
   commonCodesToSelectOptions,
   type CommonCodeItem,
 } from "../api/commonCode";
-import { formatCurrency } from "../lib/formatCurrency";
+import { partnerSelectLabel } from "../lib/partnerDisplay";
+// import { formatCurrency } from "../lib/formatCurrency";
 
 const PAGE_SIZE = 10;
 
@@ -88,6 +89,13 @@ export default function Order() {
     enabled: !!accessToken && !isAuthLoading,
   });
 
+  const { data: countryCodes = [] } = useQuery({
+    queryKey: ["commonCodes", COMMON_CODE_GROUP_COUNTRY],
+    queryFn: () =>
+      getCommonCodesByGroup(COMMON_CODE_GROUP_COUNTRY, accessToken!),
+    enabled: !!accessToken && !isAuthLoading,
+  });
+
   const { data: orderStatusCodes = [] } = useQuery<CommonCodeItem[]>({
     queryKey: ["commonCodes", "PURCHASE_ORDER_STATUS"],
     queryFn: () =>
@@ -98,9 +106,10 @@ export default function Order() {
     enabled: !!accessToken && !isAuthLoading,
   });
 
-  const { data: approvalStatusCodes = [] } = useQuery({
-    queryKey: ["codeGroups", "APPROVAL_STATUS"],
-    queryFn: () => getCodeGroupCodes("APPROVAL_STATUS", accessToken!),
+  const { data: approvalStatusCodes = [] } = useQuery<CommonCodeItem[]>({
+    queryKey: ["commonCodes", COMMON_CODE_GROUP_APPROVAL_STATUS],
+    queryFn: () =>
+      getCommonCodesByGroup(COMMON_CODE_GROUP_APPROVAL_STATUS, accessToken!),
     enabled: !!accessToken && !isAuthLoading,
   });
 
@@ -139,11 +148,11 @@ export default function Order() {
     (partners as Partner[]).forEach((p) =>
       list.push({
         value: String(p.id),
-        label: `${p.name || "-"} (${p.code || "-"})`,
+        label: partnerSelectLabel(p, countryCodes),
       })
     );
     return list;
-  }, [partners]);
+  }, [partners, countryCodes]);
 
   const orderStatusOptions = useMemo(() => {
     const list: { value: string; label: string }[] = [{ value: "", label: "전체" }];
@@ -153,7 +162,7 @@ export default function Order() {
 
   const approvalStatusOptions = useMemo(() => {
     const list: { value: string; label: string }[] = [{ value: "", label: "전체" }];
-    (approvalStatusCodes as CodeItem[]).forEach((c) => list.push({ value: c.code, label: c.name || c.code }));
+    commonCodesToSelectOptions(approvalStatusCodes).forEach((o) => list.push(o));
     return list;
   }, [approvalStatusCodes]);
 
@@ -161,13 +170,19 @@ export default function Order() {
     let list = orders as PurchaseOrderListItem[];
     const kw = searchKeyword.trim().toLowerCase();
     if (kw) {
-      list = list.filter(
-        (o) =>
+      list = list.filter((o) => {
+        const partner = o.partner as Partner | undefined;
+        const partnerLine = partner
+          ? partnerSelectLabel(partner, countryCodes).toLowerCase()
+          : "";
+        return (
           (o.orderNo && o.orderNo.toLowerCase().includes(kw)) ||
           (o.title && o.title.toLowerCase().includes(kw)) ||
-          ((o.partner as Partner)?.name && (o.partner as Partner).name.toLowerCase().includes(kw)) ||
-          ((o.partner as Partner)?.code && (o.partner as Partner).code.toLowerCase().includes(kw))
-      );
+          (partner?.name && partner.name.toLowerCase().includes(kw)) ||
+          (partner?.code && partner.code.toLowerCase().includes(kw)) ||
+          partnerLine.includes(kw)
+        );
+      });
     }
     if (dateStart) {
       list = list.filter((o) => o.orderDate >= dateStart);
@@ -181,7 +196,7 @@ export default function Order() {
       );
     }
     return list;
-  }, [orders, searchKeyword, dateStart, dateEnd, approvalStatus]);
+  }, [orders, searchKeyword, dateStart, dateEnd, approvalStatus, countryCodes]);
 
   const totalCount = filteredByKeywordAndDate.length;
   const pagination = usePagination({ totalCount, initialPageSize: PAGE_SIZE });
@@ -209,9 +224,7 @@ export default function Order() {
   const getApprovalStatusName = (code: string | undefined) => {
     const c = code?.trim();
     if (!c) return "미승인";
-    return (
-      (approvalStatusCodes as CodeItem[]).find((x) => x.code === c)?.name ?? c
-    );
+    return approvalStatusCodes.find((x) => x.code === c)?.name ?? c;
   };
 
   return (
@@ -446,7 +459,7 @@ export default function Order() {
                         <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">요청납기</TableCell>
                         <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-center text-theme-xs dark:text-gray-400">발주 상태</TableCell>
                         <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-center text-theme-xs dark:text-gray-400">승인 상태</TableCell>
-                        <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-end text-theme-xs dark:text-gray-400">총 금액</TableCell>
+                        {/* <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-end text-theme-xs dark:text-gray-400">총 금액</TableCell> */}
                       </TableRow>
                     </TableHeader>
                     <TableBody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
@@ -467,11 +480,14 @@ export default function Order() {
                                 {row.orderNo}
                               </Link>
                             </TableCell>
-                            <TableCell className="px-4 py-3 text-gray-700 text-start text-theme-sm dark:text-gray-300">{row.title ?? "-"}</TableCell>
+                            <TableCell className="px-4 py-3 text-gray-700 text-start text-theme-sm truncate dark:text-gray-300 max-w-[15rem]" >{row.title ?? "-"}</TableCell>
                             <TableCell className="px-4 py-3 text-gray-500 text-theme-sm dark:text-gray-400">
-                              {(row.partner as Partner)?.name ?? (row.partner as Partner)?.code ?? "-"}
+                              {partnerSelectLabel(
+                                row.partner as Partner | undefined,
+                                countryCodes
+                              )}
                             </TableCell>
-                            <TableCell className="px-4 py-3 text-gray-500 text-theme-sm dark:text-gray-400">
+                            <TableCell className="px-4 py-3 text-gray-500 text-theme-sm dark:text-gray-400 ">
                               {row.orderDate?.trim() ? row.orderDate : "-"}
                             </TableCell>
                             <TableCell className="px-4 py-3 text-gray-500 text-theme-sm dark:text-gray-400">
@@ -487,9 +503,9 @@ export default function Order() {
                                 {getApprovalStatusName(row.approvalStatus)}
                               </Badge>
                             </TableCell>
-                            <TableCell className="px-4 py-3 text-end font-medium text-gray-800 text-theme-sm dark:text-white/90">
+                            {/* <TableCell className="px-4 py-3 text-end font-medium text-gray-800 text-theme-sm dark:text-white/90">
                               {formatCurrency(row.totalAmount, row.currencyCode ?? "KRW")}
-                            </TableCell>
+                            </TableCell> */}
                           </TableRow>
                         ))
                       )}

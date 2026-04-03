@@ -3,10 +3,12 @@ import {
   useMemo,
   useCallback,
   useEffect,
+  useRef,
   startTransition,
 } from "react";
 import {
   useQuery,
+  useQueries,
   useMutation,
   useQueryClient,
 } from "@tanstack/react-query";
@@ -15,6 +17,8 @@ import toast from "react-hot-toast";
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import ComponentCard from "../components/common/ComponentCard";
+import PageNotice from "../components/common/PageNotice";
+import ConfirmModal from "../components/common/ConfirmModal";
 import LoadingLottie from "../components/common/LoadingLottie";
 import Badge from "../components/ui/badge/Badge";
 import { Modal } from "../components/ui/modal";
@@ -28,19 +32,30 @@ import {
   getPurchaseOrderRequestDepartmentLabel,
   submitPurchaseOrderApproval,
   approvePurchaseOrderApproval,
+  rejectPurchaseOrderApproval,
+  type PurchaseOrderApprovalLineInput,
   type PurchaseOrderDetail,
   type PurchaseOrderFile,
   type PurchaseOrderItem,
   type Delivery,
   type DeliveryCreatePayload,
+  type DeliveryCreateLinePayload,
   type Partner,
 } from "../api/purchaseOrder";
+import {
+  getProductDefinitions,
+  productDefinitionSelectLabel,
+} from "../api/products";
+import { productDetailHrefForDeliveryReturn } from "../lib/orderReturnNavigation";
+import { rejectApprovalRequest } from "../api/approvalRequests";
 import { API_BASE } from "../api/apiBase";
 import {
   getCommonCodesByGroup,
   COMMON_CODE_GROUP_PURCHASE_ORDER_TYPE,
   COMMON_CODE_GROUP_PURCHASE_ORDER_STATUS,
+  COMMON_CODE_GROUP_COUNTRY,
 } from "../api/commonCode";
+import { partnerSelectLabel } from "../lib/partnerDisplay";
 import {
   Table,
   TableBody,
@@ -58,7 +73,25 @@ import {
   lineItemsToAmountSummaries,
   OrderLineAmountSummary,
 } from "../lib/orderLineAmountSummary";
+import ApprovalDetailContent, {
+  type ApprovalDocumentMock,
+} from "../components/approval/ApprovalDetailContent";
+import PurchaseOrderApprovalSubmitPanel from "../components/approval/PurchaseOrderApprovalSubmitPanel";
+import ApprovalModalAlternateAction from "../components/approval/ApprovalModalAlternateAction";
+import CurrentApprovalRequestSection, {
+  ApprovalRequestCompactSummary,
+  ApprovalRequestDetailBody,
+} from "../components/approval/CurrentApprovalRequestSection";
+import {
+  approvalCurrentStepSummary,
+  approvalRequestStatusLabel,
+} from "../components/approval/approvalRequestDisplayUtils";
 import { ReactComponent as ArrowDownOnSquareIcon } from "../icons/arrow-down-on-square.svg?react";
+import {
+  newApprovalDraftRowId,
+  buildApprovalLinesFromDraft,
+  type ApprovalLineDraftRow,
+} from "../lib/purchaseOrderApprovalDraft";
 import { getUsers, findTeamLeaderUserForDepartment } from "../api/user";
 import {
   getOrganizationTree,
@@ -113,33 +146,16 @@ function deliveryManagerUserIdFromSelect(selectValue: string): number | null {
 /**
  * 결재(상신·승인) / 납품 — API 흐름 요약
  * -----------------------------------------------------------------
- * 1) 상신: POST `.../approval/submit` — `firstApproverUserId`는 참고용 저장, 에러 문구는 「결재 담당자」.
- *    이미 PO_CLOSED(종결)이면 400 — 재상신 불가.
- * 2) 승인: POST `.../approval/approve` — 승인과 동시에 status → PO_CLOSED(발주 종결), approvalApprovedAt 등 기록.
- *    발주 수정·열람 권한이 있으면 누구나 승인 가능(1차 결재자/관리자 구분 없음).
- * 3) 납품: POST `.../deliveries` — **approvalApprovedAt**(승인·종결) 이후만 허용. 상신만으로는 납품 불가.
- * 4) 상신 시 결재 담당자(팀장) 표시: GET /users + 조직 트리로 `findTeamLeaderUserForDepartment` 계산(프론트 안내용).
+ * 1) 상신: POST `.../approval/submit` — `lines[]`는 `stepOrder`·`approverUserId`(선택 `status`).
+ *    이미 PO_CLOSED이면 400.
+ * 2) 승인: POST `.../approval/approve` — 발주 종결(PO_CLOSED).
+ * 3) 납품: POST `.../deliveries` — **order.status === PO_CLOSED** 일 때만 백엔드에서 허용.
+ * 4) 발주 헤더의 결재 시각·1차 결재자 필드는 제거됨 → `currentApprovalRequest` 로 표시.
  */
 type ApprovalModalAction = "submit" | "approve";
 
 function formatDate(s: string | null | undefined): string {
   return s ?? "-";
-}
-
-/** 상신·승인 일시 등 — YYYY-MM-dd */
-function formatDateYmd(s: string | null | undefined): string {
-  const raw = String(s ?? "").trim();
-  if (!raw) return "-";
-  const head = raw.match(/^(\d{4}-\d{2}-\d{2})/);
-  if (head) return head[1];
-  const d = new Date(raw);
-  if (!Number.isNaN(d.getTime())) {
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-    return `${y}-${m}-${day}`;
-  }
-  return raw;
 }
 
 function buildFileDownloadUrl(filePath: string): string {
@@ -194,6 +210,9 @@ export default function OrderDetail() {
   const [deliveryLineQtyInput, setDeliveryLineQtyInput] = useState<
     Record<number, string>
   >({});
+  /** 발주 라인에 정의가 없을 때 — 납품 시점에 선택한 product_definition id */
+  const [deliveryLineDefinitionSelect, setDeliveryLineDefinitionSelect] =
+    useState<Record<number, string>>({});
 
   const resetDeliveryModalForm = useCallback(() => {
     setDeliveryTitle("");
@@ -203,6 +222,7 @@ export default function OrderDetail() {
     setDeliveryManagerDeptSelectValue("");
     setDeliveryManagerUserSelectValue("");
     setDeliveryLineQtyInput({});
+    setDeliveryLineDefinitionSelect({});
   }, []);
 
   /** 결재 모달: 상신 | 승인 */
@@ -210,6 +230,14 @@ export default function OrderDetail() {
   const [approvalAction, setApprovalAction] = useState<ApprovalModalAction>("submit");
   /** 상신·승인 시 서버로 같이 보내는 의견(선택) */
   const [approvalComment, setApprovalComment] = useState("");
+  /** 상신 전용 — 결재선 단계별 결재자(미상신 상태에서만 편집) */
+  const [approvalLineDraftRows, setApprovalLineDraftRows] = useState<
+    ApprovalLineDraftRow[]
+  >([]);
+  const [approvalSubmitTitle, setApprovalSubmitTitle] = useState("발주 결재 요청");
+  const [approvalSubmitRemark, setApprovalSubmitRemark] = useState("");
+  const [rejectConfirmOpen, setRejectConfirmOpen] = useState(false);
+  const approvalDraftSeededForOrderRef = useRef<number | null>(null);
 
   const { data: order, isLoading: orderLoading, error: orderError } = useQuery({
     queryKey: ["purchaseOrder", id],
@@ -234,6 +262,69 @@ export default function OrderDetail() {
     [deliveries]
   );
 
+  /** 납품 모달: 정의 미지정 라인의 대표 제품별 정의 목록용 (중복 productId 제거) */
+  const productIdsForDeliveryDefs = useMemo(() => {
+    if (!order) return [];
+    const po = order as PurchaseOrderDetail;
+    const lines = (po.orderItems ?? po.items ?? []) as PurchaseOrderItem[];
+    const s = new Set<number>();
+    for (const line of lines) {
+      if ((line.productDefinitionId ?? 0) > 0) continue;
+      const pid = line.productId ?? 0;
+      if (pid > 0) s.add(pid);
+    }
+    return Array.from(s).sort((a, b) => a - b);
+  }, [order]);
+
+  const deliveryDefinitionQueries = useQueries({
+    queries: productIdsForDeliveryDefs.map((productId) => ({
+      queryKey: ["productDefinitions", productId],
+      queryFn: () => getProductDefinitions(productId, accessToken!),
+      enabled:
+        deliveryModalOpen &&
+        !!accessToken &&
+        productId > 0 &&
+        Number.isFinite(id),
+      staleTime: 60_000,
+    })),
+  });
+
+  const deliveryDefsByProductId = useMemo(() => {
+    const m = new Map<
+      number,
+      Awaited<ReturnType<typeof getProductDefinitions>>
+    >();
+    productIdsForDeliveryDefs.forEach((pid, idx) => {
+      const data = deliveryDefinitionQueries[idx]?.data;
+      if (data && Array.isArray(data)) m.set(pid, data);
+    });
+    return m;
+  }, [productIdsForDeliveryDefs, deliveryDefinitionQueries]);
+
+  /** 정의 후보가 1개뿐이면 사용자 선택 없이 자동 지정 (여러 개면 빈 값 → 수동 선택) */
+  useEffect(() => {
+    if (!deliveryModalOpen || !order) return;
+    const lines = ((order as PurchaseOrderDetail).orderItems ??
+      (order as PurchaseOrderDetail).items ??
+      []) as PurchaseOrderItem[];
+
+    setDeliveryLineDefinitionSelect((prev) => {
+      let next: Record<number, string> | null = null;
+      for (const line of lines) {
+        if ((line.productDefinitionId ?? 0) > 0) continue;
+        const pid = line.productId ?? 0;
+        if (pid <= 0) continue;
+        const defs = deliveryDefsByProductId.get(pid) ?? [];
+        if (defs.length !== 1) continue;
+        if ((prev[line.id] ?? "").trim() !== "") continue;
+        const only = String(defs[0]!.id);
+        if (next == null) next = { ...prev };
+        next[line.id] = only;
+      }
+      return next ?? prev;
+    });
+  }, [deliveryModalOpen, order, deliveryDefsByProductId]);
+
   const { data: purchaseOrderTypeCodes = [] } = useQuery({
     queryKey: ["commonCodes", COMMON_CODE_GROUP_PURCHASE_ORDER_TYPE],
     queryFn: () =>
@@ -251,6 +342,13 @@ export default function OrderDetail() {
         COMMON_CODE_GROUP_PURCHASE_ORDER_STATUS,
         accessToken!
       ),
+    enabled: !!accessToken && !isAuthLoading,
+  });
+
+  const { data: countryCodes = [] } = useQuery({
+    queryKey: ["commonCodes", COMMON_CODE_GROUP_COUNTRY],
+    queryFn: () =>
+      getCommonCodesByGroup(COMMON_CODE_GROUP_COUNTRY, accessToken!),
     enabled: !!accessToken && !isAuthLoading,
   });
 
@@ -399,14 +497,20 @@ export default function OrderDetail() {
     return hit?.name || code || "-";
   }, [order, purchaseOrderStatusCodes]);
 
-  /** 헤더 `approvalSubmittedAt`·`approvalApprovedAt` 기준(공통코드 APPROVAL_STATUS와 별개) */
+  /** `currentApprovalRequest`·발주 status(PO_CLOSED) 기준 */
   const approvalPhaseLabel = useMemo(() => {
     if (!order) return "-";
     const d = order as PurchaseOrderDetail;
-    const approvedAt = String(d.approvalApprovedAt ?? "").trim();
-    if (approvedAt) return "승인·종결 완료";
-    const submittedAt = String(d.approvalSubmittedAt ?? "").trim();
-    if (submittedAt) return "결재 대기(승인 전)";
+    const closed =
+      String(d.status ?? d.orderStatus ?? "").trim() === "PO_CLOSED";
+    if (closed) return "승인·종결 완료";
+    const ar = d.currentApprovalRequest;
+    const st = String(ar?.status ?? "").trim().toUpperCase();
+    if (st === "REJECTED") return "반려";
+    if (ar && st && st !== "DRAFT") {
+      const hint = approvalCurrentStepSummary(ar);
+      return hint !== "—" ? hint : "결재 진행 중";
+    }
     return "미상신";
   }, [order]);
 
@@ -423,9 +527,165 @@ export default function OrderDetail() {
     });
   }, [order, users, orgTree]);
 
+  useEffect(() => {
+    setApprovalLineDraftRows([]);
+    setApprovalSubmitTitle("발주 결재 요청");
+    setApprovalSubmitRemark("");
+    approvalDraftSeededForOrderRef.current = null;
+  }, [id]);
+
+  useEffect(() => {
+    if (!order) return;
+    const po = order as PurchaseOrderDetail;
+    const closed = String(po.status ?? po.orderStatus ?? "").trim() === "PO_CLOSED";
+    const ar = po.currentApprovalRequest;
+    const arSt = String(ar?.status ?? "").trim().toUpperCase();
+    const hasActiveSubmitted =
+      ar != null &&
+      arSt !== "" &&
+      arSt !== "DRAFT" &&
+      arSt !== "REJECTED";
+    const createdById = po.createdBy?.id;
+    const canUser =
+      createdById == null ||
+      (currentUserId != null && createdById === currentUserId);
+    if (hasActiveSubmitted || closed || !canUser) return;
+    if (approvalDraftSeededForOrderRef.current === id) return;
+    approvalDraftSeededForOrderRef.current = id;
+    setApprovalLineDraftRows(
+      resolvedTeamLeaderForSubmit
+        ? [
+            {
+              id: newApprovalDraftRowId(),
+              approverUserId: resolvedTeamLeaderForSubmit.userId,
+            },
+          ]
+        : [{ id: newApprovalDraftRowId(), approverUserId: null }]
+    );
+  }, [order, id, currentUserId, resolvedTeamLeaderForSubmit]);
+
+  const approverUserSelectOptions = useMemo(() => {
+    return users
+      .filter((u) => u.isActive !== false)
+      .filter((u) => currentUserId == null || u.id !== currentUserId)
+      .map((u) => ({
+        value: String(u.id),
+        label: `${u.name} (사번 ${u.employeeNo})`,
+      }));
+  }, [users, currentUserId]);
+
+  /** 상신 API에 실릴 결재선(미지정 행 제외) — 모달 하단 요약·검증에 공통 사용 */
+  const resolvedSubmitApprovalLines = useMemo(
+    () => buildApprovalLinesFromDraft(approvalLineDraftRows),
+    [approvalLineDraftRows]
+  );
+
+  /** 발주 상신 시 전자결재 모달에 넣을 문서 목업 (실데이터 기반) */
+  const approvalPreviewDocument = useMemo((): ApprovalDocumentMock | null => {
+    if (!order) return null;
+    const p = order as PurchaseOrderDetail;
+    const dept = getPurchaseOrderRequestDepartmentLabel(p);
+    const partnerN = partnerSelectLabel(
+      p.partner as Partner | undefined,
+      countryCodes
+    );
+    const linesItems = (p.orderItems ?? p.items ?? []) as PurchaseOrderItem[];
+    const drafter =
+      p.requesterName?.trim() ||
+      p.createdBy?.name?.trim() ||
+      authUser?.name?.trim() ||
+      "—";
+    const currency = (p.currencyCode ?? "KRW").trim() || "KRW";
+    const bodySummary: string[] = [
+      `거래처: ${partnerN}`,
+      `발주일: ${p.orderDate ?? "—"}`,
+      `통화: ${currency}`,
+    ];
+    if (p.supplyAmount != null && Number.isFinite(Number(p.supplyAmount))) {
+      bodySummary.push(
+        `공급가액(부가세별도): ${formatCurrency(Number(p.supplyAmount), currency)}`
+      );
+    }
+    if (
+      p.totalAmountVatIncluded != null &&
+      Number.isFinite(Number(p.totalAmountVatIncluded))
+    ) {
+      bodySummary.push(
+        `합계(부가세포함): ${formatCurrency(
+          Number(p.totalAmountVatIncluded),
+          currency
+        )}`
+      );
+    }
+    bodySummary.push(`품목 ${linesItems.length}건`);
+
+    const approvalLines: ApprovalDocumentMock["lines"] = [
+      {
+        order: 0,
+        role: "기안",
+        name: drafter,
+        dept: dept || "—",
+        status: "기안",
+        actedAt: "—",
+        opinion: "상신 예정",
+      },
+    ];
+    approvalLineDraftRows.forEach((row, idx) => {
+      const step = idx + 1;
+      if (row.approverUserId == null) {
+        approvalLines.push({
+          order: step,
+          role: `${step}차 결재`,
+          name: "(미지정)",
+          dept: "—",
+          status: "예정",
+          actedAt: "—",
+          opinion: "—",
+        });
+        return;
+      }
+      const u = users.find((x) => x.id === row.approverUserId);
+      approvalLines.push({
+        order: step,
+        role: `${step}차 결재`,
+        name: u?.name ?? `#${row.approverUserId}`,
+        dept: u?.userOrganizations?.[0]?.organizationUnit?.name ?? "—",
+        status: idx === 0 ? "대기" : "예정",
+        actedAt: "—",
+        opinion: "—",
+      });
+    });
+
+    return {
+      headerBadge: { label: "상신 대기", color: "primary" },
+      documentNo: p.orderNo,
+      title: approvalSubmitTitle.trim() || p.title?.trim() || "발주 결재",
+      docType: "발주 승인",
+      drafter,
+      department: dept || "—",
+      draftAt: p.orderDate ? `${p.orderDate} (발주일)` : "—",
+      bodySummary,
+      lines: approvalLines,
+    };
+  }, [
+    order,
+    authUser?.name,
+    approvalLineDraftRows,
+    users,
+    approvalSubmitTitle,
+    countryCodes,
+  ]);
+
+  const closeApprovalModal = useCallback(() => {
+    setApprovalModalOpen(false);
+    setApprovalComment("");
+    setApprovalAction("submit");
+    setRejectConfirmOpen(false);
+  }, []);
+
   /**
    * POST `/purchase-orders/:id/approval/submit|approve`
-   * - submit: `firstApproverUserId` 참고용 저장
+   * - submit: `lines`(stepOrder·approverUserId)·`title`·`remark`·`comment`
    * - approve: 승인과 동시에 발주 종결(PO_CLOSED)
    */
   const approvalMutation = useMutation({
@@ -433,6 +693,9 @@ export default function OrderDetail() {
       action: ApprovalModalAction;
       comment: string;
       firstApproverUserId?: number | null;
+      title?: string | null;
+      remark?: string | null;
+      lines?: PurchaseOrderApprovalLineInput[] | null;
     }) => {
       const trimmed = vars.comment.trim();
       if (vars.action === "submit") {
@@ -441,6 +704,9 @@ export default function OrderDetail() {
           {
             comment: trimmed || null,
             firstApproverUserId: vars.firstApproverUserId ?? null,
+            title: vars.title ?? null,
+            remark: vars.remark ?? null,
+            lines: vars.lines ?? null,
           },
           accessToken!
         );
@@ -457,14 +723,50 @@ export default function OrderDetail() {
           ? "결재 상신이 완료되었습니다."
           : "승인·종결이 완료되었습니다.";
       toast.success(msg);
-      setApprovalModalOpen(false);
-      setApprovalComment("");
-      setApprovalAction("submit");
+      closeApprovalModal();
       queryClient.invalidateQueries({ queryKey: ["purchaseOrder", id] });
       queryClient.invalidateQueries({ queryKey: ["purchaseOrders"] });
     },
     onError: (e: Error) =>
       toast.error(e.message || "결재 처리에 실패했습니다."),
+  });
+
+  const rejectApprovalMutation = useMutation({
+    mutationFn: async ({
+      comment,
+      approvalRequestId,
+    }: {
+      comment: string;
+      approvalRequestId: number | null | undefined;
+    }) => {
+      const trimmed = comment.trim();
+      if (
+        approvalRequestId != null &&
+        Number.isFinite(Number(approvalRequestId))
+      ) {
+        return rejectApprovalRequest(
+          Number(approvalRequestId),
+          { comment: trimmed || null },
+          accessToken!
+        );
+      }
+      return rejectPurchaseOrderApproval(
+        id,
+        { comment: trimmed || null },
+        accessToken!
+      );
+    },
+    onSuccess: () => {
+      setRejectConfirmOpen(false);
+      toast.success("반려 처리되었습니다.");
+      closeApprovalModal();
+      queryClient.invalidateQueries({ queryKey: ["purchaseOrder", id] });
+      queryClient.invalidateQueries({ queryKey: ["purchaseOrders"] });
+    },
+    onError: (e: Error) => {
+      setRejectConfirmOpen(false);
+      toast.error(e.message || "반려 처리에 실패했습니다.");
+    },
   });
 
   const deliveryMutation = useMutation({
@@ -512,10 +814,13 @@ export default function OrderDetail() {
 
   const openDeliveryRegistrationModal = () => {
     const init: Record<number, string> = {};
+    const defSel: Record<number, string> = {};
     for (const line of orderLines) {
       init[line.id] = "";
+      defSel[line.id] = "";
     }
     setDeliveryLineQtyInput(init);
+    setDeliveryLineDefinitionSelect(defSel);
     const phase = (deliveries as Delivery[]).length + 1;
     const orderTitle = (po.title ?? "").trim() || po.orderNo || "발주";
     setDeliveryTitle(`${orderTitle} ${phase}차 납품`);
@@ -534,20 +839,24 @@ export default function OrderDetail() {
     setDeliveryModalOpen(true);
   };
 
-  /** `POST .../deliveries` 는 승인(종결) 후 `approvalApprovedAt` 있을 때만 허용 */
-  const canRegisterDelivery = Boolean(
-    String(po.approvalApprovedAt ?? "").trim()
-  );
-  const hasSubmittedApproval = Boolean(
-    String(po.approvalSubmittedAt ?? "").trim()
-  );
-  const hasApproved = Boolean(String(po.approvalApprovedAt ?? "").trim());
-  const isWaitingFirstApproval = hasSubmittedApproval && !hasApproved;
-  /** 상신됐으나 아직 승인 전 — 서버 정책상 열람·수정 권한이 있으면 누구나 승인 API 호출 가능 */
-  const canPressApprove = isWaitingFirstApproval;
   const createdById = po.createdBy?.id;
   const isPoClosed =
     String(po.status ?? po.orderStatus ?? "").trim() === "PO_CLOSED";
+  /** `POST .../deliveries` — 백엔드: 발주 status 가 PO_CLOSED 일 때만 허용 */
+  const canRegisterDelivery = isPoClosed;
+  const arStatus = String(po.currentApprovalRequest?.status ?? "")
+    .trim()
+    .toUpperCase();
+  const hasSubmittedApproval = Boolean(
+    po.currentApprovalRequest &&
+      arStatus !== "" &&
+      arStatus !== "DRAFT" &&
+      arStatus !== "REJECTED"
+  );
+  const hasApproved = isPoClosed;
+  const isWaitingFirstApproval = hasSubmittedApproval && !hasApproved;
+  /** 상신됐으나 아직 승인 전 — 서버 정책상 열람·수정 권한이 있으면 누구나 승인 API 호출 가능 */
+  const canPressApprove = isWaitingFirstApproval;
   const canShowSubmitButton =
     !isPoClosed &&
     !hasSubmittedApproval &&
@@ -559,18 +868,21 @@ export default function OrderDetail() {
     approvalAction === "submit" && !showSubmitTabInModal
       ? "approve"
       : approvalAction;
-  const partnerName = (po.partner as Partner)?.name ?? (po.partner as Partner)?.code ?? "-";
+  const partnerName = partnerSelectLabel(
+    po.partner as Partner | undefined,
+    countryCodes
+  );
   const headerCurrency = po.currencyCode ?? "KRW";
   const orderSummaryTh =
     "w-[11%] min-w-[5.5rem] whitespace-nowrap bg-gray-50 px-3 py-2.5 text-left text-theme-xs font-medium text-gray-600 dark:bg-gray-800/60 dark:text-gray-400";
   const orderSummaryTd = "px-3 py-2.5 text-sm text-gray-900 dark:text-gray-100";
 
-  /** 상신 탭일 때만: 사용자 목록 로딩 중 / 요청 부서 없음 / 팀장 매칭 실패 → 버튼 비활성 */
+  const canSubmitApprovalLines = resolvedSubmitApprovalLines.length > 0;
+
+  /** 상신 탭: 결재선에 1명 이상 지정 + 사용자 목록 준비됨 */
   const isApprovalSubmitBlocked =
     modalApprovalAction === "submit" &&
-    (isUsersLoading ||
-      !requestDeptLabel ||
-      resolvedTeamLeaderForSubmit == null);
+    (isUsersLoading || !canSubmitApprovalLines);
 
   return (
     <>
@@ -578,7 +890,7 @@ export default function OrderDetail() {
       <PageBreadcrumb pageTitle={`발주 상세 · ${po.orderNo}`} />
 
       <div className="space-y-6">
-        <ComponentCard title="발주 정보">
+        <ComponentCard title="발주 정보" collapsible>
           <div className="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
             <div className="flex flex-col gap-3 border-b border-gray-100 bg-gray-50/90 px-4 py-3 dark:border-white/10 dark:bg-white/[0.04] sm:flex-row sm:items-center sm:justify-between">
               <dl className="flex min-w-0 flex-wrap gap-x-5 gap-y-2 text-theme-xs">
@@ -594,38 +906,25 @@ export default function OrderDetail() {
                     {approvalPhaseLabel}
                   </dd>
                 </div>
-                {po.firstApprover?.name?.trim() ||
-                po.firstApproverUserId != null ? (
+                {po.currentApprovalRequest ? (
                   <div className="flex min-w-0 max-w-full items-baseline gap-1.5">
                     <dt className="shrink-0 text-gray-500 dark:text-gray-400">
-                      결재 담당자(참고)
+                      현재 결재 요청
                     </dt>
-                    <dd className="font-medium text-gray-900 dark:text-gray-100">
-                      {po.firstApprover?.name?.trim() || "—"}
-                    </dd>
-                  </div>
-                ) : null}
-                {po.approvalSubmittedAt ? (
-                  <div className="flex min-w-0 max-w-full items-baseline gap-1.5">
-                    <dt className="shrink-0 text-gray-500 dark:text-gray-400">상신 일시</dt>
-                    <dd className="font-medium text-gray-900 dark:text-gray-100">
-                      {formatDateYmd(po.approvalSubmittedAt)}
-                    </dd>
-                  </div>
-                ) : null}
-                {po.approvalApprovedAt ? (
-                  <div className="flex min-w-0 max-w-full items-baseline gap-1.5">
-                    <dt className="shrink-0 text-gray-500 dark:text-gray-400">승인 일시</dt>
-                    <dd className="font-medium text-gray-900 dark:text-gray-100">
-                      {formatDateYmd(po.approvalApprovedAt)}
-                    </dd>
-                  </div>
-                ) : null}
-                {po.approvalApprovedBy?.name ? (
-                  <div className="flex min-w-0 max-w-full items-baseline gap-1.5">
-                    <dt className="shrink-0 text-gray-500 dark:text-gray-400">승인자</dt>
-                    <dd className="font-medium text-gray-900 dark:text-gray-100">
-                      {po.approvalApprovedBy.name}
+                    <dd className="min-w-0 font-medium text-gray-900 dark:text-gray-100">
+                      <span className="font-mono text-theme-xs">
+                        #{po.currentApprovalRequest.id}
+                      </span>
+                      {" · "}
+                      {approvalRequestStatusLabel(
+                        po.currentApprovalRequest.status
+                      )}
+                      {po.currentApprovalRequest.currentStep != null ? (
+                        <span className="text-theme-xs font-normal text-gray-600 dark:text-gray-400">
+                          {" "}
+                          · {po.currentApprovalRequest.currentStep}차 처리 구간
+                        </span>
+                      ) : null}
                     </dd>
                   </div>
                 ) : null}
@@ -669,7 +968,7 @@ export default function OrderDetail() {
                     type="button"
                     onClick={() => {
                       setApprovalAction("submit");
-                      setApprovalComment("");
+                      setApprovalComment(approvalSubmitRemark);
                       setApprovalModalOpen(true);
                     }}
                     className="inline-flex rounded-lg border border-brand-500 bg-brand-500 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-brand-600 dark:border-brand-600 dark:hover:bg-brand-600"
@@ -693,9 +992,15 @@ export default function OrderDetail() {
             </div>
             {canPressApprove ? (
               <div className="border-b border-emerald-200 bg-emerald-50 px-4 py-2.5 text-theme-sm text-emerald-900 dark:border-emerald-900/50 dark:bg-emerald-950/35 dark:text-emerald-100">
-                상신된 발주입니다. <strong>승인</strong> 시 발주가 종결(PO_CLOSED)되며, 그
-                이후부터 납품을 등록할 수 있습니다. 발주 열람·수정 권한이 있는 사용자는
-                승인할 수 있습니다.
+                결재 요청이 진행 중입니다.{" "}
+                {po.currentApprovalRequest?.currentStep != null ? (
+                  <>
+                    현재 <strong>{po.currentApprovalRequest.currentStep}차</strong> 결재
+                    단계입니다.{" "}
+                  </>
+                ) : null}
+                <strong>승인</strong> 시 단계가 진행되며, 최종 단계까지 완료되면 발주가
+                종결되어 납품을 등록할 수 있습니다.
               </div>
             ) : null}
             <div className="overflow-x-auto">
@@ -882,7 +1187,9 @@ export default function OrderDetail() {
           </div>
         </ComponentCard>
 
-        <ComponentCard title="발주 제품">
+    
+
+        <ComponentCard title="발주 라인" collapsible defaultCollapsed={true}>
           <div className="space-y-4 dark:border-gray-700">
             <div className="relative overflow-x-auto border-b dark:border-gray-800">
               <Table className="w-full text-center text-sm text-gray-900 dark:text-white md:table-fixed">
@@ -892,7 +1199,7 @@ export default function OrderDetail() {
                       isHeader
                       className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[22%]"
                     >
-                      제품
+                      제품 정의·표시명
                     </TableCell>
                     <TableCell
                       isHeader
@@ -939,7 +1246,7 @@ export default function OrderDetail() {
                         colSpan={7}
                         className="px-3 py-6 text-center text-theme-sm text-gray-500 dark:text-gray-400"
                       >
-                        등록된 제품이 없습니다.
+                        등록된 발주 라인이 없습니다.
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -952,7 +1259,15 @@ export default function OrderDetail() {
                           className="align-middle hover:bg-transparent"
                         >
                           <TableCell className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-900 dark:text-white">
-                            {item.itemName ?? item.item?.name ?? "-"}
+                            {item.itemName?.trim() ||
+                              item.productNameSnapshot?.trim() ||
+                              item.definitionNameSnapshot?.trim() ||
+                              item.item?.name ||
+                              (item.productDefinitionId > 0
+                                ? `정의 #${item.productDefinitionId}`
+                                : item.itemId != null && item.itemId > 0
+                                  ? `품목 #${item.itemId}`
+                                  : "-")}
                           </TableCell>
                           <TableCell className="px-3 py-3 text-center align-middle tabular-nums text-gray-800 dark:text-gray-200">
                             <span>{item.unit ?? "-"}</span>
@@ -995,10 +1310,13 @@ export default function OrderDetail() {
                 </TableBody>
               </Table>
             </div>
-            <div className="mt-4 space-y-6">
-              <h3 className="text-base font-medium text-gray-800 dark:text-white/90">
+            <div className="relative inline-flex w-full items-center justify-center">
+              <hr className="my-8 h-px w-64 max-w-full border-0 bg-gray-200 dark:bg-gray-700" />
+              <span className="absolute left-1/2 -translate-x-1/2 bg-white px-3 text-sm font-medium text-gray-600 dark:bg-[#171F2F] dark:text-gray-400">
                 주문 요약
-              </h3>
+              </span>
+            </div>
+              
               <OrderLineAmountSummary
                 summaries={
                   orderLineSummaries.length > 0
@@ -1013,19 +1331,20 @@ export default function OrderDetail() {
                       ]
                 }
               />
-            </div>
           </div>
         </ComponentCard>
 
         <ComponentCard 
           title="납품 목록"
+          collapsible
+          defaultCollapsed={true}
           headerEnd={
             <button
               type="button"
               title={
                 canRegisterDelivery
                   ? undefined
-                  : "승인(종결)된 발주만 납품을 등록할 수 있습니다."
+                  : "발주 상태가 종결(PO_CLOSED)일 때만 납품을 등록할 수 있습니다."
                 }
                 disabled={!canRegisterDelivery}
                 onClick={openDeliveryRegistrationModal}
@@ -1039,8 +1358,7 @@ export default function OrderDetail() {
             <div className="flex-1 min-w-[12rem]">
               {!canRegisterDelivery ? (
                 <p className="text-theme-xs text-amber-700 dark:text-amber-400/90">
-                  승인(종결)된 발주만 납품을 등록할 수 있습니다. 상신만 된 상태에서는 납품
-                  등록이 불가합니다.
+                  발주가 종결(PO_CLOSED)된 뒤에만 납품을 등록할 수 있습니다.
                 </p>
               ) : null}
             </div>
@@ -1079,158 +1397,298 @@ export default function OrderDetail() {
             </ul>
           )}
         </ComponentCard>
+
+        {po.currentApprovalRequest ? (
+          <CurrentApprovalRequestSection
+            request={po.currentApprovalRequest}
+            orderId={id}
+            orderNo={po.orderNo}
+          />
+        ) : (
+          <ComponentCard title="결재 요청">
+            <PageNotice variant="neutral" className="text-theme-sm">
+              아직 이 발주에 대한{" "}
+              <code className="rounded bg-gray-200/80 px-1 dark:bg-gray-700">
+                approval_requests
+              </code>{" "}
+              레코드가 없습니다. 헤더의 <strong>상신</strong>으로 결재선을 지정하면 요청이
+              생성되고, 이후 단계는{" "}
+              <code className="rounded bg-gray-200/80 px-0.5 dark:bg-gray-700">
+                approval_lines
+              </code>
+              의 <strong>PENDING</strong> / <strong>WAITING</strong> 상태로 표시됩니다.
+            </PageNotice>
+          </ComponentCard>
+        )}
+
+        {canShowSubmitButton ? (
+          <ComponentCard
+            title="결재"
+            desc="발주 본문 저장과 결재 상신은 분리됩니다. 상신 시 approval_requests 1건과 approval_lines 다건이 생성됩니다."
+            collapsible
+            defaultCollapsed={true}
+          >
+            <PageNotice variant="neutral" className="mb-0 text-theme-sm">
+              <strong>결재선</strong>·결재 제목·상신 메모는 헤더의 <strong>상신</strong>으로 열리는
+              모달 오른쪽 패널에서 지정합니다. 반려 후에는 발주를 수정한 뒤{" "}
+              <strong>새 결재 요청</strong>(새 id)으로 재상신합니다. 후보 결재자는{" "}
+              <code className="rounded bg-gray-200/80 px-1 dark:bg-gray-700">GET /users</code>
+              기준입니다.
+            </PageNotice>
+          </ComponentCard>
+        ) : null}
       </div>
 
       {/*
         결재 모달
-        - 팀장 안내 블록: 실제 HTTP는 상신 버튼 클릭 시에만 submit API 호출. 여기까지는 GET 캐시(users, orgTree)로만 계산.
+        - 상신 탭: 전자결재 퍼블 모달(넓은 레이아웃) + 하단에서 API 상신
+        - 승인 탭·승인 전용: 기존 컴팩트 모달
       */}
       <Modal
         isOpen={approvalModalOpen}
-        onClose={() => {
-          setApprovalModalOpen(false);
-          setApprovalComment("");
-          setApprovalAction("submit");
-        }}
-        className="mx-4 max-w-xl p-6"
+        onClose={closeApprovalModal}
+        className={
+          approvalModalOpen && modalApprovalAction === "submit"
+            ? "mx-2 flex max-h-[min(92vh,100dvh)] w-[calc(100%-1rem)] max-w-7xl flex-col overflow-hidden p-0 sm:mx-4"
+            : "mx-4 w-[calc(100%-2rem)] max-w-5xl p-6 sm:p-8"
+        }
       >
-        <h3 className="pr-10 text-lg font-semibold text-gray-900 dark:text-white">
-          발주 결재
-        </h3>
-        <p className="mt-1 text-theme-sm text-gray-500 dark:text-gray-400">
-          {po.orderNo} · 상신 요청 또는 승인(종결)을 진행합니다.
-        </p>
-        {modalApprovalAction === "submit" ? (
-          <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50/90 px-3 py-3 text-theme-sm dark:border-gray-600 dark:bg-white/[0.04]">
-            <p className="text-theme-xs text-gray-500 dark:text-gray-400">
-              상신 시 <code className="rounded bg-gray-200/80 px-1 dark:bg-gray-700">requestDepartment</code>
-              / <code className="rounded bg-gray-200/80 px-1 dark:bg-gray-700">requesterDepartment</code> 문자열을
-              정규화해, <strong className="text-gray-700 dark:text-gray-200">GET /users</strong>의{" "}
-              <code className="rounded bg-gray-200/80 px-1 dark:bg-gray-700">isTeamLeader</code> 소속과
-              맞추고 경로는 <strong className="text-gray-700 dark:text-gray-200">GET /organization-unit/tree</strong>로
-              보완합니다. (임시·결재선 ERD 전)
-            </p>
-            <dl className="mt-2 space-y-1 text-theme-sm text-gray-800 dark:text-gray-200">
-              <div className="flex flex-wrap gap-x-2">
-                <dt className="text-gray-500 dark:text-gray-400">요청 부서</dt>
-                <dd className="font-medium">
-                  {requestDeptLabel || "—"}
-                </dd>
+        {approvalModalOpen && modalApprovalAction === "submit" ? (
+          <>
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden lg:flex-row">
+              <div className="flex min-h-0 min-w-0 flex-1 flex-col border-gray-200 dark:border-gray-800 lg:border-r">
+                <div className="flex min-h-0 flex-1 flex-col overflow-hidden pt-14 sm:pt-[3.25rem]">
+                  {approvalPreviewDocument ? (
+                    <ApprovalDetailContent
+                      documentId={`po-${id}`}
+                      variant="modal"
+                      onClose={closeApprovalModal}
+                      documentOverride={approvalPreviewDocument}
+                      showInternalOpinion={false}
+                      embedMode="purchaseOrder"
+                    />
+                  ) : (
+                    <p className="text-theme-sm text-gray-500">
+                      문서 정보를 불러오는 중…
+                    </p>
+                  )}
+                </div>
               </div>
-              <div className="flex flex-wrap gap-x-2">
-                <dt className="text-gray-500 dark:text-gray-400">결재 담당자(참고)</dt>
-                <dd className="font-medium">
-                  {isUsersLoading
-                    ? "사용자 목록 로드 중…"
-                    : resolvedTeamLeaderForSubmit
-                      ? `${resolvedTeamLeaderForSubmit.name} (사용자 ID ${resolvedTeamLeaderForSubmit.userId})`
-                      : requestDeptLabel
-                        ? "일치하는 팀장 없음"
-                        : "요청 부서 없음"}
-                </dd>
+              <aside
+                aria-label="상신 정보"
+                className="flex max-h-[min(40vh,22rem)] min-h-0 w-full shrink-0 flex-col overflow-hidden border-t border-gray-200 bg-gray-50/90 dark:border-gray-700 dark:bg-gray-950/70 lg:max-h-none lg:w-[min(100%,24rem)] lg:border-l lg:border-t-0"
+              >
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-4 py-4 sm:px-5 sm:py-5">
+                  <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
+                    상신 정보
+                  </h4>
+                  <p className="mt-1 mb-4 text-theme-xs text-gray-500 dark:text-gray-400">
+                    제목·결재선·메모를 입력한 뒤 하단에서 상신합니다.
+                  </p>
+                  <PurchaseOrderApprovalSubmitPanel
+                    title={approvalSubmitTitle}
+                    onTitleChange={setApprovalSubmitTitle}
+                    remark={approvalSubmitRemark}
+                    onRemarkChange={setApprovalSubmitRemark}
+                    lineRows={approvalLineDraftRows}
+                    setLineRows={setApprovalLineDraftRows}
+                    approverSelectOptions={approverUserSelectOptions}
+                    isUsersLoading={isUsersLoading}
+                  />
+                </div>
+              </aside>
+            </div>
+            <div className="shrink-0 border-t border-gray-200 bg-white px-4 py-4 dark:border-gray-800 dark:bg-gray-900 sm:px-6 sm:py-5">
+              <h3 className="text-base font-semibold text-gray-900 dark:text-white">
+                상신 확인
+              </h3>
+              <p className="mt-1 text-theme-xs text-gray-500 dark:text-gray-400">
+                {po.orderNo} — 왼쪽 요약과 오른쪽 결재선을 확인한 뒤 상신하기를 누르세요.
+              </p>
+              <ApprovalModalAlternateAction
+                show={showSubmitTabInModal}
+                actionLabel="결재 승인으로 바꾸기"
+                onAction={() => setApprovalAction("approve")}
+              />
+              <div className="mt-4">
+                <Label htmlFor="approval-comment">의견 (선택)</Label>
+                <div className="mt-1">
+                  <TextArea
+                    id="approval-comment"
+                    rows={3}
+                    value={approvalComment}
+                    onChange={setApprovalComment}
+                    placeholder="상신 시 전달할 메모가 있으면 입력하세요."
+                  />
+                </div>
               </div>
-            </dl>
-          </div>
-        ) : null}
-        <div className="mt-4">
-          <span className="text-theme-sm font-medium text-gray-700 dark:text-gray-300">
-            처리 유형
-          </span>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {(showSubmitTabInModal
-              ? [
-                  { key: "submit" as const, label: "상신 요청" },
-                  { key: "approve" as const, label: "결재 승인" },
-                ]
-              : [{ key: "approve" as const, label: "결재 승인" }]
-            ).map(({ key, label }) => {
-              const selected = modalApprovalAction === key;
-              return (
+              <div className="mt-5 flex flex-wrap justify-end gap-2">
                 <button
-                  key={key}
                   type="button"
-                  onClick={() => setApprovalAction(key)}
-                  className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${
-                    selected
-                      ? "border-brand-500 bg-brand-50 text-brand-700 dark:border-brand-500 dark:bg-brand-500/15 dark:text-brand-300"
-                      : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-                  }`}
+                  onClick={closeApprovalModal}
+                  className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300"
                 >
-                  {label}
+                  취소
                 </button>
-              );
-            })}
-          </div>
-        </div>
-        <div className="mt-4">
-          <Label htmlFor="approval-comment">의견 (선택)</Label>
-          <div className="mt-1">
-            <TextArea
-              id="approval-comment"
-              rows={4}
-              value={approvalComment}
-              onChange={setApprovalComment}
-              placeholder="상신·승인 시 전달할 메모가 있으면 입력하세요."
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (isUsersLoading) {
+                      toast.error("사용자 목록을 불러오는 중입니다. 잠시 후 다시 시도하세요.");
+                      return;
+                    }
+                    const lines = buildApprovalLinesFromDraft(approvalLineDraftRows);
+                    if (lines.length === 0) {
+                      toast.error("상신할 결재자를 한 명 이상 선택하세요.");
+                      return;
+                    }
+                    approvalMutation.mutate({
+                      action: "submit",
+                      comment: approvalComment,
+                      firstApproverUserId: lines[0]!.approverUserId,
+                      title: approvalSubmitTitle.trim() || null,
+                      remark: approvalSubmitRemark.trim() || null,
+                      lines,
+                    });
+                  }}
+                  disabled={approvalMutation.isPending || isApprovalSubmitBlocked}
+                  className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white hover:bg-brand-600 disabled:opacity-50"
+                >
+                  {approvalMutation.isPending ? "처리 중..." : "상신하기"}
+                </button>
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
+            {po.currentApprovalRequest ? (
+              <div className="mb-4 flex max-h-[min(50vh,22rem)] flex-col overflow-hidden rounded-lg bg-gray-50/90 dark:bg-gray-950/65">
+                <div className="shrink-0 border-b border-gray-200 bg-white px-3 py-2.5 dark:border-gray-700 dark:bg-gray-900">
+                  <h2 className="text-sm font-semibold text-gray-900 dark:text-white py-2.5">
+                    <ApprovalRequestCompactSummary
+                      request={po.currentApprovalRequest}
+                    />
+                  </h2>
+                </div>
+                <div className="min-h-0 flex-1 border border-gray-200 dark:border-gray-700 overflow-y-auto overscroll-y-contain">
+                  <div className="min-h-0 flex-1 overflow-y-auto p-3">
+                    <ApprovalRequestDetailBody
+                      request={po.currentApprovalRequest}
+                      orderId={id}
+                      orderNo={po.orderNo}
+                      compact
+                      omitCompactSummary
+                    />
+                  </div>
+                </div>
+              </div>
+            ) : null}
+            <h3 className="pr-10 text-lg font-semibold text-gray-900 dark:text-white">
+              발주 결재
+            </h3>
+            <p className="mt-1 text-theme-sm text-gray-500 dark:text-gray-400">
+              {po.orderNo} · 결재선에서 <strong className="text-gray-700 dark:text-gray-300">PENDING</strong>인
+              단계를 승인하면 다음 단계가 열립니다. 반려 시 요청이 종료되며, 발주 수정 후 재상신할 수 있습니다. 최종
+              승인 시 발주가 종결됩니다.
+            </p>
+            <ApprovalModalAlternateAction
+              show={showSubmitTabInModal}
+              actionLabel="상신 요청으로 바꾸기"
+              onAction={() => setApprovalAction("submit")}
             />
-          </div>
-        </div>
-        <div className="mt-6 flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              setApprovalModalOpen(false);
-              setApprovalComment("");
-              setApprovalAction("submit");
-            }}
-            className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300"
-          >
-            취소
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              if (modalApprovalAction === "submit") {
-                const dept = requestDeptLabel;
-                if (!dept) {
-                  toast.error(
-                    "요청 부서가 없어 결재 담당자를 지정할 수 없습니다. 발주 수정에서 부서를 입력하세요."
-                  );
-                  return;
-                }
-                if (isUsersLoading) {
-                  toast.error("사용자 목록을 불러오는 중입니다. 잠시 후 다시 시도하세요.");
-                  return;
-                }
-                if (!resolvedTeamLeaderForSubmit) {
-                  toast.error(
-                    `요청 부서「${dept}」에 해당하는 결재 담당자(팀장)를 찾을 수 없습니다. 조직·팀장 설정을 확인하세요.`
-                  );
-                  return;
-                }
-                // POST .../approval/submit — Body: { comment, firstApproverUserId } (담당자 id는 참고용)
-                approvalMutation.mutate({
-                  action: "submit",
-                  comment: approvalComment,
-                  firstApproverUserId: resolvedTeamLeaderForSubmit.userId,
-                });
-                return;
-              }
-              approvalMutation.mutate({
-                action: modalApprovalAction,
-                comment: approvalComment,
-              });
-            }}
-            disabled={approvalMutation.isPending || isApprovalSubmitBlocked}
-            className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white hover:bg-brand-600 disabled:opacity-50"
-          >
-            {approvalMutation.isPending
-              ? "처리 중..."
-              : modalApprovalAction === "submit"
-                ? "상신하기"
-                : "승인하기"}
-          </button>
-        </div>
+            <div className="mt-4">
+              <Label htmlFor="approval-comment-approve">의견 (선택)</Label>
+              <div className="mt-1">
+                <TextArea
+                  id="approval-comment-approve"
+                  rows={4}
+                  value={approvalComment}
+                  onChange={setApprovalComment}
+                  placeholder="승인·반려 시 전달할 메모가 있으면 입력하세요."
+                />
+              </div>
+            </div>
+            <div className="mt-6 flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                onClick={closeApprovalModal}
+                className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300"
+              >
+                취소
+              </button>
+              {modalApprovalAction === "approve" ? (
+                <button
+                  type="button"
+                  onClick={() => setRejectConfirmOpen(true)}
+                  disabled={
+                    rejectConfirmOpen ||
+                    rejectApprovalMutation.isPending ||
+                    approvalMutation.isPending ||
+                    isApprovalSubmitBlocked
+                  }
+                  className="rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 dark:border-red-900/60 dark:bg-gray-900 dark:text-red-400 dark:hover:bg-red-500/10"
+                >
+                  반려하기
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => {
+                  if (modalApprovalAction === "submit") {
+                    if (isUsersLoading) {
+                      toast.error("사용자 목록을 불러오는 중입니다. 잠시 후 다시 시도하세요.");
+                      return;
+                    }
+                    const lines = buildApprovalLinesFromDraft(approvalLineDraftRows);
+                    if (lines.length === 0) {
+                      toast.error("상신할 결재자를 한 명 이상 선택하세요.");
+                      return;
+                    }
+                    approvalMutation.mutate({
+                      action: "submit",
+                      comment: approvalComment,
+                      firstApproverUserId: lines[0]!.approverUserId,
+                      title: approvalSubmitTitle.trim() || null,
+                      remark: approvalSubmitRemark.trim() || null,
+                      lines,
+                    });
+                    return;
+                  }
+                  approvalMutation.mutate({
+                    action: modalApprovalAction,
+                    comment: approvalComment,
+                  });
+                }}
+                disabled={approvalMutation.isPending || isApprovalSubmitBlocked}
+                className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white hover:bg-brand-600 disabled:opacity-50"
+              >
+                {approvalMutation.isPending
+                  ? "처리 중..."
+                  : modalApprovalAction === "submit"
+                    ? "상신하기"
+                    : "승인하기"}
+              </button>
+            </div>
+          </>
+        )}
       </Modal>
+
+      <ConfirmModal
+        isOpen={rejectConfirmOpen}
+        title="결재 반려"
+        message="이 결재 요청을 반려하시겠습니까? 반려 후에는 발주를 수정한 뒤 재상신해야 합니다."
+        confirmText="반려하기"
+        cancelText="취소"
+        confirmVariant="danger"
+        isConfirming={rejectApprovalMutation.isPending}
+        onClose={() => setRejectConfirmOpen(false)}
+        onConfirm={() => {
+          rejectApprovalMutation.mutate({
+            comment: approvalComment,
+            approvalRequestId: po.currentApprovalRequest?.id,
+          });
+        }}
+      />
 
       {/* 납품 등록 모달 */}
       <Modal
@@ -1243,8 +1701,29 @@ export default function OrderDetail() {
       >
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white">납품 등록</h3>
         <p className="mt-1 text-theme-sm text-gray-500 dark:text-gray-400">
-          품목별로 이번 납품 수량을 입력합니다. 누적 납품이 발주 수량을 넘지 않도록 서버에서
-          검증합니다.
+          품목별로 이번 납품 수량을 입력합니다. 발주 시 제품 정의를 넣지 않은 행은{" "}
+          <strong className="font-medium text-gray-700 dark:text-gray-300">
+            대표 제품 기준 정의 목록
+          </strong>
+          에서 선택합니다. 해당 제품에 정의가{" "}
+          <strong className="font-medium text-gray-700 dark:text-gray-300">
+            하나뿐
+          </strong>
+          이면 자동으로 골라 두고,{" "}
+          <strong className="font-medium text-gray-700 dark:text-gray-300">
+            여러 개
+          </strong>
+          면 직접 선택해야 합니다. 정의가 아직 없는 행은 아래{" "}
+          <strong className="font-medium text-gray-700 dark:text-gray-300">
+            제품 화면에서 정의 등록
+          </strong>
+          링크를 쓰면{" "}
+          <strong className="font-medium text-gray-700 dark:text-gray-300">
+            새 탭
+          </strong>
+          으로 열려 이 창의 납품 입력은 유지됩니다. 수량을 입력한 행은 정의가
+          확정되어 있어야 합니다. 이미 발주에 정의가 박힌 행은 표시만 됩니다. 누적
+          납품은 서버에서 검증합니다.
         </p>
         <div className="mt-4 space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
@@ -1353,6 +1832,9 @@ export default function OrderDetail() {
                       <th className="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400">
                         품목
                       </th>
+                      <th className="min-w-[12rem] px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400">
+                        제품 정의
+                      </th>
                       <th className="w-24 px-2 py-2 text-right font-medium text-gray-600 dark:text-gray-400">
                         발주
                       </th>
@@ -1373,12 +1855,105 @@ export default function OrderDetail() {
                       const remaining = Math.max(0, line.qty - prev);
                       const label =
                         line.itemName?.trim() ||
+                        line.productNameSnapshot?.trim() ||
+                        line.definitionNameSnapshot?.trim() ||
                         line.item?.name ||
-                        `품목 #${line.itemId}`;
+                        (line.productDefinitionId > 0
+                          ? `정의 #${line.productDefinitionId}`
+                          : line.itemId != null && line.itemId > 0
+                            ? `품목 #${line.itemId}`
+                            : "품목");
+                      const hasServerDef = (line.productDefinitionId ?? 0) > 0;
+                      const lineProductId = line.productId ?? 0;
+                      const legacyNoProduct =
+                        !hasServerDef && lineProductId <= 0;
+                      const defListIdx =
+                        lineProductId > 0
+                          ? productIdsForDeliveryDefs.indexOf(lineProductId)
+                          : -1;
+                      const defQuery =
+                        defListIdx >= 0
+                          ? deliveryDefinitionQueries[defListIdx]
+                          : undefined;
+                      const defsForLine =
+                        deliveryDefsByProductId.get(lineProductId) ?? [];
+                      const noDefinitionsAvailable =
+                        !hasServerDef &&
+                        lineProductId > 0 &&
+                        !defQuery?.isLoading &&
+                        !defQuery?.isError &&
+                        defsForLine.length === 0;
+                      const blockLineQty =
+                        legacyNoProduct || noDefinitionsAvailable;
                       return (
                         <tr key={line.id}>
                           <td className="px-3 py-2 text-gray-900 dark:text-gray-100">
                             {label}
+                          </td>
+                          <td className="max-w-[16rem] px-3 py-2 align-middle">
+                            {hasServerDef ? (
+                              <span className="text-theme-sm text-gray-800 dark:text-gray-200">
+                                {(
+                                  line.productDefinition?.name ??
+                                  line.definitionNameSnapshot ??
+                                  ""
+                                ).trim() ||
+                                  `정의 #${line.productDefinitionId}`}
+                              </span>
+                            ) : legacyNoProduct ? (
+                              <span className="text-theme-xs text-amber-700 dark:text-amber-400">
+                                대표 제품 없음. 발주 라인에 productId를 보완한 뒤
+                                납품하세요.
+                              </span>
+                            ) : defQuery?.isLoading ? (
+                              <span className="text-theme-xs text-gray-500 dark:text-gray-400">
+                                정의 목록 불러오는 중…
+                              </span>
+                            ) : defQuery?.isError ? (
+                              <span className="text-theme-xs text-red-600 dark:text-red-400">
+                                정의 목록을 불러오지 못했습니다.
+                              </span>
+                            ) : noDefinitionsAvailable ? (
+                              <div className="space-y-2">
+                                <p className="text-theme-xs text-amber-800 dark:text-amber-300">
+                                  이 제품에 등록된 정의가 없습니다. 먼저 정의를
+                                  만든 뒤 이 모달에서 수량을 입력하세요.
+                                </p>
+                                <a
+                                  href={productDetailHrefForDeliveryReturn(
+                                    lineProductId,
+                                    id
+                                  )}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex w-full max-w-full items-center justify-center rounded-md border border-brand-500 bg-brand-50 px-2.5 py-1.5 text-center text-theme-xs font-medium text-brand-700 hover:bg-brand-100 dark:border-brand-400 dark:bg-brand-500/15 dark:text-brand-300 dark:hover:bg-brand-500/25"
+                                >
+                                  제품 화면에서 정의 등록 (새 탭)
+                                </a>
+                              </div>
+                            ) : (
+                              <select
+                                id={`delivery-def-${line.id}`}
+                                aria-label={`${label} 제품 정의`}
+                                value={
+                                  deliveryLineDefinitionSelect[line.id] ?? ""
+                                }
+                                onChange={(e) =>
+                                  setDeliveryLineDefinitionSelect((p) => ({
+                                    ...p,
+                                    [line.id]: e.target.value,
+                                  }))
+                                }
+                                className="w-full max-w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-left text-theme-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                              >
+                                <option value="">선택 (필수)</option>
+                                {defsForLine.map((d) => (
+                                  <option key={d.id} value={String(d.id)}>
+                                    {productDefinitionSelectLabel(d)}
+                                  </option>
+                                ))}
+                              </select>
+                            )}
                           </td>
                           <td className="px-2 py-2 text-right tabular-nums text-gray-700 dark:text-gray-300">
                             {line.qty}
@@ -1394,6 +1969,14 @@ export default function OrderDetail() {
                               type="text"
                               inputMode="decimal"
                               placeholder="0"
+                              disabled={blockLineQty}
+                              title={
+                                legacyNoProduct
+                                  ? "대표 제품이 없어 납품 수량을 입력할 수 없습니다."
+                                  : noDefinitionsAvailable
+                                    ? "납품할 제품 정의가 없습니다."
+                                    : undefined
+                              }
                               value={deliveryLineQtyInput[line.id] ?? ""}
                               onChange={(e) =>
                                 setDeliveryLineQtyInput((prev) => ({
@@ -1401,7 +1984,7 @@ export default function OrderDetail() {
                                   [line.id]: e.target.value,
                                 }))
                               }
-                              className="w-full min-w-[4rem] rounded-md border border-gray-300 bg-white px-2 py-1.5 text-right tabular-nums text-theme-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                              className="w-full min-w-[4rem] rounded-md border border-gray-300 bg-white px-2 py-1.5 text-right tabular-nums text-theme-sm disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
                             />
                           </td>
                         </tr>
@@ -1436,7 +2019,7 @@ export default function OrderDetail() {
                 return;
               }
               const QTY_EPS = 1e-9;
-              const linesPayload: { orderItemId: number; quantity: number }[] = [];
+              const linesPayload: DeliveryCreateLinePayload[] = [];
               for (const line of orderLines) {
                 const raw = (deliveryLineQtyInput[line.id] ?? "").trim();
                 if (!raw) continue;
@@ -1453,7 +2036,50 @@ export default function OrderDetail() {
                   );
                   return;
                 }
-                linesPayload.push({ orderItemId: line.id, quantity: n });
+                const lineLabel =
+                  line.itemName?.trim() ||
+                  line.productNameSnapshot?.trim() ||
+                  line.definitionNameSnapshot?.trim() ||
+                  line.item?.name ||
+                  "품목";
+                const hasServerDef = (line.productDefinitionId ?? 0) > 0;
+                const lineProductId = line.productId ?? 0;
+                if (!hasServerDef) {
+                  if (lineProductId <= 0) {
+                    toast.error(
+                      `대표 제품이 없는 행은 납품할 수 없습니다. (${lineLabel})`
+                    );
+                    return;
+                  }
+                  const defsCheck =
+                    deliveryDefsByProductId.get(lineProductId) ?? [];
+                  if (defsCheck.length === 0) {
+                    toast.error(
+                      `제품 정의가 없어 납품할 수 없습니다. (${lineLabel})`
+                    );
+                    return;
+                  }
+                  const sel = (
+                    deliveryLineDefinitionSelect[line.id] ?? ""
+                  ).trim();
+                  const defId = Number(sel);
+                  if (!Number.isFinite(defId) || defId <= 0) {
+                    toast.error(
+                      `제품 정의를 선택하세요. (${lineLabel})`
+                    );
+                    return;
+                  }
+                  linesPayload.push({
+                    orderItemId: line.id,
+                    quantity: n,
+                    productDefinitionId: defId,
+                  });
+                } else {
+                  linesPayload.push({
+                    orderItemId: line.id,
+                    quantity: n,
+                  });
+                }
               }
               if (linesPayload.length === 0) {
                 toast.error("이번 납품 수량을 1건 이상 입력하세요.");

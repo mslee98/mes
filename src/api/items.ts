@@ -7,6 +7,7 @@
  */
 import { createApiError } from "../lib/apiError";
 import { API_BASE } from "./apiBase";
+import { fetchAuthorized } from "./fetchAuthorized";
 
 function authHeaders(accessToken: string): HeadersInit {
   return { Authorization: `Bearer ${accessToken}` };
@@ -92,6 +93,7 @@ export interface Item {
   unitPrice?: number | null;
   currencyCode?: string | null;
   spec?: string | null;
+  manufacturer?: string | null;
   isActive?: boolean;
   attributes?: ItemAttribute[];
 }
@@ -106,6 +108,7 @@ export interface ItemCreatePayload {
   unitPrice?: number | null;
   currencyCode?: string | null;
   spec?: string | null;
+  manufacturer?: string | null;
   isActive?: boolean;
 }
 
@@ -119,6 +122,7 @@ export interface ItemUpdatePayload {
   unitPrice?: number | null;
   currencyCode?: string | null;
   spec?: string | null;
+  manufacturer?: string | null;
   isActive?: boolean;
 }
 
@@ -166,7 +170,7 @@ function normalizeItemType(raw: unknown): ItemType {
   };
 }
 
-/** API 응답 제품: standardPrice → unitPrice, description → spec, category/itemType 정규화 */
+/** API 응답 품목: standardPrice → unitPrice, description → spec, category/itemType 정규화 */
 function normalizeItem(raw: unknown): Item {
   const o = raw as Record<string, unknown>;
   const categoryRaw = o.category;
@@ -178,6 +182,8 @@ function normalizeItem(raw: unknown): Item {
       : null;
   const specValue =
     o.description != null ? String(o.description) : o.spec != null ? String(o.spec) : null;
+  const manufacturerValue =
+    o.manufacturer != null ? String(o.manufacturer) : null;
   const isActiveValue =
     o.isActive !== undefined
       ? Boolean(o.isActive)
@@ -202,6 +208,7 @@ function normalizeItem(raw: unknown): Item {
     currencyCode:
       o.currencyCode != null ? String(o.currencyCode) : (o.currency_code != null ? String(o.currency_code) : null),
     spec: specValue,
+    manufacturer: manufacturerValue,
     isActive: isActiveValue,
     attributes: Array.isArray(o.attributes)
       ? (o.attributes as ItemAttribute[])
@@ -209,7 +216,7 @@ function normalizeItem(raw: unknown): Item {
   };
 }
 
-// --- 제품 분류 (item-categories) ---
+// --- 품목 분류 (item-categories) ---
 
 export async function getItemCategories(
   accessToken: string,
@@ -219,12 +226,12 @@ export async function getItemCategories(
   if (params?.tree === true) q.set("tree", "true");
   const query = q.toString();
   const url = query ? `${API_BASE}/item-categories?${query}` : `${API_BASE}/item-categories`;
-  const res = await fetch(url, {
+  const res = await fetchAuthorized(url, {
     headers: authHeaders(accessToken),
     credentials: "include",
-  });
+  }, accessToken);
   if (!res.ok) {
-    throw await createApiError(res, "제품 분류 목록을 불러오지 못했습니다.");
+    throw await createApiError(res, "품목 분류 목록을 불러오지 못했습니다.");
   }
   const data = await res.json();
   const list = normalizeList<unknown>(data);
@@ -235,12 +242,12 @@ export async function getItemCategory(
   id: number,
   accessToken: string
 ): Promise<ItemCategory> {
-  const res = await fetch(`${API_BASE}/item-categories/${id}`, {
+  const res = await fetchAuthorized(`${API_BASE}/item-categories/${id}`, {
     headers: authHeaders(accessToken),
     credentials: "include",
-  });
+  }, accessToken);
   if (!res.ok) {
-    throw await createApiError(res, "제품 분류를 불러오지 못했습니다.");
+    throw await createApiError(res, "품목 분류를 불러오지 못했습니다.");
   }
   const data = await res.json();
   return normalizeItemCategory(data);
@@ -257,14 +264,14 @@ export async function createItemCategory(
     sortOrder: payload.sortOrder ?? 0,
     ...(payload.isActive !== undefined && { isActive: payload.isActive }),
   };
-  const res = await fetch(`${API_BASE}/item-categories`, {
+  const res = await fetchAuthorized(`${API_BASE}/item-categories`, {
     method: "POST",
     headers: jsonHeaders(accessToken),
     body: JSON.stringify(body),
     credentials: "include",
-  });
+  }, accessToken);
   if (!res.ok) {
-    throw await createApiError(res, "제품 분류를 등록하지 못했습니다.");
+    throw await createApiError(res, "품목 분류를 등록하지 못했습니다.");
   }
   const data = await res.json();
   return normalizeItemCategory(data);
@@ -281,14 +288,14 @@ export async function updateItemCategory(
   if (payload.parentId !== undefined) body.parentId = payload.parentId;
   if (payload.sortOrder !== undefined) body.sortOrder = payload.sortOrder;
   if (payload.isActive !== undefined) body.isActive = payload.isActive;
-  const res = await fetch(`${API_BASE}/item-categories/${id}`, {
+  const res = await fetchAuthorized(`${API_BASE}/item-categories/${id}`, {
     method: "PUT",
     headers: jsonHeaders(accessToken),
     body: JSON.stringify(body),
     credentials: "include",
-  });
+  }, accessToken);
   if (!res.ok) {
-    throw await createApiError(res, "제품 분류를 수정하지 못했습니다.");
+    throw await createApiError(res, "품목 분류를 수정하지 못했습니다.");
   }
   const data = await res.json();
   return normalizeItemCategory(data);
@@ -298,25 +305,25 @@ export async function deleteItemCategory(
   id: number,
   accessToken: string
 ): Promise<void> {
-  const res = await fetch(`${API_BASE}/item-categories/${id}`, {
+  const res = await fetchAuthorized(`${API_BASE}/item-categories/${id}`, {
     method: "DELETE",
     headers: authHeaders(accessToken),
     credentials: "include",
-  });
+  }, accessToken);
   if (!res.ok) {
-    throw await createApiError(res, "제품 분류를 삭제하지 못했습니다. 하위 분류가 있으면 삭제할 수 없습니다.");
+    throw await createApiError(res, "품목 분류를 삭제하지 못했습니다. 하위 분류가 있으면 삭제할 수 없습니다.");
   }
 }
 
-// --- 제품 유형 (item-types) ---
+// --- 품목 유형 (item-types) ---
 
 export async function getItemTypes(accessToken: string): Promise<ItemType[]> {
-  const res = await fetch(`${API_BASE}/item-types`, {
+  const res = await fetchAuthorized(`${API_BASE}/item-types`, {
     headers: authHeaders(accessToken),
     credentials: "include",
-  });
+  }, accessToken);
   if (!res.ok) {
-    throw await createApiError(res, "제품 유형 목록을 불러오지 못했습니다.");
+    throw await createApiError(res, "품목 유형 목록을 불러오지 못했습니다.");
   }
   const data = await res.json();
   const list = normalizeList<unknown>(data);
@@ -327,12 +334,12 @@ export async function getItemType(
   id: number,
   accessToken: string
 ): Promise<ItemType> {
-  const res = await fetch(`${API_BASE}/item-types/${id}`, {
+  const res = await fetchAuthorized(`${API_BASE}/item-types/${id}`, {
     headers: authHeaders(accessToken),
     credentials: "include",
-  });
+  }, accessToken);
   if (!res.ok) {
-    throw await createApiError(res, "제품 유형을 불러오지 못했습니다.");
+    throw await createApiError(res, "품목 유형을 불러오지 못했습니다.");
   }
   const data = await res.json();
   return normalizeItemType(data);
@@ -349,14 +356,14 @@ export async function createItemType(
     sortOrder: payload.sortOrder ?? 0,
     ...(payload.isActive !== undefined && { isActive: payload.isActive }),
   };
-  const res = await fetch(`${API_BASE}/item-types`, {
+  const res = await fetchAuthorized(`${API_BASE}/item-types`, {
     method: "POST",
     headers: jsonHeaders(accessToken),
     body: JSON.stringify(body),
     credentials: "include",
-  });
+  }, accessToken);
   if (!res.ok) {
-    throw await createApiError(res, "제품 유형을 등록하지 못했습니다.");
+    throw await createApiError(res, "품목 유형을 등록하지 못했습니다.");
   }
   const data = await res.json();
   return normalizeItemType(data);
@@ -373,14 +380,14 @@ export async function updateItemType(
   if (payload.description !== undefined) body.description = payload.description;
   if (payload.sortOrder !== undefined) body.sortOrder = payload.sortOrder;
   if (payload.isActive !== undefined) body.isActive = payload.isActive;
-  const res = await fetch(`${API_BASE}/item-types/${id}`, {
+  const res = await fetchAuthorized(`${API_BASE}/item-types/${id}`, {
     method: "PUT",
     headers: jsonHeaders(accessToken),
     body: JSON.stringify(body),
     credentials: "include",
-  });
+  }, accessToken);
   if (!res.ok) {
-    throw await createApiError(res, "제품 유형을 수정하지 못했습니다.");
+    throw await createApiError(res, "품목 유형을 수정하지 못했습니다.");
   }
   const data = await res.json();
   return normalizeItemType(data);
@@ -390,17 +397,17 @@ export async function deleteItemType(
   id: number,
   accessToken: string
 ): Promise<void> {
-  const res = await fetch(`${API_BASE}/item-types/${id}`, {
+  const res = await fetchAuthorized(`${API_BASE}/item-types/${id}`, {
     method: "DELETE",
     headers: authHeaders(accessToken),
     credentials: "include",
-  });
+  }, accessToken);
   if (!res.ok) {
-    throw await createApiError(res, "제품 유형을 삭제하지 못했습니다.");
+    throw await createApiError(res, "품목 유형을 삭제하지 못했습니다.");
   }
 }
 
-// --- 제품 마스터 (items) ---
+// --- 품목 마스터 (items) ---
 
 export async function getItems(
   accessToken: string,
@@ -413,12 +420,12 @@ export async function getItems(
   if (params?.isActive !== undefined) q.set("isActive", String(params.isActive));
   const query = q.toString();
   const url = query ? `${API_BASE}/items?${query}` : `${API_BASE}/items`;
-  const res = await fetch(url, {
+  const res = await fetchAuthorized(url, {
     headers: authHeaders(accessToken),
     credentials: "include",
-  });
+  }, accessToken);
   if (!res.ok) {
-    throw await createApiError(res, "제품 목록을 불러오지 못했습니다.");
+    throw await createApiError(res, "품목 목록을 불러오지 못했습니다.");
   }
   const data = await res.json();
   const list = normalizeList<unknown>(data);
@@ -431,12 +438,12 @@ export async function getItem(
   withAttributes?: boolean
 ): Promise<Item> {
   const q = withAttributes ? "?withAttributes=true" : "";
-  const res = await fetch(`${API_BASE}/items/${id}${q}`, {
+  const res = await fetchAuthorized(`${API_BASE}/items/${id}${q}`, {
     headers: authHeaders(accessToken),
     credentials: "include",
-  });
+  }, accessToken);
   if (!res.ok) {
-    throw await createApiError(res, "제품을 불러오지 못했습니다.");
+    throw await createApiError(res, "품목을 불러오지 못했습니다.");
   }
   const data = await res.json();
   return normalizeItem(data);
@@ -453,19 +460,20 @@ export async function createItem(
     itemTypeId: payload.itemTypeId,
     productDiv: payload.productDiv ?? null,
     spec: payload.spec ?? null,
+    manufacturer: payload.manufacturer ?? null,
     unit: payload.unit ?? null,
     ...(payload.unitPrice != null && { standardPrice: payload.unitPrice }),
     ...(payload.currencyCode != null && { currencyCode: payload.currencyCode }),
     isActive: payload.isActive !== false,
   };
-  const res = await fetch(`${API_BASE}/items`, {
+  const res = await fetchAuthorized(`${API_BASE}/items`, {
     method: "POST",
     headers: jsonHeaders(accessToken),
     body: JSON.stringify(body),
     credentials: "include",
-  });
+  }, accessToken);
   if (!res.ok) {
-    throw await createApiError(res, "제품을 등록하지 못했습니다.");
+    throw await createApiError(res, "품목을 등록하지 못했습니다.");
   }
   const data = await res.json();
   return normalizeItem(data);
@@ -487,15 +495,16 @@ export async function updateItem(
     body.standardPrice = payload.unitPrice;
   if (payload.currencyCode !== undefined) body.currencyCode = payload.currencyCode;
   if (payload.spec !== undefined) body.spec = payload.spec;
+  if (payload.manufacturer !== undefined) body.manufacturer = payload.manufacturer;
   if (payload.isActive !== undefined) body.isActive = payload.isActive;
-  const res = await fetch(`${API_BASE}/items/${id}`, {
+  const res = await fetchAuthorized(`${API_BASE}/items/${id}`, {
     method: "PUT",
     headers: jsonHeaders(accessToken),
     body: JSON.stringify(body),
     credentials: "include",
-  });
+  }, accessToken);
   if (!res.ok) {
-    throw await createApiError(res, "제품을 수정하지 못했습니다.");
+    throw await createApiError(res, "품목을 수정하지 못했습니다.");
   }
   const data = await res.json();
   return normalizeItem(data);
@@ -505,12 +514,12 @@ export async function deleteItem(
   id: number,
   accessToken: string
 ): Promise<void> {
-  const res = await fetch(`${API_BASE}/items/${id}`, {
+  const res = await fetchAuthorized(`${API_BASE}/items/${id}`, {
     method: "DELETE",
     headers: authHeaders(accessToken),
     credentials: "include",
-  });
+  }, accessToken);
   if (!res.ok) {
-    throw await createApiError(res, "제품을 비활성화하지 못했습니다.");
+    throw await createApiError(res, "품목을 비활성화하지 못했습니다.");
   }
 }

@@ -88,7 +88,7 @@ export default function ItemQuickCreateModal({
     mutationFn: (payload: ItemCreatePayload) =>
       createItem(payload, accessToken!),
     onSuccess: (item) => {
-      toast.success("제품이 등록되었습니다.");
+      toast.success("품목이 등록되었습니다.");
       queryClient.invalidateQueries({ queryKey: ["items"] });
       onCreated(item);
       setCode("");
@@ -105,7 +105,7 @@ export default function ItemQuickCreateModal({
     const cat = categoryId ? Number(categoryId) : 0;
     const typ = itemTypeId ? Number(itemTypeId) : 0;
     if (!code.trim() || !name.trim()) {
-      toast.error("제품 코드와 제품명을 입력하세요.");
+      toast.error("품목 코드와 품목명을 입력하세요.");
       return;
     }
     if (!cat || !typ) {
@@ -125,37 +125,37 @@ export default function ItemQuickCreateModal({
   return (
     <Modal isOpen={isOpen} onClose={onClose} className="mx-4 max-w-lg p-6">
       <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-        제품 빠른 등록
+        품목 빠른 등록
       </h3>
       <p className="mt-1 text-theme-sm text-gray-500 dark:text-gray-400">
-        등록 후 제품 목록이 갱신되며, 해당 행에 자동 선택됩니다.
+        등록 후 품목 목록이 갱신되며, 해당 행에 자동 선택됩니다.
       </p>
       <form onSubmit={handleSubmit} className="mt-4 space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <Label htmlFor="item-quick-code">제품 코드 *</Label>
+            <Label htmlFor="item-quick-code">품목 코드 *</Label>
             <Input
               id="item-quick-code"
               value={code}
               onChange={(e) => setCode(e.target.value)}
-              placeholder="제품 코드"
+              placeholder="품목 코드"
               className="mt-1"
               autoComplete="off"
             />
           </div>
           <div>
-            <Label htmlFor="item-quick-name">제품명 *</Label>
+            <Label htmlFor="item-quick-name">품목명 *</Label>
             <Input
               id="item-quick-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="제품명"
+              placeholder="품목명"
               className="mt-1"
             />
           </div>
         </div>
         <div>
-          <Label htmlFor="item-quick-category">제품 분류 *</Label>
+          <Label htmlFor="item-quick-category">품목 분류 *</Label>
           <select
             id="item-quick-category"
             value={categoryId}
@@ -170,7 +170,7 @@ export default function ItemQuickCreateModal({
           </select>
         </div>
         <div>
-          <Label htmlFor="item-quick-type">제품 유형 *</Label>
+          <Label htmlFor="item-quick-type">품목 유형 *</Label>
           <select
             id="item-quick-type"
             value={itemTypeId}

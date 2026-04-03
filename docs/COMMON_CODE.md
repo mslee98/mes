@@ -62,6 +62,15 @@
 
 ## 3. 조회 API
 
+### 표준 경로와 별칭
+
+| 구분 | 용도 |
+|------|------|
+| **표준** | `GET /api/common-codes/groups` → 그룹 목록<br>`GET /api/common-codes/groups/{groupCode}/codes` → 그 그룹의 코드 목록 |
+| **별칭** | `GET /api/code-groups/{groupCode}/codes` → 위 “그룹별 코드”와 **같은 서비스·같은 응답** (`findCodesByGroup` 공유). 그룹 목록 API는 없음. |
+
+`code-groups` 는 URL만 짧게 쓰거나 예전 연동을 위한 경로이고, 문서·모델상 정본은 `common-codes` → `groups` → `codes` 입니다. 백엔드 컨트롤러·OpenAPI에도 동일하게 명시되어 있습니다.
+
 ### `GET /common-codes/groups`
 
 활성 상태인 공통 코드 그룹 목록을 반환합니다.
@@ -69,6 +78,10 @@
 ### `GET /common-codes/groups/:groupCode/codes`
 
 특정 그룹의 활성 코드 목록을 반환합니다.
+
+### `GET /code-groups/:groupCode/codes` (별칭)
+
+`GET /common-codes/groups/:groupCode/codes` 와 동일한 코드 목록을 반환합니다. 그룹 메타만 조회할 수는 없습니다.
 
 응답 예시:
 
@@ -172,10 +185,12 @@
 
 - 경로: `/common-code`
 - 그룹 목록 API: `GET /common-codes/groups`
-- 그룹별 코드 목록 API: `GET /common-codes/groups/:groupCode/codes`
+- 그룹별 코드 목록 API: `GET /common-codes/groups/:groupCode/codes` (**표준**)
+- 동일 데이터가 필요하고 그룹 목록이 없을 때: `GET /code-groups/:groupCode/codes` (**별칭**, `purchaseOrder.ts`의 `getCodeGroupCodes`)
 - 활성 그룹과 활성 코드만 조회하는 읽기 중심 화면
 
 관련 파일:
 
-- `src/api/commonCode.ts`
+- `src/api/commonCode.ts` — 표준 API 클라이언트 (`getCommonCodeGroups`, `getCommonCodesByGroup`)
+- `src/api/purchaseOrder.ts` — `getCodeGroupCodes` (그룹별 코드 **별칭** URL)
 - `src/pages/CommonCode.tsx`

@@ -12,7 +12,12 @@
  * @module api/purchaseOrder
  */
 import { createApiError } from "../lib/apiError";
+import {
+  mapApprovalRequestFromApi,
+  type ApprovalRequestDetail,
+} from "./approvalRequests";
 import { API_BASE } from "./apiBase";
+import { fetchAuthorized } from "./fetchAuthorized";
 
 function authHeaders(accessToken: string): HeadersInit {
   return { Authorization: `Bearer ${accessToken}` };
@@ -32,6 +37,10 @@ export interface Partner {
   code: string;
   name: string;
   type?: string;
+  /** 공통코드 PARTNER_DEFENSE_MARKET (예: CIVILIAN, MILITARY) */
+  defenseMarket?: string;
+  /** 공통코드 COUNTRY (예: KR, SG, IN) */
+  countryCode?: string;
   contact?: string;
   address?: string;
   isActive?: boolean;
@@ -40,6 +49,8 @@ export interface Partner {
 export interface PartnerCreatePayload {
   code: string;
   name: string;
+  defenseMarket: string;
+  countryCode: string;
   type?: string | null;
   contact?: string | null;
   address?: string | null;
@@ -56,18 +67,29 @@ export interface Item {
 }
 
 export interface PurchaseOrderItemPayload {
-  itemId: number;
+  /**
+   * 제품 정의 FK. `null`이면 정의 없이 저장(백엔드 계약).
+   * `definitionId` 별칭은 직렬화 시 서버 호환용으로만 보조 전송 가능.
+   */
+  productDefinitionId?: number | null;
+  /** 정의가 null일 때 대표 제품 연결 */
+  productId?: number | null;
   qty: number;
   unitPrice: number;
   /** 공통코드 UNIT (예: EA, BOX) */
   unit?: string | null;
+  quantityUnitCode?: string | null;
   currencyCode?: string | null;
   requestDeliveryDate?: string | null;
+  requestedDueDate?: string | null;
   remark?: string | null;
+  note?: string | null;
 }
 
 export interface PurchaseOrderLinePatchPayload {
-  itemId?: number;
+  productDefinitionId?: number | null;
+  definitionId?: number;
+  productId?: number | null;
   qty?: number;
   quantity?: number;
   unit?: string | null;
@@ -148,9 +170,30 @@ export interface PurchaseOrderListItem {
   createdAt?: string;
 }
 
+/** order_items 응답의 productDefinition 관계 요약 */
+export interface ProductDefinitionSummary {
+  id: number;
+  productId?: number;
+  name?: string;
+  code?: string;
+  version?: string | null;
+  product?: { id: number; code?: string; name?: string };
+}
+
 export interface PurchaseOrderItem {
   id: number;
-  itemId: number;
+  /** 제품 정의 FK. 없으면 0 */
+  productDefinitionId: number;
+  /** 정의 없이 라인만 있을 때 대표 제품 id (응답에 올 수 있음) */
+  productId?: number;
+  productDefinition?: ProductDefinitionSummary;
+  /** 발주 시점 스냅샷 */
+  productNameSnapshot?: string | null;
+  definitionNameSnapshot?: string | null;
+  versionSnapshot?: string | null;
+  orderTypeSnapshot?: string | null;
+  /** @deprecated 레거시 응답 호환 */
+  itemId?: number;
   item?: Item;
   itemName?: string;
   spec?: string;
@@ -205,25 +248,10 @@ export interface PurchaseOrderDetail extends PurchaseOrderListItem {
   supplyAmount?: number | null;
   /** 부가세 포함 합계 */
   totalAmountVatIncluded?: number | null;
-  /** 1차 결재(팀장) 예정/지정 사용자 id — POST .../approval/submit 반영 */
-  firstApproverUserId?: number | null;
-  firstApprover?: {
-    id?: number;
-    name?: string;
-    employeeNo?: number;
-    email?: string;
-  } | null;
-  /** 결재 상신 시각 */
-  approvalSubmittedAt?: string | null;
-  /** 승인(종결) 시각 — 납품 POST는 이 값이 있을 때만 허용 */
-  approvalApprovedAt?: string | null;
-  approvalApprovedById?: number | null;
-  approvalApprovedBy?: {
-    id?: number;
-    name?: string;
-    employeeNo?: number;
-    email?: string;
-  } | null;
+  /**
+   * 해당 발주에 연결된 최신 결재 요청 1건 (헤더의 firstApprover·approvalApprovedAt 등은 제거됨).
+   */
+  currentApprovalRequest?: ApprovalRequestDetail;
 }
 
 export interface PurchaseOrderFile {
@@ -247,6 +275,8 @@ export interface PurchaseOrderFile {
 export interface DeliveryCreateLinePayload {
   orderItemId: number;
   quantity: number;
+  /** 발주 라인에 정의가 없을 때 납품 시점에 확정(대표 제품 기준 검증은 서버) */
+  productDefinitionId?: number | null;
 }
 
 /** POST /purchase-orders/:id/deliveries */
@@ -270,9 +300,12 @@ export interface DeliveryItemPayload {
 }
 
 export interface DeliveryItem {
+  /** 일부 응답에서 발주 품목 행 id 로 내려올 수 있음 */
+  orderItemId?: number;
   purchaseOrderItemId?: number;
   itemId?: number;
   itemName?: string;
+  quantity?: number;
   deliveryQty?: number;
   lotNo?: string | null;
   remark?: string | null;
@@ -461,15 +494,85 @@ function sanitizeOrderUserRef(
   };
 }
 
-/** 품목 라인: quantity·quantityUnitCode·note·requestedDueDate 등 API 필드 → PurchaseOrderItem */
+function mapApiNestedProductDefinition(
+  raw: unknown
+): ProductDefinitionSummary | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const x = raw as Record<string, unknown>;
+  const id = typeof x.id === "number" ? x.id : Number(x.id);
+  if (!Number.isFinite(id)) return undefined;
+  const productRaw = x.product;
+  const product =
+    productRaw && typeof productRaw === "object"
+      ? mapApiNestedItemToItem(productRaw)
+      : undefined;
+  const pidRaw = x.productId ?? product?.id;
+  const productId =
+    typeof pidRaw === "number"
+      ? pidRaw
+      : pidRaw != null
+        ? Number(pidRaw)
+        : undefined;
+  return {
+    id,
+    productId: Number.isFinite(productId) ? productId : undefined,
+    name:
+      typeof x.name === "string"
+        ? x.name
+        : typeof x.definitionName === "string"
+          ? x.definitionName
+          : undefined,
+    code: typeof x.code === "string" ? x.code : undefined,
+    version: x.version != null ? String(x.version) : null,
+    product: product
+      ? { id: product.id, code: product.code, name: product.name }
+      : undefined,
+  };
+}
+
+/** 품목 라인: productDefinition·스냅샷·레거시 item 동시 지원 */
 function mapApiOrderLineToPurchaseOrderItem(
   raw: unknown
 ): PurchaseOrderItem | null {
   if (!raw || typeof raw !== "object") return null;
   const x = raw as Record<string, unknown>;
   const id = typeof x.id === "number" ? x.id : Number(x.id);
-  const itemId = typeof x.itemId === "number" ? x.itemId : Number(x.itemId);
-  if (!Number.isFinite(id) || !Number.isFinite(itemId)) return null;
+  if (!Number.isFinite(id)) return null;
+
+  const nestedDef = mapApiNestedProductDefinition(x.productDefinition);
+  const defRaw =
+    x.productDefinitionId ?? x.definitionId ?? nestedDef?.id;
+  const defId =
+    typeof defRaw === "number" ? defRaw : defRaw != null ? Number(defRaw) : NaN;
+  const productDefinitionId =
+    Number.isFinite(defId) && defId > 0 ? defId : 0;
+
+  const lineProductRaw =
+    x.productId ?? nestedDef?.productId ?? nestedDef?.product?.id;
+  const lineProductNum =
+    typeof lineProductRaw === "number"
+      ? lineProductRaw
+      : lineProductRaw != null
+        ? Number(lineProductRaw)
+        : NaN;
+  const lineProductId = Number.isFinite(lineProductNum) ? lineProductNum : 0;
+
+  const itemIdRaw = x.itemId;
+  const itemIdNum =
+    typeof itemIdRaw === "number"
+      ? itemIdRaw
+      : itemIdRaw != null
+        ? Number(itemIdRaw)
+        : NaN;
+  const legacyItemId = Number.isFinite(itemIdNum) ? itemIdNum : 0;
+
+  if (
+    productDefinitionId <= 0 &&
+    legacyItemId <= 0 &&
+    lineProductId <= 0
+  ) {
+    return null;
+  }
 
   const qty = parseDecimalLike(x.quantity ?? x.qty);
   const unitPrice = parseDecimalLike(x.unitPrice);
@@ -490,7 +593,24 @@ function mapApiOrderLineToPurchaseOrderItem(
     (typeof x.remark === "string" ? x.remark : null);
 
   const nestedItem = mapApiNestedItemToItem(x.item);
-  const itemName = nestedItem?.name ?? (typeof x.itemName === "string" ? x.itemName : undefined);
+  const productNameSnapshot =
+    typeof x.productNameSnapshot === "string" ? x.productNameSnapshot : null;
+  const definitionNameSnapshot =
+    typeof x.definitionNameSnapshot === "string"
+      ? x.definitionNameSnapshot
+      : null;
+  const versionSnapshot =
+    typeof x.versionSnapshot === "string" ? x.versionSnapshot : null;
+  const orderTypeSnapshot =
+    typeof x.orderTypeSnapshot === "string" ? x.orderTypeSnapshot : null;
+
+  const itemName =
+    (productNameSnapshot?.trim() ? productNameSnapshot : undefined) ??
+    (definitionNameSnapshot?.trim() ? definitionNameSnapshot : undefined) ??
+    nestedDef?.name ??
+    nestedDef?.product?.name ??
+    nestedItem?.name ??
+    (typeof x.itemName === "string" ? x.itemName : undefined);
 
   const currencyCode =
     typeof x.currencyCode === "string" ? x.currencyCode : null;
@@ -509,9 +629,16 @@ function mapApiOrderLineToPurchaseOrderItem(
 
   return {
     id,
-    itemId,
-    item: nestedItem,
-    itemName,
+    productDefinitionId,
+    ...(lineProductId > 0 ? { productId: lineProductId } : {}),
+    ...(nestedDef ? { productDefinition: nestedDef } : {}),
+    ...(productNameSnapshot != null ? { productNameSnapshot } : {}),
+    ...(definitionNameSnapshot != null ? { definitionNameSnapshot } : {}),
+    ...(versionSnapshot != null ? { versionSnapshot } : {}),
+    ...(orderTypeSnapshot != null ? { orderTypeSnapshot } : {}),
+    ...(legacyItemId > 0 ? { itemId: legacyItemId } : {}),
+    ...(nestedItem ? { item: nestedItem } : {}),
+    ...(itemName ? { itemName } : {}),
     spec: typeof x.spec === "string" ? x.spec : undefined,
     unit,
     qty,
@@ -682,44 +809,11 @@ function mapPurchaseOrderDetail(raw: unknown): PurchaseOrderDetail {
       : undefined;
 
   const rec = data as unknown as Record<string, unknown>;
-  const faUid = rec.firstApproverUserId ?? rec.first_approver_user_id;
-  const firstApproverUserIdParsed =
-    typeof faUid === "number" && Number.isFinite(faUid)
-      ? faUid
-      : typeof faUid === "string" && /^\d+$/.test(faUid.trim())
-        ? Number(faUid.trim())
-        : faUid === null
-          ? null
-          : undefined;
-
-  const approvalSubmittedAtRaw =
-    rec.approvalSubmittedAt ?? rec.approval_submitted_at;
-  const approvalSubmittedAt =
-    typeof approvalSubmittedAtRaw === "string" && approvalSubmittedAtRaw.trim()
-      ? approvalSubmittedAtRaw.trim()
-      : null;
-
-  const approvalApprovedAtRaw =
-    rec.approvalApprovedAt ?? rec.approval_approved_at;
-  const approvalApprovedAt =
-    typeof approvalApprovedAtRaw === "string" && approvalApprovedAtRaw.trim()
-      ? approvalApprovedAtRaw.trim()
-      : null;
-
-  const apById = rec.approvalApprovedById ?? rec.approval_approved_by_id;
-  const approvalApprovedById =
-    typeof apById === "number" && Number.isFinite(apById)
-      ? apById
-      : typeof apById === "string" && /^\d+$/.test(apById.trim())
-        ? Number(apById.trim())
-        : undefined;
-
-  const firstApprover = sanitizeOrderUserRef(
-    rec.firstApprover ?? rec.first_approver
-  );
-  const approvalApprovedBy = sanitizeOrderUserRef(
-    rec.approvalApprovedBy ?? rec.approval_approved_by
-  );
+  const arRaw =
+    rec.currentApprovalRequest ??
+    rec.current_approval_request ??
+    null;
+  const currentApprovalRequest = mapApprovalRequestFromApi(arRaw);
 
   return {
     ...data,
@@ -743,18 +837,9 @@ function mapPurchaseOrderDetail(raw: unknown): PurchaseOrderDetail {
     totalAmountVatIncluded: parseDecimalLikeOptional(
       data.totalAmountVatIncluded ?? data.total_amount_vat_included
     ),
-    ...(firstApproverUserIdParsed !== undefined
-      ? { firstApproverUserId: firstApproverUserIdParsed }
+    ...(currentApprovalRequest
+      ? { currentApprovalRequest }
       : {}),
-    ...(firstApprover ? { firstApprover } : {}),
-    ...(approvalSubmittedAt !== null
-      ? { approvalSubmittedAt }
-      : { approvalSubmittedAt: null }),
-    ...(approvalApprovedAt !== null
-      ? { approvalApprovedAt }
-      : { approvalApprovedAt: null }),
-    ...(approvalApprovedById !== undefined ? { approvalApprovedById } : {}),
-    ...(approvalApprovedBy ? { approvalApprovedBy } : {}),
   };
 }
 
@@ -782,10 +867,14 @@ export async function getPurchaseOrders(
   if (statusParam) q.set("status", statusParam);
   const query = q.toString();
   const url = query ? `${API_BASE}/purchase-orders?${query}` : `${API_BASE}/purchase-orders`;
-  const res = await fetch(url, {
-    headers: authHeaders(accessToken),
-    credentials: "include",
-  });
+  const res = await fetchAuthorized(
+    url,
+    {
+      headers: authHeaders(accessToken),
+      credentials: "include",
+    },
+    accessToken
+  );
   if (!res.ok) {
     throw await createApiError(res, "발주 목록을 불러오지 못했습니다.");
   }
@@ -802,10 +891,14 @@ export async function getPurchaseOrder(
   id: number,
   accessToken: string
 ): Promise<PurchaseOrderDetail> {
-  const res = await fetch(`${API_BASE}/purchase-orders/${id}`, {
-    headers: authHeaders(accessToken),
-    credentials: "include",
-  });
+  const res = await fetchAuthorized(
+    `${API_BASE}/purchase-orders/${id}`,
+    {
+      headers: authHeaders(accessToken),
+      credentials: "include",
+    },
+    accessToken
+  );
   if (!res.ok) {
     throw await createApiError(res, "발주 상세를 불러오지 못했습니다.");
   }
@@ -817,12 +910,16 @@ export async function createPurchaseOrder(
   payload: PurchaseOrderCreatePayload,
   accessToken: string
 ): Promise<PurchaseOrderDetail> {
-  const res = await fetch(`${API_BASE}/purchase-orders`, {
-    method: "POST",
-    headers: jsonHeaders(accessToken),
-    body: JSON.stringify(payload),
-    credentials: "include",
-  });
+  const res = await fetchAuthorized(
+    `${API_BASE}/purchase-orders`,
+    {
+      method: "POST",
+      headers: jsonHeaders(accessToken),
+      body: JSON.stringify(payload),
+      credentials: "include",
+    },
+    accessToken
+  );
   if (!res.ok) {
     throw await createApiError(res, "발주를 등록하지 못했습니다.");
   }
@@ -835,12 +932,16 @@ export async function updatePurchaseOrder(
   payload: PurchaseOrderUpdatePayload,
   accessToken: string
 ): Promise<PurchaseOrderDetail> {
-  const res = await fetch(`${API_BASE}/purchase-orders/${id}`, {
-    method: "PUT",
-    headers: jsonHeaders(accessToken),
-    body: JSON.stringify(payload),
-    credentials: "include",
-  });
+  const res = await fetchAuthorized(
+    `${API_BASE}/purchase-orders/${id}`,
+    {
+      method: "PUT",
+      headers: jsonHeaders(accessToken),
+      body: JSON.stringify(payload),
+      credentials: "include",
+    },
+    accessToken
+  );
   if (!res.ok) {
     throw await createApiError(res, "발주를 수정하지 못했습니다.");
   }
@@ -854,12 +955,16 @@ export async function getPurchaseOrderItems(
   id: number,
   accessToken: string
 ): Promise<PurchaseOrderItem[]> {
-  const res = await fetch(`${API_BASE}/purchase-orders/${id}/lines`, {
-    headers: authHeaders(accessToken),
-    credentials: "include",
-  });
+  const res = await fetchAuthorized(
+    `${API_BASE}/purchase-orders/${id}/lines`,
+    {
+      headers: authHeaders(accessToken),
+      credentials: "include",
+    },
+    accessToken
+  );
   if (!res.ok) {
-    throw await createApiError(res, "발주 제품을 불러오지 못했습니다.");
+    throw await createApiError(res, "발주 라인을 불러오지 못했습니다.");
   }
   const data = await res.json();
   const list = Array.isArray(data) ? data : data?.data ?? data?.orderItems ?? data?.order_items ?? [];
@@ -873,14 +978,18 @@ export async function updatePurchaseOrderLine(
   payload: PurchaseOrderLinePatchPayload,
   accessToken: string
 ): Promise<PurchaseOrderItem> {
-  const res = await fetch(`${API_BASE}/purchase-orders/${orderId}/lines/${lineId}`, {
-    method: "PATCH",
-    headers: jsonHeaders(accessToken),
-    body: JSON.stringify(payload),
-    credentials: "include",
-  });
+  const res = await fetchAuthorized(
+    `${API_BASE}/purchase-orders/${orderId}/lines/${lineId}`,
+    {
+      method: "PATCH",
+      headers: jsonHeaders(accessToken),
+      body: JSON.stringify(payload),
+      credentials: "include",
+    },
+    accessToken
+  );
   if (!res.ok) {
-    throw await createApiError(res, "발주 제품을 수정하지 못했습니다.");
+    throw await createApiError(res, "발주 라인을 수정하지 못했습니다.");
   }
   return mapApiOrderLineToPurchaseOrderItem(await res.json()) as PurchaseOrderItem;
 }
@@ -891,14 +1000,18 @@ export async function createPurchaseOrderLine(
   payload: PurchaseOrderItemPayload,
   accessToken: string
 ): Promise<PurchaseOrderItem> {
-  const res = await fetch(`${API_BASE}/purchase-orders/${orderId}/lines`, {
-    method: "POST",
-    headers: jsonHeaders(accessToken),
-    body: JSON.stringify(payload),
-    credentials: "include",
-  });
+  const res = await fetchAuthorized(
+    `${API_BASE}/purchase-orders/${orderId}/lines`,
+    {
+      method: "POST",
+      headers: jsonHeaders(accessToken),
+      body: JSON.stringify(payload),
+      credentials: "include",
+    },
+    accessToken
+  );
   if (!res.ok) {
-    throw await createApiError(res, "발주 제품을 추가하지 못했습니다.");
+    throw await createApiError(res, "발주 라인을 추가하지 못했습니다.");
   }
   return mapApiOrderLineToPurchaseOrderItem(await res.json()) as PurchaseOrderItem;
 }
@@ -909,13 +1022,17 @@ export async function deletePurchaseOrderLine(
   lineId: number,
   accessToken: string
 ): Promise<void> {
-  const res = await fetch(`${API_BASE}/purchase-orders/${orderId}/lines/${lineId}`, {
-    method: "DELETE",
-    headers: authHeaders(accessToken),
-    credentials: "include",
-  });
+  const res = await fetchAuthorized(
+    `${API_BASE}/purchase-orders/${orderId}/lines/${lineId}`,
+    {
+      method: "DELETE",
+      headers: authHeaders(accessToken),
+      credentials: "include",
+    },
+    accessToken
+  );
   if (!res.ok) {
-    throw await createApiError(res, "발주 제품을 삭제하지 못했습니다.");
+    throw await createApiError(res, "발주 라인을 삭제하지 못했습니다.");
   }
 }
 
@@ -929,12 +1046,16 @@ export async function uploadPurchaseOrderFile(
 ): Promise<PurchaseOrderFile> {
   const form = new FormData();
   form.append("file", file);
-  const res = await fetch(`${API_BASE}/purchase-orders/${id}/files`, {
-    method: "POST",
-    headers: authHeaders(accessToken),
-    body: form,
-    credentials: "include",
-  });
+  const res = await fetchAuthorized(
+    `${API_BASE}/purchase-orders/${id}/files`,
+    {
+      method: "POST",
+      headers: authHeaders(accessToken),
+      body: form,
+      credentials: "include",
+    },
+    accessToken
+  );
   if (!res.ok) {
     throw await createApiError(res, "파일을 업로드하지 못했습니다.");
   }
@@ -946,10 +1067,14 @@ export async function getPurchaseOrderFiles(
   id: number,
   accessToken: string
 ): Promise<PurchaseOrderFile[]> {
-  const res = await fetch(`${API_BASE}/purchase-orders/${id}/files`, {
-    headers: authHeaders(accessToken),
-    credentials: "include",
-  });
+  const res = await fetchAuthorized(
+    `${API_BASE}/purchase-orders/${id}/files`,
+    {
+      headers: authHeaders(accessToken),
+      credentials: "include",
+    },
+    accessToken
+  );
   if (!res.ok) {
     throw await createApiError(res, "첨부파일 목록을 불러오지 못했습니다.");
   }
@@ -963,13 +1088,14 @@ export async function deletePurchaseOrderFile(
   fileLinkId: number,
   accessToken: string
 ): Promise<void> {
-  const res = await fetch(
+  const res = await fetchAuthorized(
     `${API_BASE}/purchase-orders/${orderId}/files/${fileLinkId}`,
     {
       method: "DELETE",
       headers: authHeaders(accessToken),
       credentials: "include",
-    }
+    },
+    accessToken
   );
   if (!res.ok) {
     throw await createApiError(res, "첨부파일을 삭제하지 못했습니다.");
@@ -984,14 +1110,15 @@ export async function createDelivery(
   payload: DeliveryCreatePayload,
   accessToken: string
 ): Promise<Delivery> {
-  const res = await fetch(
+  const res = await fetchAuthorized(
     `${API_BASE}/purchase-orders/${purchaseOrderId}/deliveries`,
     {
       method: "POST",
       headers: jsonHeaders(accessToken),
       body: JSON.stringify(payload),
       credentials: "include",
-    }
+    },
+    accessToken
   );
   if (!res.ok) {
     throw await createApiError(res, "납품을 등록하지 못했습니다.");
@@ -1016,10 +1143,14 @@ export async function getDeliveriesList(
   }
   if (p.status?.trim()) sp.set("status", p.status.trim());
   const qs = sp.toString();
-  const res = await fetch(`${API_BASE}/deliveries${qs ? `?${qs}` : ""}`, {
-    headers: authHeaders(accessToken),
-    credentials: "include",
-  });
+  const res = await fetchAuthorized(
+    `${API_BASE}/deliveries${qs ? `?${qs}` : ""}`,
+    {
+      headers: authHeaders(accessToken),
+      credentials: "include",
+    },
+    accessToken
+  );
   if (!res.ok) {
     throw await createApiError(res, "납품 목록을 불러오지 못했습니다.");
   }
@@ -1047,10 +1178,14 @@ export async function getDeliveryById(
   deliveryId: number,
   accessToken: string
 ): Promise<Delivery> {
-  const res = await fetch(`${API_BASE}/deliveries/${deliveryId}`, {
-    headers: authHeaders(accessToken),
-    credentials: "include",
-  });
+  const res = await fetchAuthorized(
+    `${API_BASE}/deliveries/${deliveryId}`,
+    {
+      headers: authHeaders(accessToken),
+      credentials: "include",
+    },
+    accessToken
+  );
   if (!res.ok) {
     throw await createApiError(res, "납품 정보를 불러오지 못했습니다.");
   }
@@ -1062,12 +1197,13 @@ export async function getDeliveries(
   purchaseOrderId: number,
   accessToken: string
 ): Promise<Delivery[]> {
-  const res = await fetch(
+  const res = await fetchAuthorized(
     `${API_BASE}/purchase-orders/${purchaseOrderId}/deliveries`,
     {
       headers: authHeaders(accessToken),
       credentials: "include",
-    }
+    },
+    accessToken
   );
   if (!res.ok) {
     throw await createApiError(res, "납품 목록을 불러오지 못했습니다.");
@@ -1077,18 +1213,38 @@ export async function getDeliveries(
 }
 
 // --- 결재(상신·승인) ---
-// POST `/purchase-orders/:id/approval/submit` — 상신. PO_CLOSED면 400. `firstApproverUserId`는 참고용 저장.
-// POST `.../approval/approve` — 승인과 동시에 발주 종결(PO_CLOSED)·approvalApprovedAt 기록. 권한은 서버(열람·수정 등) 기준.
-// 프론트(`OrderDetail`)는 submit 시 팀장 매칭으로 `firstApproverUserId`를 넣어 참고용으로 전달.
+// POST `/purchase-orders/:id/approval/submit` — 상신. PO_CLOSED면 400.
+// - `lines[]`: `stepOrder`(권장)·`stepNo`(호환), `approverUserId`, 선택 `status`
+// POST `.../approval/approve` — 승인과 동시에 발주 종결(PO_CLOSED).
+
+/** 상신 시 결재선 한 단계 */
+export interface PurchaseOrderApprovalLineInput {
+  /** 권장 키 (서버: stepOrder) */
+  stepOrder: number;
+  approverUserId: number;
+  /** 결재선 단계 상태(서버 스펙에 맞게 선택) */
+  status?: string | null;
+  /** @deprecated stepOrder와 동일 — 직렬화 시 stepOrder 우선 */
+  stepNo?: number;
+}
 
 /** 상신·승인 Body 형태 (반려 API는 현재 스펙에 없음) */
 export interface PurchaseOrderApprovalActionPayload {
-  /** 의견·메모(선택). 백엔드가 `remark` 등 다른 키로 매핑할 수 있음 */
+  /** 의견·메모(선택). 기존 서버는 `comment`만 쓸 수 있음 */
   comment?: string | null;
   /**
-   * **submit 단계에서만** 실어 보냄(참고용). `OrderDetail` → `findTeamLeaderUserForDepartment` 로 구한 사용자 `id`.
+   * **submit 단계에서만** 실어 보냄(참고용). `lines` 없을 때 하위 호환용.
    */
   firstApproverUserId?: number | null;
+  /** 결재 문서 제목(선택). submit 전용 */
+  title?: string | null;
+  /** 상신 메모(선택). submit 전용 — `comment`와 함께내면 서버가 선택·병합 */
+  remark?: string | null;
+  /**
+   * 확정 결재선. 있으면 우선 적용.
+   * 없으면 `firstApproverUserId`만 전송(레거시).
+   */
+  lines?: PurchaseOrderApprovalLineInput[] | null;
 }
 
 async function postPurchaseOrderApprovalSegment(
@@ -1097,19 +1253,64 @@ async function postPurchaseOrderApprovalSegment(
   payload: PurchaseOrderApprovalActionPayload,
   accessToken: string
 ): Promise<void> {
-  /** submit: 선택 comment + 참고용 firstApproverUserId. approve: 선택 comment */
+  /** submit: comment/remark/title/lines + 하위 호환 firstApproverUserId. approve: 선택 comment */
   let body: Record<string, unknown>;
   if (segment === "submit") {
     body = {};
-    const uid = payload.firstApproverUserId;
-    if (uid != null && Number.isFinite(Number(uid))) {
-      body.firstApproverUserId = Number(uid);
+    const rawLines = payload.lines;
+    const normalizedLines =
+      Array.isArray(rawLines) && rawLines.length > 0
+        ? rawLines
+            .filter(
+              (l) =>
+                l &&
+                Number.isFinite(
+                  Number(l.stepOrder ?? l.stepNo)
+                ) &&
+                Number.isFinite(Number(l.approverUserId))
+            )
+            .map((l) => {
+              const stepOrder = Number(l.stepOrder ?? l.stepNo);
+              const lineObj: Record<string, unknown> = {
+                stepOrder,
+                stepNo: stepOrder,
+                approverUserId: Number(l.approverUserId),
+              };
+              if (
+                typeof l.status === "string" &&
+                l.status.trim() !== ""
+              ) {
+                lineObj.status = l.status.trim();
+              }
+              return lineObj;
+            })
+        : [];
+    if (normalizedLines.length > 0) {
+      body.lines = normalizedLines;
+      body.firstApproverUserId = Number(
+        (normalizedLines[0] as Record<string, unknown>).approverUserId
+      );
+    } else {
+      const uid = payload.firstApproverUserId;
+      if (uid != null && Number.isFinite(Number(uid))) {
+        body.firstApproverUserId = Number(uid);
+      }
     }
     const c =
       typeof payload.comment === "string" && payload.comment.trim() !== ""
         ? payload.comment.trim()
         : null;
     if (c) body.comment = c;
+    const r =
+      typeof payload.remark === "string" && payload.remark.trim() !== ""
+        ? payload.remark.trim()
+        : null;
+    if (r) body.remark = r;
+    const t =
+      typeof payload.title === "string" && payload.title.trim() !== ""
+        ? payload.title.trim()
+        : null;
+    if (t) body.title = t;
   } else {
     body = {
       comment:
@@ -1118,14 +1319,15 @@ async function postPurchaseOrderApprovalSegment(
           : null,
     };
   }
-  const res = await fetch(
+  const res = await fetchAuthorized(
     `${API_BASE}/purchase-orders/${id}/approval/${segment}`,
     {
       method: "POST",
       headers: jsonHeaders(accessToken),
       body: JSON.stringify(body),
       credentials: "include",
-    }
+    },
+    accessToken
   );
   if (!res.ok) {
     const fallback =
@@ -1172,10 +1374,14 @@ export async function rejectPurchaseOrderApproval(
 
 /** `GET /partners` */
 export async function getPartners(accessToken: string): Promise<Partner[]> {
-  const res = await fetch(`${API_BASE}/partners`, {
-    headers: authHeaders(accessToken),
-    credentials: "include",
-  });
+  const res = await fetchAuthorized(
+    `${API_BASE}/partners`,
+    {
+      headers: authHeaders(accessToken),
+      credentials: "include",
+    },
+    accessToken
+  );
   if (!res.ok) {
     throw await createApiError(res, "거래처 목록을 불러오지 못했습니다.");
   }
@@ -1188,12 +1394,16 @@ export async function createPartner(
   payload: PartnerCreatePayload,
   accessToken: string
 ): Promise<Partner> {
-  const res = await fetch(`${API_BASE}/partners`, {
-    method: "POST",
-    headers: jsonHeaders(accessToken),
-    body: JSON.stringify(payload),
-    credentials: "include",
-  });
+  const res = await fetchAuthorized(
+    `${API_BASE}/partners`,
+    {
+      method: "POST",
+      headers: jsonHeaders(accessToken),
+      body: JSON.stringify(payload),
+      credentials: "include",
+    },
+    accessToken
+  );
   if (!res.ok) {
     throw await createApiError(res, "거래처를 등록하지 못했습니다.");
   }
@@ -1210,17 +1420,23 @@ export interface CodeItem {
   isActive?: boolean;
 }
 
-/** `GET /code-groups/:groupCode/codes` — (레거시) 코드 그룹별 코드 목록 */
+/**
+ * `GET /code-groups/:groupCode/codes` — 공통코드 **별칭** 엔드포인트.
+ * `commonCode.ts`의 `getCommonCodesByGroup`과 동일한 서비스·응답(그룹별 코드 목록)입니다.
+ * 그룹 목록만 필요하면 `getCommonCodeGroups` 등 **표준** `/common-codes/groups` 를 사용하세요.
+ * 신규 연동은 표준 경로(`getCommonCodesByGroup`) 권장.
+ */
 export async function getCodeGroupCodes(
   groupCode: string,
   accessToken: string
 ): Promise<CodeItem[]> {
-  const res = await fetch(
+  const res = await fetchAuthorized(
     `${API_BASE}/code-groups/${encodeURIComponent(groupCode)}/codes`,
     {
       headers: authHeaders(accessToken),
       credentials: "include",
-    }
+    },
+    accessToken
   );
   if (!res.ok) {
     throw await createApiError(res, "공통코드를 불러오지 못했습니다.");

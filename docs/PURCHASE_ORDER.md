@@ -4,7 +4,11 @@
 
 **의미**: 타 업체가 **우리 회사에게** 발주 요청한 건을 관리하는 모듈입니다. (우리 회사 → 타 업체 발주가 아님)
 
-**제품 관리(선행)**: 발주 시 제품을 선택하므로, 그 전에 **제품 분류·제품 유형·제품 마스터**를 등록해 두어야 합니다. 제품 관리 라우트·API·화면은 [docs/ITEMS.md](ITEMS.md) 참고.
+**품목·대표 제품(선행)**: 발주 라인은 **`product_definition_id` 기준**이며, 화면에서는 **대표 제품(`products`)**을 선택합니다. SKU 단위 품목 마스터는 [ITEMS.md](./ITEMS.md), 대표 제품·정의 API·화면은 앱 내 `/products`, `/items` 및 `src/api/products.ts` 등을 참고.
+
+**대표 제품 vs 제품 정의 UX**: [FRONTEND_PRODUCT_DEFINITION_UX.md](./FRONTEND_PRODUCT_DEFINITION_UX.md)
+
+**도메인 전체 정의(리비전·BOM·도면·order_items 변경 방향)**: [DOMAIN_PROCESS_STRUCTURE.md](./DOMAIN_PROCESS_STRUCTURE.md)
 
 ---
 
@@ -76,7 +80,8 @@
 | **드롭다운** | `getPartners(accessToken)` | GET `/partners` | 거래처 목록 |
 | | `createPartner(payload, accessToken)` | POST `/partners` | 거래처 등록 (빠른 등록 모달) |
 | | `getItems(accessToken)` | GET `/items` | 제품 목록 |
-| | `getCodeGroupCodes(groupCode, accessToken)` | GET `/code-groups/:groupCode/codes` | 공통코드 목록 |
+| | `getCommonCodesByGroup(groupCode, accessToken)` | GET `/common-codes/groups/:groupCode/codes` | 공통코드 목록 (**표준**) |
+| | `getCodeGroupCodes(groupCode, accessToken)` | GET `/code-groups/:groupCode/codes` | 동일 목록 (**별칭**, 표준과 동일 응답) |
 
 > **백엔드 참고**: 발주 **상태 이력**은 `GET /purchase-orders/:id/status-histories`로 제공됩니다. 현재 프론트 모듈에서는 연동하지 않으며, 구 경로 `…/approvals`, `…/histories`는 사용하지 않습니다.
 
@@ -117,10 +122,14 @@
 
 ## 5. 공통코드 사용
 
-- **발주 상태** 드롭다운: `getCodeGroupCodes("PURCHASE_ORDER_STATUS", accessToken)`
-- **승인 상태** 드롭다운: `getCodeGroupCodes("APPROVAL_STATUS", accessToken)`
-- 문서상 그룹 예: `PURCHASE_ORDER_STATUS`, `APPROVAL_STATUS`, `PROGRESS_STATUS`, `DELIVERY_STATUS`, `FILE_TYPE`, `UNIT`  
-  → 필요 시 동일 패턴으로 `getCodeGroupCodes(groupCode, accessToken)` 사용
+백엔드에서 `GET /common-codes/groups/{groupCode}/codes` 와 `GET /code-groups/{groupCode}/codes` 는 **같은 서비스·같은 응답**입니다. 프론트는 다음처럼 쓰고 있습니다.
+
+- **발주 상태** 필터 (`Order.tsx`): `getCommonCodesByGroup` → `PURCHASE_ORDER_STATUS` (**표준** 경로)
+- **승인 상태** 필터 (`Order.tsx`): `getCodeGroupCodes` → `APPROVAL_STATUS` (**별칭** 경로, 응답은 표준과 동일)
+- **발주 폼/상세** 등: `commonCode.ts`의 `getCommonCodesByGroup` 위주
+
+문서상 그룹 예: `PURCHASE_ORDER_STATUS`, `APPROVAL_STATUS`, `PROGRESS_STATUS`, `DELIVERY_STATUS`, `FILE_TYPE`, `UNIT`  
+→ 그룹별 코드만 필요하면 `getCommonCodesByGroup(groupCode, accessToken)` 권장. 기존 호환으로 `getCodeGroupCodes` 도 동일 데이터를 반환합니다.
 
 ---
 

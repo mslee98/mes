@@ -46,7 +46,7 @@ export function OrderLineAmountSummary({
 }) {
   if (summaries.length === 0) return null;
   return (
-    <div className="mt-6 space-y-5 border-t border-gray-100 px-1 pt-5 dark:border-white/5 sm:px-2">
+    <div className="px-1 pt-5 dark:border-white/5 sm:px-2">
       {summaries.map((s) => (
         <div
           key={s.currencyCode}

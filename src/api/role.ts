@@ -6,6 +6,7 @@
 import { createApiError } from "../lib/apiError";
 
 import { API_BASE } from "./apiBase";
+import { fetchAuthorized } from "./fetchAuthorized";
 
 export interface RoleItem {
   id?: number | string;
@@ -33,12 +34,16 @@ function normalizeRoleList(payload: unknown): RoleItem[] {
 }
 
 export async function getRoles(accessToken: string): Promise<RoleItem[]> {
-  const res = await fetch(`${API_BASE}/auth/roles`, {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
+  const res = await fetchAuthorized(
+    `${API_BASE}/auth/roles`,
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      credentials: "include",
     },
-    credentials: "include",
-  });
+    accessToken
+  );
 
   if (!res.ok) {
     throw await createApiError(res, "역할 목록을 불러오지 못했습니다.");

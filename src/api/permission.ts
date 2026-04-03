@@ -6,6 +6,7 @@
 import { createApiError } from "../lib/apiError";
 
 import { API_BASE } from "./apiBase";
+import { fetchAuthorized } from "./fetchAuthorized";
 
 export interface PermissionItem {
   id?: number | string;
@@ -35,12 +36,16 @@ function normalizePermissionList(payload: unknown): PermissionItem[] {
 export async function getPermissions(
   accessToken: string
 ): Promise<PermissionItem[]> {
-  const res = await fetch(`${API_BASE}/auth/permissions`, {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
+  const res = await fetchAuthorized(
+    `${API_BASE}/auth/permissions`,
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      credentials: "include",
     },
-    credentials: "include",
-  });
+    accessToken
+  );
 
   if (!res.ok) {
     throw await createApiError(res, "권한 목록을 불러오지 못했습니다.");

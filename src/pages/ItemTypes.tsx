@@ -126,7 +126,7 @@ export default function ItemTypes() {
     mutationFn: (payload: ItemTypeCreatePayload) =>
       createItemType(payload, accessToken!),
     onSuccess: () => {
-      toast.success("제품 유형이 등록되었습니다.");
+      toast.success("품목 유형이 등록되었습니다.");
       queryClient.invalidateQueries({ queryKey: ["itemTypes"] });
       formModal.closeModal();
       setForm(initialForm());
@@ -138,7 +138,7 @@ export default function ItemTypes() {
     mutationFn: ({ id, payload }: { id: number; payload: ItemTypeCreatePayload }) =>
       updateItemType(id, payload, accessToken!),
     onSuccess: () => {
-      toast.success("제품 유형이 수정되었습니다.");
+      toast.success("품목 유형이 수정되었습니다.");
       queryClient.invalidateQueries({ queryKey: ["itemTypes"] });
       formModal.closeModal();
       setForm(initialForm());
@@ -149,7 +149,7 @@ export default function ItemTypes() {
   const deleteMutation = useMutation({
     mutationFn: (id: number) => deleteItemType(id, accessToken!),
     onSuccess: () => {
-      toast.success("제품 유형이 삭제되었습니다.");
+      toast.success("품목 유형이 삭제되었습니다.");
       queryClient.invalidateQueries({ queryKey: ["itemTypes"] });
       deleteModal.closeModal();
       setTypeToDelete(null);
@@ -207,10 +207,10 @@ export default function ItemTypes() {
 
   return (
     <>
-      <PageMeta title="제품 유형" description="제품 유형 관리" />
-      <PageBreadcrumb pageTitle="제품 유형" />
+      <PageMeta title="품목 유형" description="품목 유형 관리" />
+      <PageBreadcrumb pageTitle="품목 유형" />
       <ListPageLayout
-        title="제품 유형"
+        title="품목 유형"
         toolbar={
           <div className="flex w-full flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div className="w-full md:max-w-md">
@@ -275,7 +275,7 @@ export default function ItemTypes() {
         }
       >
         {isAuthLoading || isLoading ? (
-          <ListPageLoading message="제품 유형 목록을 불러오는 중..." />
+          <ListPageLoading message="품목 유형 목록을 불러오는 중..." />
         ) : !accessToken ? (
           <div className="flex min-h-[320px] items-center justify-center text-gray-500 dark:text-gray-400">
             <p className="text-sm">로그인 후 목록을 조회할 수 있습니다.</p>
@@ -285,12 +285,12 @@ export default function ItemTypes() {
             <p className="text-sm text-red-600 dark:text-red-400">
               {error instanceof Error
                 ? error.message
-                : "제품 유형 목록을 불러오지 못했습니다."}
+                : "품목 유형 목록을 불러오지 못했습니다."}
             </p>
           </div>
         ) : filteredTypes.length === 0 ? (
           <div className="flex min-h-[320px] items-center justify-center text-gray-500 dark:text-gray-400">
-            <p className="text-sm">조건에 맞는 제품 유형이 없습니다.</p>
+            <p className="text-sm">조건에 맞는 품목 유형이 없습니다.</p>
           </div>
         ) : (
           <Table>
@@ -390,7 +390,7 @@ export default function ItemTypes() {
         className="mx-4 max-w-lg p-6 dark:bg-gray-900 sm:p-8"
       >
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-          {form.id != null ? "제품 유형 수정" : "제품 유형 추가"}
+          {form.id != null ? "품목 유형 수정" : "품목 유형 추가"}
         </h2>
         <form onSubmit={handleSubmitForm} className="mt-6 space-y-4">
           <div>
@@ -475,7 +475,7 @@ export default function ItemTypes() {
 
       <ConfirmModal
         isOpen={deleteModal.isOpen}
-        title="제품 유형 삭제"
+        title="품목 유형 삭제"
         message={
           typeToDelete
             ? `"${typeToDelete.name}" 유형을 삭제하시겠습니까?`

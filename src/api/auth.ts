@@ -54,9 +54,9 @@ export async function login(body: LoginRequest): Promise<LoginResponse> {
  * - body 없음. 응답: access_token, expires_in_seconds + 새 refresh_token은 Set-Cookie로 설정됨
  */
 export async function refresh(): Promise<RefreshResponse> {
+  /** 본문 없음 — Authorization 불필요, refresh_token은 HttpOnly 쿠키로만 전송 */
   const res = await fetch(`${API_BASE}/auth/refresh`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
     credentials: "include",
   });
 

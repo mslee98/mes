@@ -5,6 +5,7 @@
  */
 import { createApiError } from "../lib/apiError";
 import { API_BASE } from "./apiBase";
+import { fetchAuthorized } from "./fetchAuthorized";
 
 export interface MenuItem {
   id: number;
@@ -81,12 +82,16 @@ function normalizeSingleMenu(payload: unknown): MenuItem | null {
 }
 
 export async function getMyMenus(accessToken: string): Promise<MenuItem[]> {
-  const res = await fetch(`${API_BASE}/menus/my`, {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
+  const res = await fetchAuthorized(
+    `${API_BASE}/menus/my`,
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      credentials: "include",
     },
-    credentials: "include",
-  });
+    accessToken
+  );
 
   if (!res.ok) {
     throw await createApiError(res, "메뉴 정보를 불러오지 못했습니다.");
@@ -97,10 +102,14 @@ export async function getMyMenus(accessToken: string): Promise<MenuItem[]> {
 }
 
 export async function getMenus(accessToken: string): Promise<MenuItem[]> {
-  const res = await fetch(`${API_BASE}/menus`, {
-    headers: authHeaders(accessToken),
-    credentials: "include",
-  });
+  const res = await fetchAuthorized(
+    `${API_BASE}/menus`,
+    {
+      headers: authHeaders(accessToken),
+      credentials: "include",
+    },
+    accessToken
+  );
 
   if (!res.ok) {
     throw await createApiError(res, "메뉴 목록을 불러오지 못했습니다.");
@@ -114,10 +123,14 @@ export async function getMenu(
   menuId: number,
   accessToken: string
 ): Promise<MenuItem> {
-  const res = await fetch(`${API_BASE}/menus/${menuId}`, {
-    headers: authHeaders(accessToken),
-    credentials: "include",
-  });
+  const res = await fetchAuthorized(
+    `${API_BASE}/menus/${menuId}`,
+    {
+      headers: authHeaders(accessToken),
+      credentials: "include",
+    },
+    accessToken
+  );
 
   if (!res.ok) {
     throw await createApiError(res, "메뉴 정보를 불러오지 못했습니다.");
@@ -137,12 +150,16 @@ export async function createMenu(
   payload: MenuMutationPayload,
   accessToken: string
 ): Promise<MenuItem | null> {
-  const res = await fetch(`${API_BASE}/menus`, {
-    method: "POST",
-    headers: authHeaders(accessToken),
-    credentials: "include",
-    body: JSON.stringify(payload),
-  });
+  const res = await fetchAuthorized(
+    `${API_BASE}/menus`,
+    {
+      method: "POST",
+      headers: authHeaders(accessToken),
+      credentials: "include",
+      body: JSON.stringify(payload),
+    },
+    accessToken
+  );
 
   if (!res.ok) {
     throw await createApiError(res, "메뉴 생성에 실패했습니다.");
@@ -157,12 +174,16 @@ export async function updateMenu(
   payload: Partial<MenuMutationPayload>,
   accessToken: string
 ): Promise<MenuItem | null> {
-  const res = await fetch(`${API_BASE}/menus/${menuId}`, {
-    method: "PATCH",
-    headers: authHeaders(accessToken),
-    credentials: "include",
-    body: JSON.stringify(payload),
-  });
+  const res = await fetchAuthorized(
+    `${API_BASE}/menus/${menuId}`,
+    {
+      method: "PATCH",
+      headers: authHeaders(accessToken),
+      credentials: "include",
+      body: JSON.stringify(payload),
+    },
+    accessToken
+  );
 
   if (!res.ok) {
     throw await createApiError(res, "메뉴 수정에 실패했습니다.");
@@ -173,11 +194,15 @@ export async function updateMenu(
 }
 
 export async function deleteMenu(menuId: number, accessToken: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/menus/${menuId}`, {
-    method: "DELETE",
-    headers: authHeaders(accessToken),
-    credentials: "include",
-  });
+  const res = await fetchAuthorized(
+    `${API_BASE}/menus/${menuId}`,
+    {
+      method: "DELETE",
+      headers: authHeaders(accessToken),
+      credentials: "include",
+    },
+    accessToken
+  );
 
   if (!res.ok) {
     throw await createApiError(res, "메뉴 삭제에 실패했습니다.");
@@ -188,10 +213,14 @@ export async function getMenusByRole(
   roleId: number,
   accessToken: string
 ): Promise<MenuItem[]> {
-  const res = await fetch(`${API_BASE}/menus/roles/${roleId}`, {
-    headers: authHeaders(accessToken),
-    credentials: "include",
-  });
+  const res = await fetchAuthorized(
+    `${API_BASE}/menus/roles/${roleId}`,
+    {
+      headers: authHeaders(accessToken),
+      credentials: "include",
+    },
+    accessToken
+  );
 
   if (!res.ok) {
     throw await createApiError(res, "역할별 메뉴 조회에 실패했습니다.");
@@ -206,12 +235,16 @@ export async function assignMenuToRole(
   payload: MenuRoleAssignmentPayload,
   accessToken: string
 ) {
-  const res = await fetch(`${API_BASE}/menus/roles/${roleId}`, {
-    method: "POST",
-    headers: authHeaders(accessToken),
-    credentials: "include",
-    body: JSON.stringify(payload),
-  });
+  const res = await fetchAuthorized(
+    `${API_BASE}/menus/roles/${roleId}`,
+    {
+      method: "POST",
+      headers: authHeaders(accessToken),
+      credentials: "include",
+      body: JSON.stringify(payload),
+    },
+    accessToken
+  );
 
   if (!res.ok) {
     throw await createApiError(res, "역할에 메뉴 연결에 실패했습니다.");
@@ -251,10 +284,14 @@ export async function getRoleMenus(
   roleId: number,
   accessToken: string
 ): Promise<RoleMenuAssignment[]> {
-  const res = await fetch(`${API_BASE}/menus/roles/${roleId}`, {
-    headers: authHeaders(accessToken),
-    credentials: "include",
-  });
+  const res = await fetchAuthorized(
+    `${API_BASE}/menus/roles/${roleId}`,
+    {
+      headers: authHeaders(accessToken),
+      credentials: "include",
+    },
+    accessToken
+  );
 
   if (!res.ok) {
     throw await createApiError(res, "역할별 메뉴 연결 목록을 불러오지 못했습니다.");
@@ -277,12 +314,16 @@ export async function updateRoleMenu(
   payload: UpdateRoleMenuPayload,
   accessToken: string
 ): Promise<void> {
-  const res = await fetch(`${API_BASE}/menus/role-menus/${roleMenuId}`, {
-    method: "PATCH",
-    headers: authHeaders(accessToken),
-    credentials: "include",
-    body: JSON.stringify(payload),
-  });
+  const res = await fetchAuthorized(
+    `${API_BASE}/menus/role-menus/${roleMenuId}`,
+    {
+      method: "PATCH",
+      headers: authHeaders(accessToken),
+      credentials: "include",
+      body: JSON.stringify(payload),
+    },
+    accessToken
+  );
 
   if (!res.ok) {
     throw await createApiError(res, "역할-메뉴 연결 수정에 실패했습니다.");
@@ -294,11 +335,15 @@ export async function deleteRoleMenu(
   roleMenuId: number,
   accessToken: string
 ): Promise<void> {
-  const res = await fetch(`${API_BASE}/menus/role-menus/${roleMenuId}`, {
-    method: "DELETE",
-    headers: authHeaders(accessToken),
-    credentials: "include",
-  });
+  const res = await fetchAuthorized(
+    `${API_BASE}/menus/role-menus/${roleMenuId}`,
+    {
+      method: "DELETE",
+      headers: authHeaders(accessToken),
+      credentials: "include",
+    },
+    accessToken
+  );
 
   if (!res.ok) {
     throw await createApiError(res, "역할-메뉴 연결 삭제에 실패했습니다.");

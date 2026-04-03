@@ -62,7 +62,7 @@
 | **apiBase.ts** | `API_BASE` 단일 export | — |
 | **auth.ts** | 로그인·토큰 갱신·로그아웃 | `POST /auth/login`, `POST /auth/refresh`, `POST /auth/logout` |
 | **authCookie.ts** | 쿠키 관련 보조 | (파일 내 주석·구현 참고) |
-| **commonCode.ts** | 공통코드 그룹·코드 목록 | `GET /common-codes/groups`, 그룹별 codes (파일 내 경로 참고) |
+| **commonCode.ts** | 공통코드 그룹·코드 목록 (**표준**) | `GET /common-codes/groups`, `GET /common-codes/groups/:groupCode/codes` |
 | **items.ts** | 품목·분류·유형 CRUD | `/items`, `/item-categories`, `/item-types` 등 |
 | **menu.ts** | 메뉴 트리·CRUD·역할 연결 | `/menus` 등 |
 | **organization.ts** | 조직 트리·부서 사용자 | `GET /organization-unit/tree`, 사용자 목록 API |
@@ -95,9 +95,9 @@
 | `getDeliveries` | GET | `/purchase-orders/:id/deliveries` | — |
 | `getPartners` | GET | `/partners` | — |
 | `createPartner` | POST | `/partners` | JSON |
-| `getCodeGroupCodes` | GET | `/code-groups/:groupCode/codes` | 레거시 코드 그룹 API |
+| `getCodeGroupCodes` | GET | `/code-groups/:groupCode/codes` | **별칭**: `getCommonCodesByGroup`과 동일 서비스·동일 응답(그룹별 코드만). 그룹 목록 API 없음 |
 
-> **참고**: `commonCode.ts`의 `getCommonCodesByGroup` 등은 경로가 다를 수 있음 — 발주 화면에서 쓰는 공통코드는 보통 `commonCode.ts` 쪽을 사용합니다.
+> **공통코드 표준 vs 별칭**: 그룹별 코드 목록은 `getCommonCodesByGroup`(표준)과 `getCodeGroupCodes`(별칭)가 같은 백엔드 로직을 씁니다. 신규 코드는 `commonCode.ts` 표준 경로 사용을 권장합니다. (자세한 표는 [COMMON_CODE.md](./COMMON_CODE.md) §3.)
 
 ---
 

@@ -1,6 +1,8 @@
+import { Link } from "react-router";
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import ComponentCard from "../components/common/ComponentCard";
+import PageNotice from "../components/common/PageNotice";
 import Badge from "../components/ui/badge/Badge";
 import {
   Table,
@@ -100,10 +102,17 @@ export default function ApprovalDocumentSample() {
       <PageMeta title="결재문서 공통 헤더(샘플)" description="approval_document 공통 메타 UI" />
       <PageBreadcrumb pageTitle="결재문서 공통 헤더 (샘플)" />
 
-      <div className="mb-4 rounded-lg border border-dashed border-brand-300/80 bg-brand-50/50 px-4 py-3 text-theme-sm text-brand-800 dark:border-brand-600/50 dark:bg-brand-500/10 dark:text-brand-200">
-        문서별 업무 필드(거래처·품목·금액 등)는 공통 헤더에 넣지 않고, 아래{' '}
-        <strong>문서 본문</strong> 영역에만 둔다는 가정의 레이아웃 예시입니다.
-      </div>
+      <PageNotice variant="brand" className="mb-4">
+        문서별 업무 필드(거래처·품목·금액 등)는 공통 헤더에 넣지 않고, 아래{" "}
+        <strong>문서 본문</strong> 영역에만 둔다는 가정의 레이아웃 예시입니다.{" "}
+        <Link
+          to="/approval"
+          className="font-medium underline underline-offset-2 hover:no-underline"
+        >
+          전자결재 함·상세 퍼블리싱
+        </Link>
+        과 함께 보면 흐름 파악에 도움이 됩니다.
+      </PageNotice>
 
       <div className="space-y-6">
         <ComponentCard title="1. 문서 식별">

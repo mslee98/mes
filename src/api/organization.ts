@@ -10,6 +10,7 @@
 import { createApiError } from "../lib/apiError";
 
 import { API_BASE } from "./apiBase";
+import { fetchAuthorized } from "./fetchAuthorized";
 
 function authHeaders(accessToken: string): HeadersInit {
   return { Authorization: `Bearer ${accessToken}` };
@@ -40,10 +41,14 @@ export async function getOrganizationTree(
   if (accessToken) {
     (headers as Record<string, string>).Authorization = `Bearer ${accessToken}`;
   }
-  const res = await fetch(`${API_BASE}/organization-unit/tree`, {
-    credentials: "include",
-    ...(Object.keys(headers as object).length > 0 ? { headers } : {}),
-  });
+  const res = await fetchAuthorized(
+    `${API_BASE}/organization-unit/tree`,
+    {
+      credentials: "include",
+      ...(Object.keys(headers as object).length > 0 ? { headers } : {}),
+    },
+    accessToken ?? null
+  );
 
   if (!res.ok) {
     throw await createApiError(res, "조직도를 불러오지 못했습니다.");
@@ -122,10 +127,14 @@ export async function getOrganizationUnitUsers(
   unitId: number,
   accessToken: string
 ): Promise<OrganizationUnitUserItem[]> {
-  const res = await fetch(`${API_BASE}/organization-unit/${unitId}/users`, {
-    headers: authHeaders(accessToken),
-    credentials: "include",
-  });
+  const res = await fetchAuthorized(
+    `${API_BASE}/organization-unit/${unitId}/users`,
+    {
+      headers: authHeaders(accessToken),
+      credentials: "include",
+    },
+    accessToken
+  );
 
   if (!res.ok) {
     throw await createApiError(

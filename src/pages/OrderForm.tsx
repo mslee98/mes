@@ -6,7 +6,11 @@ import {
   startTransition,
   useRef,
 } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useQuery,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { Link, useParams, useNavigate } from "react-router";
 import toast from "react-hot-toast";
 import PageMeta from "../components/common/PageMeta";
@@ -20,7 +24,6 @@ import DatePicker from "../components/form/date-picker";
 import SelectInput from "../components/form/SelectInput";
 import SearchableSelectWithCreate from "../components/form/SearchableSelectWithCreate";
 import PartnerQuickCreateModal from "../components/form/PartnerQuickCreateModal";
-import ItemQuickCreateModal from "../components/form/ItemQuickCreateModal";
 import FileUploadDropzone from "../components/form/FileUploadDropzone";
 import {
   Table,
@@ -48,9 +51,15 @@ import {
   getCommonCodesByGroup,
   COMMON_CODE_GROUP_PURCHASE_ORDER_TYPE,
   COMMON_CODE_GROUP_PURCHASE_ORDER_STATUS,
+  COMMON_CODE_GROUP_COUNTRY,
   commonCodesToSelectOptions,
 } from "../api/commonCode";
-import { getItems, type Item } from "../api/items";
+import { partnerSelectLabel } from "../lib/partnerDisplay";
+import {
+  getProductList,
+  representativeProductLabel,
+  type RepresentativeProduct,
+} from "../api/products";
 import {
   getOrganizationTree,
   flattenOrganizationUnitsForSelect,
@@ -84,7 +93,10 @@ function todayString() {
 
 type ItemRow = {
   lineId?: number;
-  itemId: number;
+  /** 대표 제품 — UI (GET /products) */
+  productId: number;
+  /** 기존 라인에 정의 id가 있을 때만. 저장 요청은 항상 정의 null + productId */
+  productDefinitionId?: number | null;
   /** 공통코드 UNIT 코드 */
   unitCode: string;
   qty: number;
@@ -94,11 +106,21 @@ type ItemRow = {
   remark: string;
 };
 
+/**
+ * 
+ * @param display - 단가 표시 문자열 (콤마 포함)
+ * @returns 
+ */
 function parseLineUnitPrice(display: string): number {
   const n = Number(display.replace(/,/g, "").trim());
   return Number.isFinite(n) ? n : 0;
 }
 
+/**
+ * 
+ * @param value - 단가 값
+ * @returns 단가 표시 문자열 (콤마 포함)
+ */
 function formatLineUnitPriceDisplay(value: unknown): string {
   const raw = String(value ?? "").trim();
   if (!raw) return "";
@@ -112,7 +134,12 @@ function formatLineUnitPriceDisplay(value: unknown): string {
   return decDigits ? `${formattedInt}.${decDigits}` : formattedInt;
 }
 
-/** 헤더 통화 기준 라인 공급가액·부가세 포함 총액 (백엔드 supplyAmount / totalAmountVatIncluded) */
+/** 
+ * 헤더 통화 기준 라인 공급가액·부가세 포함 총액 (백엔드 supplyAmount / totalAmountVatIncluded)
+ * @param rows - 행 데이터
+ * @param headerCurrency - 헤더 통화 코드
+ * @returns 공급가액과 부가세 포함 총액
+ */
 function computeHeaderSupplyAndTotalVatIncluded(
   rows: ItemRow[],
   headerCurrency: string
@@ -132,12 +159,20 @@ function computeHeaderSupplyAndTotalVatIncluded(
   };
 }
 
-/** POST /purchase-orders 생성 시 우선순위 기본값 */
+/** 
+ * POST /purchase-orders 생성 시 우선순위 기본값
+ * @returns 우선순위 기본값
+ */
 const PO_CREATE_PRIORITY = "NORMAL";
 
+/**
+ * 
+ * @returns 빈 행 데이터
+ */
 const emptyItemRow = (): ItemRow => ({
   lineId: undefined,
-  itemId: 0,
+  productId: 0,
+  productDefinitionId: null,
   unitCode: "",
   qty: 0,
   unitPrice: "",
@@ -149,10 +184,20 @@ const emptyItemRow = (): ItemRow => ({
 const LEGACY_DEPT_PREFIX = "legacy-dept:";
 const LEGACY_USER_PREFIX = "legacy-user:";
 
+/**
+ * 
+ * @param path - 부서 경로
+ * @returns 부서 경로 문자열 (레거시 접두사 포함)
+ */
 function legacyDeptValue(path: string) {
   return `${LEGACY_DEPT_PREFIX}${encodeURIComponent(path)}`;
 }
 
+/**
+ * 
+ * @param selectValue - 부서 선택값
+ * @returns 부서 경로 문자열 (레거시 접두사 제거)
+ */
 function tryDecodeLegacyDept(selectValue: string): string | null {
   if (!selectValue.startsWith(LEGACY_DEPT_PREFIX)) return null;
   try {
@@ -162,6 +207,12 @@ function tryDecodeLegacyDept(selectValue: string): string | null {
   }
 }
 
+/**
+ * 
+ * @param selectValue - 부서 선택값
+ * @param idOptions - 부서 옵션 리스트
+ * @returns 부서 경로 문자열
+ */
 function parseDeptPathFromSelect(
   selectValue: string,
   idOptions: { value: string; label: string }[]
@@ -172,16 +223,31 @@ function parseDeptPathFromSelect(
   return idOptions.find((o) => o.value === selectValue)?.label ?? "";
 }
 
+/**
+ * 
+ * @param selectValue - 부서 선택값
+ * @returns 부서 ID
+ */
 function orgUnitIdFromDeptSelect(selectValue: string): number | null {
   if (!selectValue || selectValue.startsWith(LEGACY_DEPT_PREFIX)) return null;
   const n = Number(selectValue);
   return Number.isFinite(n) ? n : null;
 }
 
+/**
+ * 
+ * @param name - 사용자 이름
+ * @returns 사용자 이름 문자열 (레거시 접두사 포함)
+ */
 function legacyUserValue(name: string) {
   return `${LEGACY_USER_PREFIX}${encodeURIComponent(name)}`;
 }
 
+/**
+ * 
+ * @param selectValue - 사용자 선택값
+ * @returns 사용자 이름 문자열 (레거시 접두사 제거)
+ */
 function tryDecodeLegacyUser(selectValue: string): string | null {
   if (!selectValue.startsWith(LEGACY_USER_PREFIX)) return null;
   try {
@@ -191,6 +257,12 @@ function tryDecodeLegacyUser(selectValue: string): string | null {
   }
 }
 
+/**
+ * 
+ * @param selectValue - 사용자 선택값
+ * @param users - 사용자 리스트
+ * @returns 사용자 이름
+ */
 function parseRequesterNameFromSelect(
   selectValue: string,
   users: OrganizationUnitUserItem[]
@@ -201,6 +273,10 @@ function parseRequesterNameFromSelect(
   return users.find((u) => String(u.id) === selectValue)?.name?.trim() ?? "";
 }
 
+/**
+ * 
+ * @returns 발주 폼
+ */
 export default function OrderForm() {
   const { orderId } = useParams();
   const navigate = useNavigate();
@@ -228,11 +304,7 @@ export default function OrderForm() {
   const [partnerCreateOpen, setPartnerCreateOpen] = useState(false);
   const [items, setItems] = useState<ItemRow[]>([emptyItemRow()]);
   const [editingLineIds, setEditingLineIds] = useState<number[]>([]);
-  const [itemCreateRowIndex, setItemCreateRowIndex] = useState<number | null>(
-    null
-  );
   const [pendingFilesForCreate, setPendingFilesForCreate] = useState<File[]>([]);
-  const itemCreateRowRef = useRef<number | null>(null);
 
   const { data: order, isLoading: orderLoading } = useQuery({
     queryKey: ["purchaseOrder", id],
@@ -248,29 +320,58 @@ export default function OrderForm() {
     ((order.orderItems?.length ?? 0) === 0 &&
       (order.items?.length ?? 0) === 0);
 
+  /**
+   * 
+   * @returns 발주 라인 아이템 리스트
+   */
   const { data: orderLineItemsFetched = [] } = useQuery({
     queryKey: ["purchaseOrder", id, "lineItems"],
     queryFn: () => getPurchaseOrderItems(id, accessToken!),
     enabled: shouldFetchOrderLineItems,
   });
 
+  /**
+   * 
+   * @returns 발주 첨부파일 리스트
+   */
   const { data: files = [] } = useQuery({
     queryKey: ["purchaseOrderFiles", id],
     queryFn: () => getPurchaseOrderFiles(id, accessToken!),
     enabled: !isNew && !!accessToken && Number.isFinite(id),
   });
 
+  /**
+   * 
+   * @returns 거래처 리스트
+   */
   const { data: partners = [] } = useQuery({
     queryKey: ["partners"],
     queryFn: () => getPartners(accessToken!),
     enabled: !!accessToken,
   });
 
-  const { data: itemList = [] } = useQuery({
-    queryKey: ["items"],
-    queryFn: () => getItems(accessToken!),
+  const { data: countryCodes = [] } = useQuery({
+    queryKey: ["commonCodes", COMMON_CODE_GROUP_COUNTRY],
+    queryFn: () =>
+      getCommonCodesByGroup(COMMON_CODE_GROUP_COUNTRY, accessToken!),
     enabled: !!accessToken,
   });
+
+  /**
+   * 
+   * @returns 제품 리스트
+   */
+  const { data: productListResult } = useQuery({
+    queryKey: ["products", "select", "active", 100],
+    queryFn: () =>
+      getProductList(accessToken!, {
+        isActive: true,
+        page: 1,
+        size: 100,
+      }),
+    enabled: !!accessToken,
+  });
+  const productList: RepresentativeProduct[] = productListResult?.items ?? [];
 
   const { data: currencyCodes = [] } = useQuery({
     queryKey: ["commonCodes", "CURRENCY"],
@@ -388,22 +489,22 @@ export default function OrderForm() {
     return base;
   }, [purchaseOrderTypeCodes, effectiveOrderTypeCode]);
 
-  const orderStatusSelectOptions = useMemo(() => {
-    const base = commonCodesToSelectOptions(purchaseOrderStatusCodes);
-    if (
-      effectiveOrderStatusCode &&
-      !base.some((o) => o.value === effectiveOrderStatusCode)
-    ) {
-      return [
-        {
-          value: effectiveOrderStatusCode,
-          label: `${effectiveOrderStatusCode} (저장된 값)`,
-        },
-        ...base,
-      ];
-    }
-    return base;
-  }, [purchaseOrderStatusCodes, effectiveOrderStatusCode]);
+  // const orderStatusSelectOptions = useMemo(() => {
+  //   const base = commonCodesToSelectOptions(purchaseOrderStatusCodes);
+  //   if (
+  //     effectiveOrderStatusCode &&
+  //     !base.some((o) => o.value === effectiveOrderStatusCode)
+  //   ) {
+  //     return [
+  //       {
+  //         value: effectiveOrderStatusCode,
+  //         label: `${effectiveOrderStatusCode} (저장된 값)`,
+  //       },
+  //       ...base,
+  //     ];
+  //   }
+  //   return base;
+  // }, [purchaseOrderStatusCodes, effectiveOrderStatusCode]);
 
   const requesterUserOptions = useMemo(() => {
     const opts = orgUnitUsers.map((u) => ({
@@ -512,16 +613,16 @@ export default function OrderForm() {
   const partnerSelectOptions = useMemo(() => {
     return (partners as Partner[]).map((p) => ({
       value: String(p.id),
-      label: (p.code || p.name || "-").trim(),
+      label: partnerSelectLabel(p, countryCodes),
     }));
-  }, [partners]);
+  }, [partners, countryCodes]);
 
-  const itemSelectOptions = useMemo(() => {
-    return (itemList as Item[]).map((i) => ({
-      value: String(i.id),
-      label: (i.name || i.code || "-").trim(),
+  const productSelectOptions = useMemo(() => {
+    return productList.map((p) => ({
+      value: String(p.id),
+      label: representativeProductLabel(p),
     }));
-  }, [itemList]);
+  }, [productList]);
 
   const currencyOptions = useMemo(() => {
     const list: { value: string; label: string; symbol?: string }[] = [];
@@ -625,12 +726,12 @@ export default function OrderForm() {
       payload: PurchaseOrderLinePatchPayload;
     }) => updatePurchaseOrderLine(id, lineId, payload, accessToken!),
     onSuccess: () => {
-      toast.success("발주 제품이 수정되었습니다.");
+      toast.success("발주 라인이 수정되었습니다.");
       queryClient.invalidateQueries({ queryKey: ["purchaseOrder", id] });
       queryClient.invalidateQueries({ queryKey: ["purchaseOrder", id, "lineItems"] });
     },
     onError: (e: Error) =>
-      toast.error(e.message || "발주 제품 수정에 실패했습니다."),
+      toast.error(e.message || "발주 라인 수정에 실패했습니다."),
   });
 
   const lineCreateMutation = useMutation({
@@ -641,7 +742,7 @@ export default function OrderForm() {
       payload: PurchaseOrderItemPayload;
     }) => createPurchaseOrderLine(id, payload, accessToken!),
     onSuccess: (created, { index }) => {
-      toast.success("발주 제품이 추가되었습니다.");
+      toast.success("발주 라인이 추가되었습니다.");
       queryClient.invalidateQueries({ queryKey: ["purchaseOrder", id] });
       queryClient.invalidateQueries({ queryKey: ["purchaseOrder", id, "lineItems"] });
       if (created) {
@@ -651,7 +752,15 @@ export default function OrderForm() {
           if (!row) return prev;
           next[index] = {
             lineId: created.id,
-            itemId: created.itemId,
+            productDefinitionId:
+              (created.productDefinitionId ?? 0) > 0
+                ? created.productDefinitionId
+                : null,
+            productId:
+              created.productId ??
+              created.productDefinition?.product?.id ??
+              created.productDefinition?.productId ??
+              row.productId,
             unitCode: String(created.unit ?? firstUnitValue ?? "").trim(),
             qty: Number(created.qty ?? 0),
             unitPrice: formatLineUnitPriceDisplay(created.unitPrice),
@@ -666,18 +775,18 @@ export default function OrderForm() {
       }
     },
     onError: (e: Error) =>
-      toast.error(e.message || "발주 제품 추가에 실패했습니다."),
+      toast.error(e.message || "발주 라인 추가에 실패했습니다."),
   });
 
   const lineDeleteMutation = useMutation({
     mutationFn: (lineId: number) => deletePurchaseOrderLine(id, lineId, accessToken!),
     onSuccess: () => {
-      toast.success("발주 제품이 삭제되었습니다.");
+      toast.success("발주 라인이 삭제되었습니다.");
       queryClient.invalidateQueries({ queryKey: ["purchaseOrder", id] });
       queryClient.invalidateQueries({ queryKey: ["purchaseOrder", id, "lineItems"] });
     },
     onError: (e: Error) =>
-      toast.error(e.message || "발주 제품 삭제에 실패했습니다."),
+      toast.error(e.message || "발주 라인 삭제에 실패했습니다."),
   });
 
   const fileUploadMutation = useMutation({
@@ -723,11 +832,21 @@ export default function OrderForm() {
   const updateItemRow = (
     index: number,
     field: keyof ItemRow,
-    value: string | number
+    value: string | number | null
   ) => {
     setItems((prev) => {
       const next = [...prev];
       (next[index] as Record<string, unknown>)[field] = value;
+      return next;
+    });
+  };
+
+  const setLineProductId = (index: number, productId: number) => {
+    setItems((prev) => {
+      const next = [...prev];
+      const row = next[index];
+      if (!row) return prev;
+      next[index] = { ...row, productId, productDefinitionId: null };
       return next;
     });
   };
@@ -747,8 +866,8 @@ export default function OrderForm() {
   const saveLine = (index: number) => {
     const row = items[index];
     if (!row) return;
-    if (row.itemId <= 0) {
-      toast.error("제품을 선택하세요.");
+    if (row.productId <= 0) {
+      toast.error("대표 제품을 선택하세요.");
       return;
     }
     if (!row.unitCode.trim()) {
@@ -768,7 +887,7 @@ export default function OrderForm() {
     if (!row.lineId) {
       if (isNew) return;
       const createPayload: PurchaseOrderItemPayload = {
-        itemId: row.itemId,
+        productId: row.productId,
         qty: row.qty,
         unitPrice,
         unit: row.unitCode.trim() || null,
@@ -784,7 +903,7 @@ export default function OrderForm() {
       {
         lineId: row.lineId,
         payload: {
-          itemId: row.itemId,
+          productId: row.productId,
           qty: row.qty,
           unit: row.unitCode.trim() || null,
           unitPrice,
@@ -814,21 +933,32 @@ export default function OrderForm() {
     if (!row?.lineId) return;
     const source = resolvedOrderLineItems.find((line) => line.id === row.lineId);
     if (source) {
-      updateItemRow(index, "itemId", Number(source.itemId ?? 0));
-      updateItemRow(index, "unitCode", String(source.unit ?? firstUnitValue ?? "").trim());
-      updateItemRow(index, "qty", Number(source.qty ?? 0));
-      updateItemRow(
-        index,
-        "unitPrice",
-        formatLineUnitPriceDisplay(source.unitPrice)
-      );
-      updateItemRow(
-        index,
-        "currencyCode",
-        String(source.currencyCode ?? order?.currencyCode ?? "KRW").trim() || "KRW"
-      );
-      updateItemRow(index, "requestDeliveryDate", source.requestDeliveryDate ?? "");
-      updateItemRow(index, "remark", source.remark ?? "");
+      setItems((prev) => {
+        const next = [...prev];
+        const cur = next[index];
+        if (!cur) return prev;
+        next[index] = {
+          ...cur,
+          productDefinitionId:
+            (source.productDefinitionId ?? 0) > 0
+              ? source.productDefinitionId
+              : null,
+          productId:
+            source.productDefinition?.product?.id ??
+            source.productDefinition?.productId ??
+            source.productId ??
+            0,
+          unitCode: String(source.unit ?? firstUnitValue ?? "").trim(),
+          qty: Number(source.qty ?? 0),
+          unitPrice: formatLineUnitPriceDisplay(source.unitPrice),
+          currencyCode:
+            String(source.currencyCode ?? order?.currencyCode ?? "KRW").trim() ||
+            "KRW",
+          requestDeliveryDate: source.requestDeliveryDate ?? "",
+          remark: source.remark ?? "",
+        };
+        return next;
+      });
     }
     finishLineEdit(row.lineId);
   };
@@ -847,14 +977,14 @@ export default function OrderForm() {
     if (isNew) {
       const validItems = items.filter(
         (row) =>
-          row.itemId > 0 &&
+          row.productId > 0 &&
           row.unitCode.trim() !== "" &&
           row.qty > 0 &&
           parseLineUnitPrice(row.unitPrice) >= 0
       );
       if (validItems.length === 0) {
         toast.error(
-          "제품·단위·수량·단가를 모두 입력한 행을 1건 이상 등록하세요."
+          "대표 제품·단위·수량·단가를 모두 입력한 라인을 1건 이상 등록하세요."
         );
         return;
       }
@@ -900,7 +1030,7 @@ export default function OrderForm() {
         totalAmountVatIncluded,
         items: validItems.map(
           (row): PurchaseOrderItemPayload => ({
-            itemId: row.itemId,
+            productId: row.productId,
             qty: row.qty,
             unitPrice: parseLineUnitPrice(row.unitPrice),
             unit: row.unitCode.trim() || null,
@@ -971,7 +1101,15 @@ export default function OrderForm() {
         ? [{ ...emptyItemRow(), unitCode: firstUnitValue }]
         : lines.map((line) => ({
             lineId: Number(line.id ?? 0) || undefined,
-            itemId: Number(line.itemId ?? 0),
+            productId:
+              line.productId ??
+              line.productDefinition?.product?.id ??
+              line.productDefinition?.productId ??
+              0,
+            productDefinitionId:
+              (line.productDefinitionId ?? 0) > 0
+                ? line.productDefinitionId
+                : null,
             unitCode: String(line.unit ?? firstUnitValue ?? "").trim(),
             qty: Number(line.qty ?? 0),
             unitPrice: formatLineUnitPriceDisplay(line.unitPrice),
@@ -1019,6 +1157,12 @@ export default function OrderForm() {
       ? (order.orderNo ?? `#${order.id}`)
       : "자동 채번";
 
+  const registrantDisplay = user
+    ? user.name
+      ? `${user.name} (사번 ${user.employeeNo})`
+      : `사번 ${user.employeeNo}`
+    : "—";
+
   return (
     <>
       <PageMeta
@@ -1033,6 +1177,7 @@ export default function OrderForm() {
         key={isNew ? "new" : order ? `edit-${order.id}` : "loading"}
       >
         <ComponentCard
+          collapsible
           title={isNew ? "발주 기본 정보" : "발주 기본 정보 수정"}
         >
           <div className="grid gap-4 sm:grid-cols-2">
@@ -1047,6 +1192,16 @@ export default function OrderForm() {
               />
             </div>
             <div>
+              <Label htmlFor="order-registrant">등록자</Label>
+              <Input
+                id="order-registrant"
+                value={registrantDisplay}
+                readOnly
+                disabled
+                className="mt-1"
+              />
+            </div>
+            <div className="sm:col-span-2">
               <Label htmlFor="title">제목 *</Label>
               <Input
                 id="title"
@@ -1072,7 +1227,7 @@ export default function OrderForm() {
               onValueChange={setDueDate}
             />
 
-            <div>
+            <div className="sm:col-span-2">
               <Label htmlFor="order-orderType">발주 유형</Label>
               <div className="relative mt-1">
                 <select
@@ -1105,92 +1260,61 @@ export default function OrderForm() {
                 />
               </div>
             </div>
-            <div>
-              <Label htmlFor="order-orderStatus">발주 상태</Label>
-              <div className="relative mt-1">
-                <select
-                  id="order-orderStatus"
-                  value={effectiveOrderStatusCode}
-                  onChange={(e) => setOrderStatusCode(e.target.value)}
-                  className={`w-full appearance-none border border-gray-300 bg-white shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:focus:border-brand-800 h-11 rounded-lg px-4 py-2.5 pr-10 text-sm ${
-                    effectiveOrderStatusCode
-                      ? "text-gray-800 dark:text-white/90"
-                      : "text-gray-400 dark:text-gray-400"
-                  }`}
-                >
-                  {orderStatusSelectOptions.length === 0 ? (
-                    <option value="">목록을 불러오는 중…</option>
-                  ) : (
-                    orderStatusSelectOptions.map((o) => (
-                      <option
-                        key={o.value}
-                        value={o.value}
-                        className="text-gray-700 dark:bg-gray-900 dark:text-gray-400"
-                      >
-                        {o.label}
-                      </option>
-                    ))
-                  )}
-                </select>
-                <ChevronDownIcon
-                  className="pointer-events-none absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-500 dark:text-gray-400"
-                  aria-hidden
-                />
-              </div>
-            </div>
 
-            <div>
-              <SearchableSelectWithCreate
-                id="order-requesterDepartment"
-                label="부서"
-                value={requesterDeptSelectValue}
-                onChange={handleRequesterDeptChange}
-                options={requesterDepartmentOptions}
-                placeholder={
-                  orgTreeLoading
-                    ? "조직도 불러오는 중…"
-                    : "조직도에서 부서 검색·선택"
-                }
-                noOptionsMessage="조직도에 등록된 부서가 없습니다."
-                addTrigger="none"
-                addButtonLabel=""
-                onAddClick={() => {}}
-                isDisabled={orgTreeLoading}
-              />
-              {orgTreeError ? (
-                <p className="mt-1 text-theme-xs text-red-600 dark:text-red-400">
-                  조직도를 불러오지 못했습니다. 저장된 값만 표시될 수 있습니다.
-                </p>
-              ) : null}
-            </div>
-            <div>
-              <SearchableSelectWithCreate
-                id="order-requesterUser"
-                label="담당자"
-                value={requesterUserSelectValue}
-                onChange={setRequesterUserSelectValue}
-                options={requesterUserOptions}
-                placeholder={
-                  orgUnitIdForUsers == null
-                    ? "먼저 부서를 선택하세요"
-                    : orgUnitUsersLoading
-                      ? "소속 사용자 불러오는 중…"
-                      : "담당자 검색·선택"
-                }
-                noOptionsMessage="이 부서에 표시할 활성 사용자가 없습니다."
-                addTrigger="none"
-                addButtonLabel=""
-                onAddClick={() => {}}
-                isDisabled={
-                  orgUnitIdForUsers == null ||
-                  orgUnitUsersLoading
-                }
-              />
-              {orgUnitUsersError ? (
-                <p className="mt-1 text-theme-xs text-red-600 dark:text-red-400">
-                  담당자 목록을 불러오지 못했습니다.
-                </p>
-              ) : null}
+            <div className="sm:col-span-2 grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="min-w-0">
+                <SearchableSelectWithCreate
+                  id="order-requesterDepartment"
+                  label="부서"
+                  value={requesterDeptSelectValue}
+                  onChange={handleRequesterDeptChange}
+                  options={requesterDepartmentOptions}
+                  placeholder={
+                    orgTreeLoading
+                      ? "조직도 불러오는 중…"
+                      : "조직도에서 부서 검색·선택"
+                  }
+                  noOptionsMessage="조직도에 등록된 부서가 없습니다."
+                  addTrigger="none"
+                  addButtonLabel=""
+                  onAddClick={() => {}}
+                  isDisabled={orgTreeLoading}
+                />
+                {orgTreeError ? (
+                  <p className="mt-1 text-theme-xs text-red-600 dark:text-red-400">
+                    조직도를 불러오지 못했습니다. 저장된 값만 표시될 수 있습니다.
+                  </p>
+                ) : null}
+              </div>
+              <div className="min-w-0">
+                <SearchableSelectWithCreate
+                  id="order-requesterUser"
+                  label="담당자"
+                  value={requesterUserSelectValue}
+                  onChange={setRequesterUserSelectValue}
+                  options={requesterUserOptions}
+                  placeholder={
+                    orgUnitIdForUsers == null
+                      ? "먼저 부서를 선택하세요"
+                      : orgUnitUsersLoading
+                        ? "소속 사용자 불러오는 중…"
+                        : "담당자 검색·선택"
+                  }
+                  noOptionsMessage="이 부서에 표시할 활성 사용자가 없습니다."
+                  addTrigger="none"
+                  addButtonLabel=""
+                  onAddClick={() => {}}
+                  isDisabled={
+                    orgUnitIdForUsers == null ||
+                    orgUnitUsersLoading
+                  }
+                />
+                {orgUnitUsersError ? (
+                  <p className="mt-1 text-theme-xs text-red-600 dark:text-red-400">
+                    담당자 목록을 불러오지 못했습니다.
+                  </p>
+                ) : null}
+              </div>
             </div>
 
             <div className="sm:col-span-2 grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -1209,6 +1333,7 @@ export default function OrderForm() {
                   onAddClick={() => setPartnerCreateOpen(true)}
                 />
               </div>
+
               <div className="min-w-0">
                 <DatePicker
                   id="order-requestDeliveryDate"
@@ -1353,49 +1478,55 @@ export default function OrderForm() {
         </ComponentCard>
 
         <ComponentCard
-          title="발주 제품"
+          collapsible
+          title="발주 라인"
           headerEnd={
             <button
               type="button"
               onClick={addItemRow}
               className="rounded-lg border border-brand-500 px-4 py-2 text-sm font-medium text-brand-600 hover:bg-brand-50 dark:border-brand-600 dark:text-brand-400 dark:hover:bg-gray-800"
             >
-              + 품목 추가
+              + 라인 추가
             </button>
           }
         >
           <div className="space-y-4 dark:border-gray-700">
+            {/* <PageNotice variant="brand">
+              발주 라인은 <strong>대표 제품</strong>만 선택합니다. 제품 정의 ID는
+              보내지 않으며(<strong>null</strong>), 선택한 제품은{" "}
+              <strong>productId</strong>로 전달됩니다.
+            </PageNotice> */}
                 <div className="relative overflow-x-auto border-b dark:border-gray-800">
                   <Table className="w-full text-center text-sm text-gray-900 dark:text-white md:table-fixed">
                     <TableHeader className="border-b border-gray-100 dark:border-white/5">
                       <TableRow className="hover:bg-transparent">
                         <TableCell
                           isHeader
-                          className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[24%]"
+                          className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[22%]" // 22 + 15 + 22 + 12 + 13 = 
                         >
                           제품 *
                         </TableCell>
                         <TableCell
                           isHeader
-                          className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[16%]"
+                          className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[15%]"
                         >
                           단위 · 수량 *
                         </TableCell>
                         <TableCell
                           isHeader
-                          className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[24%]"
+                          className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[22%]"
                         >
                           통화 · 단가 *
                         </TableCell>
                         <TableCell
                           isHeader
-                          className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[14%]"
+                          className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[12%]"
                         >
                           납품 요청일
                         </TableCell>
                         <TableCell
                           isHeader
-                          className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[16%]"
+                          className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[19%]"
                         >
                           비고
                         </TableCell>
@@ -1420,23 +1551,24 @@ export default function OrderForm() {
                               !isNew && !!row.lineId && !isLineEditing;
                             return (
                               <>
-                          <TableCell className="px-3 py-3 text-center align-middle">
-                            <div className="flex justify-center">
-                            <SearchableSelectWithCreate
-                              id={`order-item-${index}`}
-                              value={row.itemId ? String(row.itemId) : ""}
-                              onChange={(v) =>
-                                updateItemRow(index, "itemId", Number(v) || 0)
-                              }
-                              options={itemSelectOptions}
-                              placeholder="제품 검색"
-                              addTrigger="none"
-                              addButtonLabel="제품 추가"
-                              onAddClick={() => {}}
-                              compact
-                              isClearable={false}
-                              isDisabled={isEditReadonly}
-                            />
+                          <TableCell className="min-w-0 px-3 py-3 text-center align-middle">
+                            <div className="flex w-full min-w-0 justify-center">
+                              <SearchableSelectWithCreate
+                                id={`order-product-${index}`}
+                                value={row.productId ? String(row.productId) : ""}
+                                onChange={(v) =>
+                                  setLineProductId(index, Number(v) || 0)
+                                }
+                                options={productSelectOptions}
+                                placeholder="제품"
+                                addTrigger="none"
+                                addButtonLabel="제품 추가"
+                                onAddClick={() => {}}
+                                compact
+                                isClearable={false}
+                                isDisabled={isEditReadonly}
+                                className="w-full min-w-0 max-w-[min(100%,28rem)]"
+                              />
                             </div>
                           </TableCell>
                           <TableCell className="px-3 py-3 text-center align-middle">
@@ -1626,10 +1758,12 @@ export default function OrderForm() {
                   </Table>
                 </div>
 
-                <div className="mt-4 space-y-6">
-                  <h3 className="text-base font-medium text-gray-800 dark:text-white/90">
+                <div className="relative inline-flex w-full items-center justify-center">
+                  <hr className="my-8 h-px w-64 max-w-full border-0 bg-gray-200 dark:bg-gray-700" />
+                  <span className="absolute left-1/2 -translate-x-1/2 bg-white px-3 text-sm font-medium text-gray-600 dark:bg-[#171F2F] dark:text-gray-400">
                     주문 요약
-                  </h3>
+                  </span>
+                </div>
                 <OrderLineAmountSummary
                   summaries={
                     draftLineAmountSummaries.length > 0
@@ -1644,7 +1778,6 @@ export default function OrderForm() {
                         ]
                   }
                 />
-                </div>
             </div>
         </ComponentCard>
 
@@ -1678,21 +1811,6 @@ export default function OrderForm() {
         isOpen={partnerCreateOpen}
         onClose={() => setPartnerCreateOpen(false)}
         onCreated={(p) => setPartnerId(String(p.id))}
-      />
-      <ItemQuickCreateModal
-        isOpen={itemCreateRowIndex !== null}
-        onClose={() => {
-          itemCreateRowRef.current = null;
-          setItemCreateRowIndex(null);
-        }}
-        onCreated={(item) => {
-          const idx = itemCreateRowRef.current;
-          if (idx != null) {
-            updateItemRow(idx, "itemId", item.id);
-          }
-          itemCreateRowRef.current = null;
-          setItemCreateRowIndex(null);
-        }}
       />
     </>
   );

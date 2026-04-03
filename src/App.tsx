@@ -23,7 +23,13 @@ import ItemTypes from "./pages/ItemTypes";
 import Items from "./pages/Items";
 import ItemDetail from "./pages/ItemDetail";
 import ItemForm from "./pages/ItemForm";
+import Products from "./pages/Products";
+import ProductForm from "./pages/ProductForm";
+import ProductDetail from "./pages/ProductDetail";
+import ProductDefinitionDetail from "./pages/ProductDefinitionDetail";
 import ApprovalDocumentSample from "./pages/ApprovalDocumentSample";
+import ApprovalList from "./pages/ApprovalList";
+import ApprovalDetailPublish from "./pages/ApprovalDetailPublish";
 import ApiFeedbackProvider from "./context/ApiFeedbackContext";
 import { useAuth } from "./context/AuthContext";
 import NotFound from "./pages/NotFound";
@@ -88,13 +94,28 @@ function App() {
               <Route index element={<Home />} />
 
 
-              {/* 제품 관리 */}
+              {/* 품목 마스터(item) */}
               <Route path="item-categories" element={<ItemCategories />} />
               <Route path="item-types" element={<ItemTypes />} />
-              <Route path="items" element={<Items />} />
+
+
+              
               <Route path="items/new" element={<ItemForm />} />
-              <Route path="items/:itemId" element={<ItemDetail />} />
               <Route path="items/:itemId/edit" element={<ItemForm />} />
+              <Route path="items/:itemId" element={<ItemDetail />} />
+              <Route path="items" element={<Items />} />
+
+              {/* 제품 관리 */}
+              <Route
+                path="products/:productId/edit"
+                element={<ProductForm />}
+              />
+              <Route
+                path="products/:productId/definitions/:definitionId"
+                element={<ProductDefinitionDetail />}
+              />
+              <Route path="products/:productId" element={<ProductDetail />} />
+              <Route path="products" element={<Products />} />
 
               {/* 발주 관리 */}
               <Route path="order" element={<Order />} />
@@ -105,6 +126,10 @@ function App() {
               {/* 납품 관리 */}
               <Route path="delivery" element={<Delivery />} />
               <Route path="delivery/:deliveryId" element={<DeliveryDetail />} />
+
+              {/* 전자결재 퍼블리싱 (더존식 함·상세 → 이후 ERD/API) */}
+              <Route path="approval" element={<ApprovalList />} />
+              <Route path="approval/:documentId" element={<ApprovalDetailPublish />} />
 
               {/* 전자결재 공통 헤더 UI 샘플 (approval_document 메타 구조 참고) */}
               <Route path="approval-document/sample" element={<ApprovalDocumentSample />} />
@@ -120,6 +145,11 @@ function App() {
               <Route path="user" element={<User />} />
               <Route path="user/:userId" element={<UserDetail />} />
               <Route path="profile" element={<UserProfiles />} />
+
+              {/* 결재 관리 */}
+              <Route path="approval-request" element={<ApprovalList />} />
+              <Route path="approval-request/:approvalRequestId" element={<ApprovalDetailPublish />} />
+              <Route path="approval-request/:approvalRequestId/edit" element={<ApprovalDocumentSample />} />
             </Route>
           </Route>
 

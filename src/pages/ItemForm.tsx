@@ -4,234 +4,191 @@ import { useParams, useNavigate } from "react-router";
 import toast from "react-hot-toast";
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
+import PageNotice from "../components/common/PageNotice";
 import ComponentCard from "../components/common/ComponentCard";
 import LoadingLottie from "../components/common/LoadingLottie";
 import ConfirmLeaveModal from "../components/common/ConfirmLeaveModal";
 import Input from "../components/form/input/InputField";
 import Label from "../components/form/Label";
+import SearchableSelectWithCreate from "../components/form/SearchableSelectWithCreate";
 import { useAuth } from "../context/AuthContext";
 import { useConfirmLeave } from "../hooks/useConfirmLeave";
+import { useDebouncedValue } from "../hooks/useDebouncedValue";
+import { useItemPermissions } from "../hooks/useItemPermissions";
 import {
-  getItem,
-  getItemCategories,
-  getItemTypes,
-  createItem,
-  updateItem,
-  type Item,
-  type ItemCategory,
-  type ItemCreatePayload,
-} from "../api/items";
-import { getCommonCodesByGroup } from "../api/commonCode";
-import { getCurrencySymbol } from "../lib/formatCurrency";
-import SelectInput from "../components/form/SelectInput";
-import { itemFormStrings as S } from "./itemFormStrings";
-
-function flattenCategories(
-  nodes: ItemCategory[],
-  level = 0
-): { category: ItemCategory; level: number }[] {
-  const result: { category: ItemCategory; level: number }[] = [];
-  for (const c of nodes) {
-    result.push({ category: c, level });
-    if (c.children?.length) {
-      result.push(...flattenCategories(c.children, level + 1));
-    }
-  }
-  return result;
-}
+  getItemMaster,
+  getItemMasterList,
+  createItemMaster,
+  updateItemMaster,
+  ITEM_TYPE_OPTIONS_FALLBACK,
+} from "../api/itemMaster";
+import {
+  getCommonCodesByGroup,
+  COMMON_CODE_GROUP_ITEM_TYPE,
+  commonCodesToSelectOptions,
+} from "../api/commonCode";
+import { isForbiddenError } from "../lib/apiError";
 
 const inputClass =
   "mt-1 h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white";
 
 export default function ItemForm() {
-  const { itemId } = useParams();
+  const { itemId: itemIdParam } = useParams<{ itemId?: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { accessToken } = useAuth();
-  const isNew = itemId == null || itemId === "new";
-  const id = isNew ? 0 : Number(itemId);
+  const { accessToken, isLoading: isAuthLoading } = useAuth();
+  const { canManageItems } = useItemPermissions();
 
-  const [code, setCode] = useState("");
-  const [name, setName] = useState("");
-  const [categoryId, setCategoryId] = useState<string>("");
-  const [itemTypeId, setItemTypeId] = useState<string>("");
-  const [unit, setUnit] = useState("");
-  const [currencyCode, setCurrencyCode] = useState("KRW");
-  const [unitPrice, setUnitPrice] = useState<string>("");
-  const [spec, setSpec] = useState("");
-  const [productDiv, setProductDiv] = useState("");
+  const isNew =
+    itemIdParam == null ||
+    itemIdParam === "" ||
+    itemIdParam === "new";
+  const id = isNew ? 0 : Number(itemIdParam);
+  const editId = Number.isFinite(id) ? id : 0;
+
+  const [itemCode, setItemCode] = useState("");
+  const [itemName, setItemName] = useState("");
+  const [itemType, setItemType] = useState("");
+  const [parentItemId, setParentItemId] = useState("");
+  const [description, setDescription] = useState("");
   const [isActive, setIsActive] = useState(true);
+  const [parentSearch, setParentSearch] = useState("");
+  const debouncedParentSearch = useDebouncedValue(parentSearch, 300);
 
-  const { data: item, isLoading: itemLoading } = useQuery({
-    queryKey: ["item", id],
-    queryFn: () => getItem(id, accessToken as string),
-    enabled: !isNew && !!accessToken && Number.isFinite(id),
+  const { data: detail, isLoading: detailLoading } = useQuery({
+    queryKey: ["itemMaster", editId],
+    queryFn: () => getItemMaster(editId, accessToken as string),
+    enabled: !isNew && !!accessToken && editId > 0,
   });
 
-  /** Initial snapshot for dirty check (derived from isNew/item at render) */
+  const { data: itemTypeCodes = [] } = useQuery({
+    queryKey: ["commonCodes", COMMON_CODE_GROUP_ITEM_TYPE],
+    queryFn: () =>
+      getCommonCodesByGroup(COMMON_CODE_GROUP_ITEM_TYPE, accessToken as string),
+    enabled: !!accessToken && canManageItems,
+  });
+
+  const itemTypeSelectOptions = useMemo(() => {
+    let base = commonCodesToSelectOptions(itemTypeCodes);
+    if (!base.length) {
+      base = ITEM_TYPE_OPTIONS_FALLBACK.map((o) => ({
+        value: o.value,
+        label: o.label,
+      }));
+    }
+    const saved = itemType.trim();
+    if (saved && !base.some((o) => o.value === saved)) {
+      return [{ value: saved, label: `${saved} (저장된 값)` }, ...base];
+    }
+    return base;
+  }, [itemTypeCodes, itemType]);
+
+  const { data: parentSearchResult } = useQuery({
+    queryKey: ["itemMasterList", "parentPick", debouncedParentSearch],
+    queryFn: () =>
+      getItemMasterList(accessToken as string, {
+        keyword: debouncedParentSearch.trim() || undefined,
+        page: 1,
+        size: 50,
+      }),
+    enabled:
+      !!accessToken &&
+      debouncedParentSearch.trim().length >= 1 &&
+      canManageItems,
+  });
+
+  const parentOptions = useMemo(() => {
+    const opts: { value: string; label: string; isDisabled?: boolean }[] = [];
+    const seen = new Set<string>();
+
+    const push = (value: string, label: string, disabled?: boolean) => {
+      if (seen.has(value)) return;
+      seen.add(value);
+      opts.push({ value, label, isDisabled: disabled });
+    };
+
+    if (!isNew && detail?.parentItemId != null) {
+      const code = detail.parentItemCode ?? "";
+      const name = detail.parentItemName ?? "";
+      const label = [code, name].filter(Boolean).join(" · ") || `ID ${detail.parentItemId}`;
+      push(String(detail.parentItemId), label, false);
+    }
+
+    const rows = parentSearchResult?.items ?? [];
+    for (const row of rows) {
+      if (!isNew && row.id === editId) continue;
+      const label = `${row.itemCode} · ${row.itemName}`;
+      push(String(row.id), label, false);
+    }
+
+    return opts;
+  }, [isNew, detail, parentSearchResult, editId]);
+
   const initialSnapshot = useMemo(() => {
-    if (isNew)
+    if (isNew) {
       return {
-        code: "",
-        name: "",
-        categoryId: "",
-        itemTypeId: "",
-        unit: "",
-        currencyCode: "KRW",
-        unitPrice: "",
-        spec: "",
-        productDiv: "",
+        itemCode: "",
+        itemName: "",
+        itemType: "",
+        parentItemId: "",
+        description: "",
         isActive: true,
       };
-    if (!item) return null;
-    const i = item as Item;
-    const unitPriceStr =
-      i.unitPrice != null
-        ? new Intl.NumberFormat("ko-KR").format(i.unitPrice)
-        : "";
+    }
+    if (!detail) return null;
     return {
-      code: i.code ?? "",
-      name: i.name ?? "",
-      categoryId: String(i.categoryId ?? ""),
-      itemTypeId: String(i.itemTypeId ?? ""),
-      unit: i.unit ?? "",
-      currencyCode: i.currencyCode ?? "KRW",
-      unitPrice: unitPriceStr,
-      spec: i.spec ?? "",
-      productDiv: i.productDiv ?? "",
-      isActive: i.isActive !== false,
+      itemCode: detail.itemCode,
+      itemName: detail.itemName,
+      itemType: detail.itemType,
+      parentItemId: detail.parentItemId != null ? String(detail.parentItemId) : "",
+      description: detail.description ?? "",
+      isActive: detail.isActive !== false,
     };
-  }, [isNew, item]);
+  }, [isNew, detail]);
 
-  const { data: categoryTree = [] } = useQuery({
-    queryKey: ["itemCategories", "tree"],
-    queryFn: () => getItemCategories(accessToken as string, { tree: true }),
-    enabled: !!accessToken,
-  });
-
-  const { data: itemTypes = [] } = useQuery({
-    queryKey: ["itemTypes"],
-    queryFn: () => getItemTypes(accessToken as string),
-    enabled: !!accessToken,
-  });
-
-  const { data: unitCodes = [] } = useQuery({
-    queryKey: ["commonCodes", "UNIT"],
-    queryFn: () => getCommonCodesByGroup("UNIT", accessToken as string),
-    enabled: !!accessToken,
-  });
-
-  const { data: currencyCodes = [] } = useQuery({
-    queryKey: ["commonCodes", "CURRENCY"],
-    queryFn: () => getCommonCodesByGroup("CURRENCY", accessToken as string),
-    enabled: !!accessToken,
-  });
-
-  const categoryOptions = useMemo(() => {
-    const options: { value: string; label: string }[] = [
-      { value: "", label: S.optionCategory },
-    ];
-    flattenCategories(categoryTree).forEach(({ category: c, level }) => {
-      options.push({
-        value: String(c.id),
-        label: "\u3000".repeat(level) + (c.name || c.code),
-      });
-    });
-    return options;
-  }, [categoryTree]);
-
-  const itemTypeOptions = useMemo(() => {
-    const options: { value: string; label: string }[] = [
-      { value: "", label: S.optionType },
-    ];
-    itemTypes.forEach((t) => {
-      options.push({ value: String(t.id), label: t.name || t.code || "-" });
-    });
-    return options;
-  }, [itemTypes]);
-
-  const unitOptions = useMemo(() => {
-    const options: { value: string; label: string }[] = [
-      { value: "", label: S.optionUnit },
-    ];
-    unitCodes.forEach((c) => {
-      options.push({ value: c.code, label: c.name || c.code });
-    });
-    if (item && !isNew) {
-      const i = item as Item;
-      const currentUnit = (i.unit ?? "").trim();
-      if (currentUnit && !unitCodes.some((c) => c.code === currentUnit)) {
-        options.push({ value: currentUnit, label: `${currentUnit} (${S.optionExistingValue})` });
-      }
-    }
-    return options;
-  }, [unitCodes, item, isNew]);
-
-  const currencyOptions = useMemo(() => {
-    const options: { value: string; label: string; symbol?: string }[] = [];
-    currencyCodes.forEach((c) => {
-      options.push({
-        value: c.code,
-        label: c.name || c.code,
-        symbol: getCurrencySymbol(c.code),
-      });
-    });
-    if (options.length === 0)
-      options.push({ value: "KRW", label: S.currencyKrwLabel, symbol: S.currencyKrwSymbol });
-    return options;
-  }, [currencyCodes]);
-
-  // Sync form state when item loads from server
   useEffect(() => {
-    if (isNew) return;
-    if (item) {
-      const i = item as Item;
-      const unitPriceStr =
-        i.unitPrice != null
-          ? new Intl.NumberFormat("ko-KR").format(i.unitPrice)
-          : "";
-      setCode(i.code ?? "");
-      setName(i.name ?? "");
-      setCategoryId(String(i.categoryId ?? ""));
-      setItemTypeId(String(i.itemTypeId ?? ""));
-      setUnit(i.unit ?? "");
-      setCurrencyCode(i.currencyCode ?? "KRW");
-      setUnitPrice(unitPriceStr);
-      setSpec(i.spec ?? "");
-      setProductDiv(i.productDiv ?? "");
-      setIsActive(i.isActive !== false);
+    if (isNew) {
+      setItemCode("");
+      setItemName("");
+      setItemType("");
+      setParentItemId("");
+      setDescription("");
+      setIsActive(true);
+      return;
     }
-  }, [isNew, item]);
+    if (detail) {
+      setItemCode(detail.itemCode);
+      setItemName(detail.itemName);
+      setItemType(detail.itemType);
+      setParentItemId(
+        detail.parentItemId != null ? String(detail.parentItemId) : ""
+      );
+      setDescription(detail.description ?? "");
+      setIsActive(detail.isActive !== false);
+    }
+  }, [isNew, detail]);
 
   const isDirty = useMemo(() => {
     if (!initialSnapshot) return false;
     return (
-      initialSnapshot.code !== code ||
-      initialSnapshot.name !== name ||
-      initialSnapshot.categoryId !== categoryId ||
-      initialSnapshot.itemTypeId !== itemTypeId ||
-      initialSnapshot.unit !== unit ||
-      initialSnapshot.currencyCode !== currencyCode ||
-      initialSnapshot.unitPrice !== unitPrice ||
-      initialSnapshot.spec !== spec ||
-      initialSnapshot.productDiv !== productDiv ||
+      initialSnapshot.itemCode !== itemCode ||
+      initialSnapshot.itemName !== itemName ||
+      initialSnapshot.itemType !== itemType ||
+      initialSnapshot.parentItemId !== parentItemId ||
+      initialSnapshot.description !== description ||
       initialSnapshot.isActive !== isActive
     );
   }, [
     initialSnapshot,
-    code,
-    name,
-    categoryId,
-    itemTypeId,
-    unit,
-    currencyCode,
-    unitPrice,
-    spec,
-    productDiv,
+    itemCode,
+    itemName,
+    itemType,
+    parentItemId,
+    description,
     isActive,
   ]);
 
-  const leavePath = isNew ? "/items" : `/items/${id}`;
+  const leavePath = isNew ? "/items" : `/items/${editId}`;
   const {
     showLeaveModal,
     handleCancelClick,
@@ -240,79 +197,144 @@ export default function ItemForm() {
   } = useConfirmLeave(isDirty, () => navigate(leavePath));
 
   const createMutation = useMutation({
-    mutationFn: (payload: ItemCreatePayload) =>
-      createItem(payload, accessToken!),
+    mutationFn: () =>
+      createItemMaster(accessToken as string, {
+        itemCode: itemCode.trim(),
+        itemName: itemName.trim(),
+        itemType,
+        parentItemId: parentItemId ? Number(parentItemId) : null,
+        description: description.trim() || null,
+        isActive,
+      }),
     onSuccess: (data) => {
-      toast.success(S.toastCreateSuccess);
-      queryClient.invalidateQueries({ queryKey: ["items"] });
+      toast.success("품목을 등록했습니다.");
+      queryClient.invalidateQueries({ queryKey: ["itemMasterList"] });
       navigate(`/items/${data.id}`);
     },
-    onError: (e: Error) => toast.error(e.message || S.toastCreateError),
+    onError: (e: unknown) => {
+      if (isForbiddenError(e)) {
+        toast.error("품목을 등록할 권한이 없습니다.");
+        return;
+      }
+      toast.error(e instanceof Error ? e.message : "등록에 실패했습니다.");
+    },
   });
 
   const updateMutation = useMutation({
-    mutationFn: (payload: ItemCreatePayload) =>
-      updateItem(id, payload, accessToken!),
+    mutationFn: () =>
+      updateItemMaster(editId, accessToken as string, {
+        itemName: itemName.trim(),
+        itemType,
+        parentItemId: parentItemId ? Number(parentItemId) : null,
+        description: description.trim() || null,
+        isActive,
+      }),
     onSuccess: () => {
-      toast.success(S.toastUpdateSuccess);
-      queryClient.invalidateQueries({ queryKey: ["items"] });
-      queryClient.invalidateQueries({ queryKey: ["item", id] });
-      navigate(`/items/${id}`);
+      toast.success("품목을 수정했습니다.");
+      queryClient.invalidateQueries({ queryKey: ["itemMasterList"] });
+      queryClient.invalidateQueries({ queryKey: ["itemMaster", editId] });
+      navigate(`/items/${editId}`);
     },
-    onError: (e: Error) => toast.error(e.message || S.toastUpdateError),
+    onError: (e: unknown) => {
+      if (isForbiddenError(e)) {
+        toast.error("품목을 수정할 권한이 없습니다.");
+        return;
+      }
+      toast.error(e instanceof Error ? e.message : "수정에 실패했습니다.");
+    },
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const catId = categoryId ? Number(categoryId) : 0;
-    const typeId = itemTypeId ? Number(itemTypeId) : 0;
-    if (!code.trim()) {
-      toast.error(S.toastCodeRequired);
+    if (!itemCode.trim() && isNew) {
+      toast.error("품목코드를 입력하세요.");
       return;
     }
-    if (!name.trim()) {
-      toast.error(S.toastNameRequired);
+    if (!itemName.trim()) {
+      toast.error("품목명을 입력하세요.");
       return;
     }
-    if (!catId) {
-      toast.error(S.toastCategoryRequired);
+    if (!itemType.trim()) {
+      toast.error("품목 유형을 선택하세요.");
       return;
     }
-    if (!typeId) {
-      toast.error(S.toastTypeRequired);
+    const parentNum = parentItemId ? Number(parentItemId) : null;
+    if (!isNew && parentNum === editId) {
+      toast.error("상위 품목으로 자기 자신을 선택할 수 없습니다.");
       return;
     }
-    const payload: ItemCreatePayload = {
-      code: code.trim(),
-      name: name.trim(),
-      categoryId: catId,
-      itemTypeId: typeId,
-      unit: unit.trim() || null,
-      currencyCode: currencyCode || "KRW",
-      unitPrice: unitPrice.trim()
-        ? Number(unitPrice.replace(/,/g, "")) || null
-        : null,
-      spec: spec.trim() || null,
-      productDiv: productDiv.trim() || null,
-      isActive,
-    };
     if (isNew) {
-      createMutation.mutate(payload);
+      createMutation.mutate();
     } else {
-      updateMutation.mutate(payload);
+      updateMutation.mutate();
     }
   };
 
   const isPending = createMutation.isPending || updateMutation.isPending;
 
-  if (!isNew && itemLoading && !item) {
+  if (isAuthLoading) {
     return (
       <>
-        <PageMeta title={S.pageTitleEdit} description={S.pageTitleEdit} />
-        <PageBreadcrumb pageTitle={S.pageTitleEdit} />
+        <PageMeta title="품목" description="품목" />
+        <PageBreadcrumb pageTitle="품목" />
         <div className="flex min-h-[320px] items-center justify-center">
-          <LoadingLottie message={S.loadingMessage} />
+          <LoadingLottie message="인증 확인 중..." />
         </div>
+      </>
+    );
+  }
+
+  if (!accessToken) {
+    return (
+      <>
+        <PageMeta title="품목" description="품목" />
+        <PageBreadcrumb pageTitle="품목" />
+        <div className="flex min-h-[320px] items-center justify-center text-gray-500">
+          <p className="text-sm">로그인 후 이용할 수 있습니다.</p>
+        </div>
+      </>
+    );
+  }
+
+  if (!canManageItems) {
+    return (
+      <>
+        <PageMeta title="품목" description="품목" />
+        <PageBreadcrumb pageTitle="품목" />
+        <div className="space-y-4">
+          <PageNotice variant="neutral">
+            품목 등록·수정은 <code>item.manage</code> 권한이 필요합니다.
+          </PageNotice>
+          <button
+            type="button"
+            onClick={() => navigate("/items")}
+            className="rounded-lg border border-gray-300 px-4 py-2 text-sm dark:border-gray-600"
+          >
+            목록으로
+          </button>
+        </div>
+      </>
+    );
+  }
+
+  if (!isNew && detailLoading && !detail) {
+    return (
+      <>
+        <PageMeta title="품목 수정" description="품목 수정" />
+        <PageBreadcrumb pageTitle="품목 수정" />
+        <div className="flex min-h-[320px] items-center justify-center">
+          <LoadingLottie message="품목을 불러오는 중..." />
+        </div>
+      </>
+    );
+  }
+
+  if (!isNew && !detailLoading && !detail) {
+    return (
+      <>
+        <PageMeta title="품목 수정" description="품목 수정" />
+        <PageBreadcrumb pageTitle="품목 수정" />
+        <p className="text-sm text-red-600">품목을 찾을 수 없습니다.</p>
       </>
     );
   }
@@ -320,125 +342,106 @@ export default function ItemForm() {
   return (
     <>
       <PageMeta
-        title={isNew ? S.pageTitleCreate : S.pageTitleEdit}
-        description={isNew ? S.pageTitleCreate : S.pageTitleEdit}
+        title={isNew ? "품목 등록" : "품목 수정"}
+        description="품목 마스터"
       />
-      <PageBreadcrumb pageTitle={isNew ? S.pageTitleCreate : S.pageTitleEdit} />
+      <PageBreadcrumb pageTitle={isNew ? "품목 등록" : "품목 수정"} />
+
+      <PageNotice className="mb-4" variant="neutral">
+        품목 유형은 공통코드 <code>ITEM_TYPE</code>에서 선택합니다(코드값이 저장됩니다).
+        상위 품목은 검색 후 선택하세요.
+      </PageNotice>
 
       <div className="space-y-6">
         <ComponentCard
-          title={isNew ? S.pageTitleCreate : S.pageTitleEdit}
-          desc={S.cardDesc}
+          title={isNew ? "품목 등록" : "품목 수정"}
+          desc="기본 정보 · 상위 품목 · 설명 · 사용 여부"
         >
-          <form
-            key={isNew ? "new" : item ? `edit-${(item as Item).id}` : "loading"}
-            onSubmit={handleSubmit}
-            className="space-y-6"
-          >
+          <form onSubmit={handleSubmit} className="space-y-6">
             <div className="grid gap-4 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <Label htmlFor="item-type-order">품목 유형 *</Label>
+                <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                  유형을 먼저 선택하면 입력 흐름이 맞습니다.
+                </p>
+                <select
+                  id="item-type-order"
+                  value={itemType}
+                  onChange={(e) => setItemType(e.target.value)}
+                  className={inputClass}
+                  required
+                >
+                  <option value="">선택</option>
+                  {itemTypeSelectOptions.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <div>
-                <Label htmlFor="item-code">{S.labelCode}</Label>
+                <Label htmlFor="item-code">품목코드 *</Label>
                 <Input
                   id="item-code"
-                  value={code}
-                  onChange={(e) => setCode(e.target.value)}
-                  placeholder={S.placeholderCode}
+                  value={itemCode}
+                  onChange={(e) => setItemCode(e.target.value)}
+                  placeholder="고유 코드"
                   className="mt-1"
                   disabled={!isNew}
                 />
               </div>
               <div>
-                <Label htmlFor="item-name">{S.labelName}</Label>
+                <Label htmlFor="item-name">품목명 *</Label>
                 <Input
                   id="item-name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder={S.placeholderName}
+                  value={itemName}
+                  onChange={(e) => setItemName(e.target.value)}
                   className="mt-1"
                 />
               </div>
-              <div>
-                <Label htmlFor="item-category">{S.labelCategory}</Label>
-                <select
-                  id="item-category"
-                  value={categoryId}
-                  onChange={(e) => setCategoryId(e.target.value)}
-                  className={inputClass}
-                >
-                  {categoryOptions.map((opt) => (
-                    <option key={opt.value || "empty"} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <Label htmlFor="item-type">{S.labelType}</Label>
-                <select
-                  id="item-type"
-                  value={itemTypeId}
-                  onChange={(e) => setItemTypeId(e.target.value)}
-                  className={inputClass}
-                >
-                  {itemTypeOptions.map((opt) => (
-                    <option key={opt.value || "empty"} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <Label htmlFor="item-unit">{S.labelUnit}</Label>
-                <select
-                  id="item-unit"
-                  value={unit}
-                  onChange={(e) => setUnit(e.target.value)}
-                  className={inputClass}
-                >
-                  {unitOptions.map((opt) => (
-                    <option key={opt.value || "empty"} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <Label htmlFor="item-unitPrice">{S.labelPrice}</Label>
-                <div className="mt-1">
-                  <SelectInput
-                    id="item-unitPrice"
-                    selectOptions={currencyOptions}
-                    selectValue={currencyCode}
-                    onSelectChange={setCurrencyCode}
-                    inputValue={unitPrice}
-                    onInputChange={setUnitPrice}
-                    inputPlaceholder="0"
-                    selectPlaceholder={S.selectCurrency}
-                    formatNumber
-                    maxFractionDigits={2}
-                  />
-                </div>
-              </div>
+
               <div className="sm:col-span-2">
-                <Label htmlFor="item-spec">{S.labelSpec}</Label>
+                <Label htmlFor="parent-search">상위 품목</Label>
+                <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                  검색어 입력 시 목록이 갱신됩니다. 미선택 시 최상위 품목입니다.
+                </p>
                 <Input
-                  id="item-spec"
-                  value={spec}
-                  onChange={(e) => setSpec(e.target.value)}
-                  placeholder={S.placeholderSpec}
-                  className="mt-1"
+                  id="parent-search"
+                  value={parentSearch}
+                  onChange={(e) => setParentSearch(e.target.value)}
+                  placeholder="상위 품목 코드·이름 검색"
+                  className="mt-1 mb-2"
+                />
+                <SearchableSelectWithCreate
+                  id="parent-item"
+                  label=""
+                  value={parentItemId}
+                  onChange={setParentItemId}
+                  options={parentOptions.map((o) => ({
+                    value: o.value,
+                    label: o.label,
+                    isDisabled:
+                      o.isDisabled || (!isNew && o.value === String(editId)),
+                  }))}
+                  placeholder="상위 품목 선택"
+                  addButtonLabel=""
+                  onAddClick={() => {}}
+                  addTrigger="none"
                 />
               </div>
+
               <div className="sm:col-span-2">
-                <Label htmlFor="item-productDiv">{S.labelProductDiv}</Label>
-                <Input
-                  id="item-productDiv"
-                  value={productDiv}
-                  onChange={(e) => setProductDiv(e.target.value)}
-                  placeholder={S.placeholderProductDiv}
-                  className="mt-1"
+                <Label htmlFor="item-desc">설명</Label>
+                <textarea
+                  id="item-desc"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  rows={4}
+                  className={`${inputClass} min-h-[6rem] resize-y`}
                 />
               </div>
+
               <div className="flex items-center gap-2 sm:col-span-2">
                 <input
                   id="item-active"
@@ -447,7 +450,7 @@ export default function ItemForm() {
                   onChange={(e) => setIsActive(e.target.checked)}
                   className="h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
                 />
-                <Label htmlFor="item-active">{S.labelActive}</Label>
+                <Label htmlFor="item-active">사용 여부</Label>
               </div>
             </div>
 
@@ -455,16 +458,16 @@ export default function ItemForm() {
               <button
                 type="submit"
                 disabled={isPending || (!isNew && !isDirty)}
-                className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white hover:bg-gray-50 disabled:opacity-50"
+                className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white hover:bg-brand-600 disabled:opacity-50 dark:bg-brand-600"
               >
-                {isPending ? S.buttonSaving : isNew ? S.buttonCreate : S.buttonUpdate}
+                {isPending ? "저장 중…" : "저장"}
               </button>
               <button
                 type="button"
                 onClick={handleCancelClick}
                 className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300"
               >
-                {S.buttonCancel}
+                취소
               </button>
             </div>
           </form>

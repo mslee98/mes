@@ -6,6 +6,7 @@
 import { createApiError } from "../lib/apiError";
 
 import { API_BASE } from "./apiBase";
+import { fetchAuthorized } from "./fetchAuthorized";
 
 export interface UserRoleAssignment {
   id: number;
@@ -62,10 +63,14 @@ export async function getUserRoles(
   userId: number,
   accessToken: string
 ): Promise<UserRoleAssignment[]> {
-  const res = await fetch(`${API_BASE}/auth/users/${userId}/roles`, {
-    headers: authHeaders(accessToken),
-    credentials: "include",
-  });
+  const res = await fetchAuthorized(
+    `${API_BASE}/auth/users/${userId}/roles`,
+    {
+      headers: authHeaders(accessToken),
+      credentials: "include",
+    },
+    accessToken
+  );
 
   if (!res.ok) {
     throw await createApiError(res, "사용자 역할 목록을 불러오지 못했습니다.");
@@ -80,12 +85,16 @@ export async function assignUserRole(
   payload: AssignUserRolePayload,
   accessToken: string
 ) {
-  const res = await fetch(`${API_BASE}/auth/users/${userId}/roles`, {
-    method: "POST",
-    headers: authHeaders(accessToken),
-    credentials: "include",
-    body: JSON.stringify(payload),
-  });
+  const res = await fetchAuthorized(
+    `${API_BASE}/auth/users/${userId}/roles`,
+    {
+      method: "POST",
+      headers: authHeaders(accessToken),
+      credentials: "include",
+      body: JSON.stringify(payload),
+    },
+    accessToken
+  );
 
   if (!res.ok) {
     throw await createApiError(res, "사용자 역할 부여에 실패했습니다.");
@@ -99,12 +108,16 @@ export async function updateUserRole(
   payload: UpdateUserRolePayload,
   accessToken: string
 ) {
-  const res = await fetch(`${API_BASE}/auth/user-roles/${userRoleId}`, {
-    method: "PATCH",
-    headers: authHeaders(accessToken),
-    credentials: "include",
-    body: JSON.stringify(payload),
-  });
+  const res = await fetchAuthorized(
+    `${API_BASE}/auth/user-roles/${userRoleId}`,
+    {
+      method: "PATCH",
+      headers: authHeaders(accessToken),
+      credentials: "include",
+      body: JSON.stringify(payload),
+    },
+    accessToken
+  );
 
   if (!res.ok) {
     throw await createApiError(res, "사용자 역할 수정에 실패했습니다.");
@@ -114,13 +127,17 @@ export async function updateUserRole(
 }
 
 export async function deleteUserRole(userRoleId: number, accessToken: string) {
-  const res = await fetch(`${API_BASE}/auth/user-roles/${userRoleId}`, {
-    method: "DELETE",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
+  const res = await fetchAuthorized(
+    `${API_BASE}/auth/user-roles/${userRoleId}`,
+    {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      credentials: "include",
     },
-    credentials: "include",
-  });
+    accessToken
+  );
 
   if (!res.ok) {
     throw await createApiError(res, "사용자 역할 삭제에 실패했습니다.");

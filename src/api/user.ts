@@ -10,6 +10,7 @@
 import { createApiError } from "../lib/apiError";
 
 import { API_BASE } from "./apiBase";
+import { fetchAuthorized } from "./fetchAuthorized";
 import {
   getOrganizationUnitPathSegmentsFromTree,
   type OrganizationUnitNode,
@@ -289,12 +290,16 @@ function normalizeUserList(payload: unknown): UserItem[] {
  * 팀장 라우팅 시 각 항목에 `userOrganizations`(또는 `user_organizations`) 포함 여부가 중요.
  */
 export async function getUsers(accessToken: string): Promise<UserItem[]> {
-  const res = await fetch(`${API_BASE}/users`, {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
+  const res = await fetchAuthorized(
+    `${API_BASE}/users`,
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      credentials: "include",
     },
-    credentials: "include",
-  });
+    accessToken
+  );
 
   if (!res.ok) {
     throw await createApiError(res, "사용자 목록을 불러오지 못했습니다.");
@@ -318,15 +323,19 @@ export async function changePassword(
   body: ChangePasswordRequest,
   accessToken: string
 ): Promise<void> {
-  const res = await fetch(`${API_BASE}/users/${userId}/password`, {
-    method: "PATCH",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
+  const res = await fetchAuthorized(
+    `${API_BASE}/users/${userId}/password`,
+    {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      credentials: "include",
+      body: JSON.stringify(body),
     },
-    credentials: "include",
-    body: JSON.stringify(body),
-  });
+    accessToken
+  );
 
   if (!res.ok) {
     throw await createApiError(res, "비밀번호 변경에 실패했습니다.");
