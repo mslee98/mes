@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { InformationCircleIcon } from "../../icons";
+import { InfoIcon } from "../../icons";
 
 export interface InfoActionPopoverProps {
   /** 스크린 리더용 트리거 설명 */
@@ -117,7 +117,7 @@ export default function InfoActionPopover({
         onClick={() => !disabled && setOpen((v) => !v)}
         className="rounded-full p-0.5 text-gray-500 outline-none hover:bg-gray-100 hover:text-brand-600 focus-visible:ring-2 focus-visible:ring-brand-500/30 disabled:opacity-50 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-brand-400"
       >
-        <InformationCircleIcon className="size-[18px]" aria-hidden />
+        <InfoIcon className="size-[18px]" aria-hidden />
       </button>
 
       {typeof document !== "undefined" && panel

@@ -29,9 +29,11 @@ import {
 import {
   getCommonCodesByGroup,
   COMMON_CODE_GROUP_DELIVERY_STATUS,
+  COMMON_CODE_GROUP_COUNTRY,
   commonCodesToSelectOptions,
   type CommonCodeItem,
 } from "../api/commonCode";
+import { partnerSelectLabel } from "../lib/partnerDisplay";
 
 const DEFAULT_PAGE_SIZE = 20;
 
@@ -64,23 +66,28 @@ function deliveryOrderTitle(d: Delivery): string {
   return d.order?.title?.trim() || "-";
 }
 
-function partnerLabel(d: Delivery): string {
-  return (
-    d.partner?.name ??
-    d.partner?.code ??
-    d.order?.partner?.name ??
-    d.order?.partner?.code ??
-    "-"
-  );
+function partnerLabel(d: Delivery, countryCodes: CommonCodeItem[]): string {
+  const p = (d.partner ?? d.order?.partner) as Partner | undefined;
+  if (p) return partnerSelectLabel(p, countryCodes);
+  return "-";
 }
 
-function deliveryLineCount(d: Delivery): number {
-  const a = d.deliveryItems?.length;
-  const b = d.items?.length;
-  if (typeof a === "number" && a > 0) return a;
-  if (typeof b === "number" && b > 0) return b;
-  return 0;
-}
+/**
+ * 
+ * @param totalCount - 전체 아이템 수
+ * @param page - 현재 페이지
+ * @param setPage - 페이지 변경 함수
+ * @param pageSize - 페이지 크기
+ * @param setPageSize - 페이지 크기 변경 함수
+ * @returns 페이징 정보
+ */
+// function deliveryLineCount(d: Delivery): number {
+//   const a = d.deliveryItems?.length;
+//   const b = d.items?.length;
+//   if (typeof a === "number" && a > 0) return a;
+//   if (typeof b === "number" && b > 0) return b;
+//   return 0;
+// }
 
 function useServerPaginationTableProps(
   totalCount: number,
@@ -174,6 +181,13 @@ export default function Delivery() {
     enabled: !!accessToken && !isAuthLoading,
   });
 
+  const { data: countryCodes = [] } = useQuery({
+    queryKey: ["commonCodes", COMMON_CODE_GROUP_COUNTRY],
+    queryFn: () =>
+      getCommonCodesByGroup(COMMON_CODE_GROUP_COUNTRY, accessToken!),
+    enabled: !!accessToken && !isAuthLoading,
+  });
+
   const { data: deliveryStatusCodes = [] } = useQuery<CommonCodeItem[]>({
     queryKey: ["commonCodes", COMMON_CODE_GROUP_DELIVERY_STATUS],
     queryFn: () =>
@@ -186,11 +200,11 @@ export default function Delivery() {
     (partners as Partner[]).forEach((p) =>
       list.push({
         value: String(p.id),
-        label: `${p.name || "-"} (${p.code || "-"})`,
+        label: partnerSelectLabel(p, countryCodes),
       })
     );
     return list;
-  }, [partners]);
+  }, [partners, countryCodes]);
 
   const deliveryStatusOptions = useMemo(() => {
     const list: { value: string; label: string }[] = [{ value: "", label: "전체" }];
@@ -207,7 +221,7 @@ export default function Delivery() {
       const no = (d.deliveryNo ?? "").toLowerCase();
       const orderNo = deliveryOrderNo(d).toLowerCase();
       const orderTitle = deliveryOrderTitle(d).toLowerCase();
-      const partner = partnerLabel(d).toLowerCase();
+      const partner = partnerLabel(d, countryCodes).toLowerCase();
       return (
         title.includes(kw) ||
         no.includes(kw) ||
@@ -217,7 +231,7 @@ export default function Delivery() {
         String(d.id).includes(kw)
       );
     });
-  }, [data?.items, searchKeyword]);
+  }, [data?.items, searchKeyword, countryCodes]);
 
   const handleSearchReset = () => {
     setSearchKeyword("");
@@ -425,12 +439,12 @@ export default function Delivery() {
                         >
                           납품 상태
                         </TableCell>
-                        <TableCell
+                        {/* <TableCell
                           isHeader
                           className="px-5 py-3 font-medium text-gray-500 text-end text-theme-xs dark:text-gray-400"
                         >
                           품목 수
-                        </TableCell>
+                        </TableCell> */}
                       </TableRow>
                     </TableHeader>
                     <TableBody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
@@ -455,7 +469,7 @@ export default function Delivery() {
                                   to={`/delivery/${row.id}`}
                                   className="block rounded-md outline-offset-2 hover:text-brand-600 focus-visible:ring-2 focus-visible:ring-brand-400 dark:hover:text-brand-400"
                                 >
-                                  <div className="font-medium text-gray-900 dark:text-white">
+                                  <div className="font-medium text-brand-600 hover:underline dark:text-brand-400">
                                     {row.deliveryNo?.trim() || `#${row.id}`}
                                   </div>
                                   <div className="text-theme-xs text-gray-500 dark:text-gray-400">
@@ -488,7 +502,7 @@ export default function Delivery() {
                                 )}
                               </TableCell>
                               <TableCell className="px-4 py-3 text-gray-500 text-theme-sm dark:text-gray-400">
-                                {partnerLabel(row)}
+                                {partnerLabel(row, countryCodes)}
                               </TableCell>
                               <TableCell className="px-4 py-3 text-gray-500 text-theme-sm dark:text-gray-400">
                                 {row.deliveryDate?.trim() ? row.deliveryDate : "-"}
@@ -501,9 +515,9 @@ export default function Delivery() {
                                   {getDeliveryStatusName(row.status)}
                                 </Badge>
                               </TableCell>
-                              <TableCell className="px-4 py-3 text-end text-theme-sm text-gray-600 dark:text-gray-300">
+                              {/* <TableCell className="px-4 py-3 text-end text-theme-sm text-gray-600 dark:text-gray-300">
                                 {deliveryLineCount(row)}
-                              </TableCell>
+                              </TableCell> */}
                             </TableRow>
                           );
                         })
