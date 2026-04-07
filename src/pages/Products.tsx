@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router";
 import toast from "react-hot-toast";
@@ -28,10 +28,11 @@ import {
 } from "../components/ui/table";
 import { useAuth } from "../context/AuthContext";
 import { useProductPermissions } from "../hooks/useProductPermissions";
+import { useServerListPagination } from "../hooks/useServerListPagination";
+import { useCommonCodesByGroup } from "../hooks/useCommonCodesByGroup";
 import ConfirmModal from "../components/common/ConfirmModal";
 import ProductDefinitionCreateModal from "../components/products/ProductDefinitionCreateModal";
 import {
-  getCommonCodesByGroup,
   COMMON_CODE_GROUP_PRODUCT_CATEGORY,
   commonCodesToSelectOptions,
 } from "../api/commonCode";
@@ -76,15 +77,11 @@ export default function Products() {
   const [npDesc, setNpDesc] = useState("");
   const [npActive, setNpActive] = useState(true);
 
-  const { data: productCategoryCodes = [] } = useQuery({
-    queryKey: ["commonCodes", COMMON_CODE_GROUP_PRODUCT_CATEGORY],
-    queryFn: () =>
-      getCommonCodesByGroup(
-        COMMON_CODE_GROUP_PRODUCT_CATEGORY,
-        accessToken as string
-      ),
-    enabled: !!accessToken && !isAuthLoading,
-  });
+  const { data: productCategoryCodes = [] } = useCommonCodesByGroup(
+    COMMON_CODE_GROUP_PRODUCT_CATEGORY,
+    accessToken,
+    { enabled: !!accessToken && !isAuthLoading }
+  );
 
   const filterCategoryOptions = useMemo(
     () => [
@@ -179,40 +176,16 @@ export default function Products() {
 
   const serverTotal = data?.total ?? 0;
   const items: ProductListItemDto[] = data?.items ?? [];
-  const totalPages = Math.max(1, Math.ceil(serverTotal / listPageSize) || 1);
-  const startItem =
-    serverTotal === 0 ? 0 : (listPage - 1) * listPageSize + 1;
-  const endItem = Math.min(listPage * listPageSize, serverTotal);
 
-  const pageNumbers = useMemo(() => {
-    if (totalPages <= 0) return [];
-    if (totalPages <= 5) {
-      return Array.from({ length: totalPages }, (_, i) => i + 1);
-    }
-    const pages: (number | "ellipsis")[] = [1];
-    if (listPage > 3) pages.push("ellipsis");
-    const start = Math.max(2, listPage - 1);
-    const end = Math.min(totalPages - 1, listPage + 1);
-    for (let p = start; p <= end; p += 1) pages.push(p);
-    if (listPage < totalPages - 2) pages.push("ellipsis");
-    pages.push(totalPages);
-    return pages;
-  }, [listPage, totalPages]);
-
-  const handlePageSizeChange = (value: string) => {
-    setListPageSize(Number(value));
-    setListPage(1);
-  };
-
-  useEffect(() => {
-    setListPage(1);
-  }, [searchKeyword, categoryCode, statusFilter]);
-
-  useEffect(() => {
-    if (totalPages > 0 && listPage > totalPages) {
-      setListPage(totalPages);
-    }
-  }, [listPage, totalPages]);
+  const listPagination = useServerListPagination({
+    totalCount: serverTotal,
+    listPage,
+    setListPage,
+    listPageSize,
+    setListPageSize,
+    resetPageDeps: [searchKeyword, categoryCode, statusFilter],
+    emptyTotalPages: "one",
+  });
 
   return (
     <>
@@ -389,18 +362,7 @@ export default function Products() {
           !isLoading &&
           !error &&
           serverTotal > 0 ? (
-            <TablePagination
-              currentPage={listPage}
-              setCurrentPage={setListPage}
-              pageSize={listPageSize}
-              setPageSize={setListPageSize}
-              totalCount={serverTotal}
-              totalPages={totalPages}
-              startItem={startItem}
-              endItem={endItem}
-              pageNumbers={pageNumbers}
-              handlePageSizeChange={handlePageSizeChange}
-            />
+            <TablePagination {...listPagination} />
           ) : (
             <></>
           )

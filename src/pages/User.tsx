@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
 import {
@@ -26,7 +26,7 @@ import {
   TableRow,
 } from "../components/ui/table";
 import { useAuth } from "../context/AuthContext";
-import { usePagination } from "../hooks/usePagination";
+import { useClientListPagination } from "../hooks/useClientListPagination";
 
 const SEARCH_FIELD_OPTIONS = [
   { value: "all", label: "전체" },
@@ -107,28 +107,16 @@ export default function User() {
     });
   }, [users, searchField, searchKeyword, statusFilter]);
 
-  const pagination = usePagination({
-    totalCount: filteredUsers.length,
+  const pagination = useClientListPagination({
+    filteredCount: filteredUsers.length,
     initialPageSize: 10,
+    resetPageDeps: [searchKeyword, searchField, statusFilter],
   });
 
   const paginatedUsers = useMemo(() => {
     const startIndex = (pagination.currentPage - 1) * pagination.pageSize;
     return filteredUsers.slice(startIndex, startIndex + pagination.pageSize);
   }, [filteredUsers, pagination.currentPage, pagination.pageSize]);
-
-  useEffect(() => {
-    pagination.setCurrentPage(1);
-  }, [searchKeyword, searchField, statusFilter]);
-
-  useEffect(() => {
-    if (
-      pagination.totalPages > 0 &&
-      pagination.currentPage > pagination.totalPages
-    ) {
-      pagination.setCurrentPage(pagination.totalPages);
-    }
-  }, [pagination.currentPage, pagination.setCurrentPage, pagination.totalPages]);
 
   return (
     <>

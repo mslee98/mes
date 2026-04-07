@@ -36,11 +36,11 @@ import {
 import { getHousingTemplates } from "../api/housingTemplates";
 import SearchableSelectWithCreate from "../components/form/SearchableSelectWithCreate";
 import {
-  getCommonCodesByGroup,
   COMMON_CODE_GROUP_PURCHASE_ORDER_TYPE,
   commonCodesToSelectOptions,
 } from "../api/commonCode";
-import { isForbiddenError } from "../lib/apiError";
+import { showForbiddenToast } from "../lib/forbiddenToast";
+import { useCommonCodesByGroup } from "../hooks/useCommonCodesByGroup";
 import { TrashBinIcon } from "../icons";
 
 const ORDER_TYPE_NONE = "__none__";
@@ -111,15 +111,11 @@ export default function ProductDefinitionDetail() {
       !!accessToken && !isAuthLoading && canReadProducts && Number.isFinite(did),
   });
 
-  const { data: orderTypeCodes = [] } = useQuery({
-    queryKey: ["commonCodes", COMMON_CODE_GROUP_PURCHASE_ORDER_TYPE],
-    queryFn: () =>
-      getCommonCodesByGroup(
-        COMMON_CODE_GROUP_PURCHASE_ORDER_TYPE,
-        accessToken as string
-      ),
-    enabled: !!accessToken && !isAuthLoading && canReadProducts,
-  });
+  const { data: orderTypeCodes = [] } = useCommonCodesByGroup(
+    COMMON_CODE_GROUP_PURCHASE_ORDER_TYPE,
+    accessToken,
+    { enabled: !!accessToken && !isAuthLoading && canReadProducts }
+  );
 
   const orderTypeOptions = commonCodesToSelectOptions(orderTypeCodes);
   const orderTypeSelectOptionsWithNone = useMemo(
@@ -205,8 +201,8 @@ export default function ProductDefinitionDetail() {
       setHeaderModalOpen(false);
     },
     onError: (e: unknown) => {
-      if (isForbiddenError(e)) toast.error("수정 권한이 없습니다.");
-      else toast.error(e instanceof Error ? e.message : "수정에 실패했습니다.");
+      if (showForbiddenToast(e, "수정 권한이 없습니다.")) return;
+      toast.error(e instanceof Error ? e.message : "수정에 실패했습니다.");
     },
   });
 
@@ -218,8 +214,8 @@ export default function ProductDefinitionDetail() {
       queryClient.invalidateQueries({ queryKey: ["productDefinition", did] });
     },
     onError: (e: unknown) => {
-      if (isForbiddenError(e)) toast.error("삭제 권한이 없습니다.");
-      else toast.error(e instanceof Error ? e.message : "삭제에 실패했습니다.");
+      if (showForbiddenToast(e, "삭제 권한이 없습니다.")) return;
+      toast.error(e instanceof Error ? e.message : "삭제에 실패했습니다.");
     },
   });
 

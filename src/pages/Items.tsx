@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router";
 import PageMeta from "../components/common/PageMeta";
@@ -24,13 +24,14 @@ import {
 } from "../components/ui/table";
 import { useAuth } from "../context/AuthContext";
 import { useItemPermissions } from "../hooks/useItemPermissions";
+import { useServerListPagination } from "../hooks/useServerListPagination";
+import { useCommonCodesByGroup } from "../hooks/useCommonCodesByGroup";
 import {
   getItemMasterList,
   ITEM_TYPE_FILTER_ALL,
   ITEM_TYPE_OPTIONS_FALLBACK,
 } from "../api/itemMaster";
 import {
-  getCommonCodesByGroup,
   COMMON_CODE_GROUP_ITEM_TYPE,
   commonCodesToSelectOptions,
   labelForCommonCode,
@@ -60,12 +61,11 @@ export default function Items() {
   const [itemTypeFilter, setItemTypeFilter] = useState(ITEM_TYPE_FILTER_ALL);
   const [isActiveFilter, setIsActiveFilter] = useState("all");
 
-  const { data: itemTypeCodes = [] } = useQuery({
-    queryKey: ["commonCodes", COMMON_CODE_GROUP_ITEM_TYPE],
-    queryFn: () =>
-      getCommonCodesByGroup(COMMON_CODE_GROUP_ITEM_TYPE, accessToken as string),
-    enabled: !!accessToken && !isAuthLoading && canReadItems,
-  });
+  const { data: itemTypeCodes = [] } = useCommonCodesByGroup(
+    COMMON_CODE_GROUP_ITEM_TYPE,
+    accessToken,
+    { enabled: !!accessToken && !isAuthLoading && canReadItems }
+  );
 
   const itemTypeSelectOptions = useMemo(() => {
     const list: { value: string; label: string }[] = [
@@ -120,41 +120,14 @@ export default function Items() {
   const total = data?.total ?? 0;
   const items = data?.items ?? [];
 
-  const totalPages = Math.max(0, Math.ceil(total / listPageSize));
-  const startItem = total === 0 ? 0 : (listPage - 1) * listPageSize + 1;
-  const endItem = Math.min(listPage * listPageSize, total);
-
-  const pageNumbers = useMemo(() => {
-    if (totalPages <= 0) return [];
-    if (totalPages <= 5) {
-      return Array.from({ length: totalPages }, (_, index) => index + 1);
-    }
-    const pages: (number | "ellipsis")[] = [1];
-    if (listPage > 3) pages.push("ellipsis");
-    const start = Math.max(2, listPage - 1);
-    const end = Math.min(totalPages - 1, listPage + 1);
-    for (let page = start; page <= end; page += 1) {
-      pages.push(page);
-    }
-    if (listPage < totalPages - 2) pages.push("ellipsis");
-    pages.push(totalPages);
-    return pages;
-  }, [listPage, totalPages]);
-
-  useEffect(() => {
-    setListPage(1);
-  }, [submittedKeyword, itemTypeFilter, isActiveFilter]);
-
-  useEffect(() => {
-    if (totalPages > 0 && listPage > totalPages) {
-      setListPage(totalPages);
-    }
-  }, [totalPages, listPage]);
-
-  const handlePageSizeChange = (value: string) => {
-    setListPageSize(Number(value));
-    setListPage(1);
-  };
+  const listPagination = useServerListPagination({
+    totalCount: total,
+    listPage,
+    setListPage,
+    listPageSize,
+    setListPageSize,
+    resetPageDeps: [submittedKeyword, itemTypeFilter, isActiveFilter],
+  });
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -260,18 +233,7 @@ export default function Items() {
           !isLoading &&
           !error &&
           total > 0 ? (
-            <TablePagination
-              currentPage={listPage}
-              setCurrentPage={setListPage}
-              pageSize={listPageSize}
-              setPageSize={setListPageSize}
-              totalCount={total}
-              totalPages={totalPages}
-              startItem={startItem}
-              endItem={endItem}
-              pageNumbers={pageNumbers}
-              handlePageSizeChange={handlePageSizeChange}
-            />
+            <TablePagination {...listPagination} />
           ) : (
             <></>
           )

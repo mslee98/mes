@@ -16,7 +16,7 @@ import {
   getItemRevisions,
   type ItemMasterListItem,
 } from "../../api/itemMaster";
-import { isForbiddenError } from "../../lib/apiError";
+import { showForbiddenToast } from "../../lib/forbiddenToast";
 import { useTheme } from "../../context/ThemeContext";
 
 /** 품목 목록 API 페이지 크기(상한과 맞춤: `Items` 목록과 동일 계열) */
@@ -207,8 +207,8 @@ export default function ProductDefinitionAddCompositionModal({
       onClose();
     },
     onError: (e: unknown) => {
-      if (isForbiddenError(e)) toast.error("추가 권한이 없습니다.");
-      else toast.error(e instanceof Error ? e.message : "추가에 실패했습니다.");
+      if (showForbiddenToast(e, "추가 권한이 없습니다.")) return;
+      toast.error(e instanceof Error ? e.message : "추가에 실패했습니다.");
     },
   });
 

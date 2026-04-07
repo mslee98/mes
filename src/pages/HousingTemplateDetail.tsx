@@ -38,10 +38,10 @@ import {
   getItemRevisions,
   type ItemMasterListItem,
 } from "../api/itemMaster";
-import { isForbiddenError } from "../lib/apiError";
+import { showForbiddenToast } from "../lib/forbiddenToast";
+import { useCommonCodesByGroup } from "../hooks/useCommonCodesByGroup";
 import { TrashBinIcon } from "../icons";
 import {
-  getCommonCodesByGroup,
   COMMON_CODE_GROUP_USE_STATUS,
   USE_STATUS_CODE_ACTIVE,
   USE_STATUS_CODE_INACTIVE,
@@ -236,8 +236,8 @@ function AddHousingLineModal({
       onClose();
     },
     onError: (e: unknown) => {
-      if (isForbiddenError(e)) toast.error("추가 권한이 없습니다.");
-      else toast.error(e instanceof Error ? e.message : "추가에 실패했습니다.");
+      if (showForbiddenToast(e, "추가 권한이 없습니다.")) return;
+      toast.error(e instanceof Error ? e.message : "추가에 실패했습니다.");
     },
   });
 
@@ -437,16 +437,14 @@ export default function HousingTemplateDetail() {
       !!accessToken && !isAuthLoading && canReadProducts && Number.isFinite(tid),
   });
 
-  const { data: useStatusCodes = [] } = useQuery({
-    queryKey: ["commonCodes", COMMON_CODE_GROUP_USE_STATUS],
-    queryFn: () =>
-      getCommonCodesByGroup(
-        COMMON_CODE_GROUP_USE_STATUS,
-        accessToken as string
-      ),
-    enabled:
-      !!accessToken && !isAuthLoading && canReadProducts && Number.isFinite(tid),
-  });
+  const { data: useStatusCodes = [] } = useCommonCodesByGroup(
+    COMMON_CODE_GROUP_USE_STATUS,
+    accessToken,
+    {
+      enabled:
+        !!accessToken && !isAuthLoading && canReadProducts && Number.isFinite(tid),
+    }
+  );
 
   const statusSelectOptions = useMemo(
     () => buildUseStatusSelectOptions(useStatusCodes, editStatus),
@@ -488,8 +486,8 @@ export default function HousingTemplateDetail() {
       queryClient.invalidateQueries({ queryKey: ["housingTemplates"] });
     },
     onError: (e: unknown) => {
-      if (isForbiddenError(e)) toast.error("수정 권한이 없습니다.");
-      else toast.error(e instanceof Error ? e.message : "수정에 실패했습니다.");
+      if (showForbiddenToast(e, "수정 권한이 없습니다.")) return;
+      toast.error(e instanceof Error ? e.message : "수정에 실패했습니다.");
     },
   });
 
@@ -501,8 +499,8 @@ export default function HousingTemplateDetail() {
       navigate("/housing-templates");
     },
     onError: (e: unknown) => {
-      if (isForbiddenError(e)) toast.error("삭제 권한이 없습니다.");
-      else toast.error(e instanceof Error ? e.message : "삭제에 실패했습니다.");
+      if (showForbiddenToast(e, "삭제 권한이 없습니다.")) return;
+      toast.error(e instanceof Error ? e.message : "삭제에 실패했습니다.");
     },
   });
 
@@ -515,8 +513,8 @@ export default function HousingTemplateDetail() {
       queryClient.invalidateQueries({ queryKey: ["housingTemplates"] });
     },
     onError: (e: unknown) => {
-      if (isForbiddenError(e)) toast.error("삭제 권한이 없습니다.");
-      else toast.error(e instanceof Error ? e.message : "삭제에 실패했습니다.");
+      if (showForbiddenToast(e, "삭제 권한이 없습니다.")) return;
+      toast.error(e instanceof Error ? e.message : "삭제에 실패했습니다.");
     },
   });
 

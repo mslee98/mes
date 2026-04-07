@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { Modal } from "../ui/modal";
 import Label from "./Label";
@@ -11,11 +11,11 @@ import {
   type PartnerCreatePayload,
 } from "../../api/purchaseOrder";
 import {
-  getCommonCodesByGroup,
   COMMON_CODE_GROUP_PARTNER_DEFENSE_MARKET,
   COMMON_CODE_GROUP_COUNTRY,
   commonCodesToSelectOptions,
 } from "../../api/commonCode";
+import { useCommonCodesByGroup } from "../../hooks/useCommonCodesByGroup";
 
 const DEFAULT_DEFENSE_MARKET = "CIVILIAN";
 const DEFAULT_COUNTRY_CODE = "KR";
@@ -40,22 +40,17 @@ export default function PartnerQuickCreateModal({
   const [defenseMarket, setDefenseMarket] = useState("");
   const [countryCode, setCountryCode] = useState("");
 
-  const { data: defenseMarketCodes = [] } = useQuery({
-    queryKey: ["commonCodes", COMMON_CODE_GROUP_PARTNER_DEFENSE_MARKET],
-    queryFn: () =>
-      getCommonCodesByGroup(
-        COMMON_CODE_GROUP_PARTNER_DEFENSE_MARKET,
-        accessToken!
-      ),
-    enabled: isOpen && !!accessToken,
-  });
+  const { data: defenseMarketCodes = [] } = useCommonCodesByGroup(
+    COMMON_CODE_GROUP_PARTNER_DEFENSE_MARKET,
+    accessToken,
+    { enabled: isOpen && !!accessToken }
+  );
 
-  const { data: countryCodes = [] } = useQuery({
-    queryKey: ["commonCodes", COMMON_CODE_GROUP_COUNTRY],
-    queryFn: () =>
-      getCommonCodesByGroup(COMMON_CODE_GROUP_COUNTRY, accessToken!),
-    enabled: isOpen && !!accessToken,
-  });
+  const { data: countryCodes = [] } = useCommonCodesByGroup(
+    COMMON_CODE_GROUP_COUNTRY,
+    accessToken,
+    { enabled: isOpen && !!accessToken }
+  );
 
   const defenseOptions = useMemo(
     () => commonCodesToSelectOptions(defenseMarketCodes),

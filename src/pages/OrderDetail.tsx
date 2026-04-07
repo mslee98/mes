@@ -18,11 +18,13 @@ import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import ComponentCard from "../components/common/ComponentCard";
 import PageNotice from "../components/common/PageNotice";
+import { OrderDetailLinesCard } from "../components/order/OrderDetailLinesCard";
+import { OrderDetailDeliveriesCard } from "../components/order/OrderDetailDeliveriesCard";
 import ConfirmModal from "../components/common/ConfirmModal";
 import LoadingLottie from "../components/common/LoadingLottie";
-import Badge from "../components/ui/badge/Badge";
 import { Modal } from "../components/ui/modal";
 import { useAuth } from "../context/AuthContext";
+import { useCommonCodesByGroup } from "../hooks/useCommonCodesByGroup";
 import {
   getPurchaseOrder,
   getPurchaseOrderFiles,
@@ -50,30 +52,19 @@ import { productDetailHrefForDeliveryReturn } from "../lib/orderReturnNavigation
 import { rejectApprovalRequest } from "../api/approvalRequests";
 import { API_BASE } from "../api/apiBase";
 import {
-  getCommonCodesByGroup,
   COMMON_CODE_GROUP_PURCHASE_ORDER_TYPE,
   COMMON_CODE_GROUP_PURCHASE_ORDER_STATUS,
   COMMON_CODE_GROUP_DELIVERY_STATUS,
   COMMON_CODE_GROUP_COUNTRY,
 } from "../api/commonCode";
 import { partnerSelectLabel } from "../lib/partnerDisplay";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHeader,
-  TableRow,
-} from "../components/ui/table";
 import Input from "../components/form/input/InputField";
 import TextArea from "../components/form/input/TextArea";
 import Label from "../components/form/Label";
 import DatePicker from "../components/form/date-picker";
 import SearchableSelectWithCreate from "../components/form/SearchableSelectWithCreate";
 import { formatCurrency } from "../lib/formatCurrency";
-import {
-  lineItemsToAmountSummaries,
-  OrderLineAmountSummary,
-} from "../lib/orderLineAmountSummary";
+import { lineItemsToAmountSummaries } from "../lib/orderLineAmountSummary";
 import ApprovalDetailContent, {
   type ApprovalDocumentMock,
 } from "../components/approval/ApprovalDetailContent";
@@ -326,39 +317,29 @@ export default function OrderDetail() {
     });
   }, [deliveryModalOpen, order, deliveryDefsByProductId]);
 
-  const { data: purchaseOrderTypeCodes = [] } = useQuery({
-    queryKey: ["commonCodes", COMMON_CODE_GROUP_PURCHASE_ORDER_TYPE],
-    queryFn: () =>
-      getCommonCodesByGroup(
-        COMMON_CODE_GROUP_PURCHASE_ORDER_TYPE,
-        accessToken!
-      ),
-    enabled: !!accessToken && !isAuthLoading,
-  });
+  const { data: purchaseOrderTypeCodes = [] } = useCommonCodesByGroup(
+    COMMON_CODE_GROUP_PURCHASE_ORDER_TYPE,
+    accessToken,
+    { enabled: !!accessToken && !isAuthLoading }
+  );
 
-  const { data: purchaseOrderStatusCodes = [] } = useQuery({
-    queryKey: ["commonCodes", COMMON_CODE_GROUP_PURCHASE_ORDER_STATUS],
-    queryFn: () =>
-      getCommonCodesByGroup(
-        COMMON_CODE_GROUP_PURCHASE_ORDER_STATUS,
-        accessToken!
-      ),
-    enabled: !!accessToken && !isAuthLoading,
-  });
+  const { data: purchaseOrderStatusCodes = [] } = useCommonCodesByGroup(
+    COMMON_CODE_GROUP_PURCHASE_ORDER_STATUS,
+    accessToken,
+    { enabled: !!accessToken && !isAuthLoading }
+  );
 
-  const { data: countryCodes = [] } = useQuery({
-    queryKey: ["commonCodes", COMMON_CODE_GROUP_COUNTRY],
-    queryFn: () =>
-      getCommonCodesByGroup(COMMON_CODE_GROUP_COUNTRY, accessToken!),
-    enabled: !!accessToken && !isAuthLoading,
-  });
+  const { data: countryCodes = [] } = useCommonCodesByGroup(
+    COMMON_CODE_GROUP_COUNTRY,
+    accessToken,
+    { enabled: !!accessToken && !isAuthLoading }
+  );
 
-  const { data: deliveryStatusCodes = [] } = useQuery({
-    queryKey: ["commonCodes", COMMON_CODE_GROUP_DELIVERY_STATUS],
-    queryFn: () =>
-      getCommonCodesByGroup(COMMON_CODE_GROUP_DELIVERY_STATUS, accessToken!),
-    enabled: !!accessToken && !isAuthLoading,
-  });
+  const { data: deliveryStatusCodes = [] } = useCommonCodesByGroup(
+    COMMON_CODE_GROUP_DELIVERY_STATUS,
+    accessToken,
+    { enabled: !!accessToken && !isAuthLoading }
+  );
 
   /** 팀장 후보: 전 사용자 + nested `userOrganizations` (다른 화면과 동일 키로 캐시 공유) */
   const { data: users = [], isLoading: isUsersLoading } = useQuery({
@@ -1228,214 +1209,19 @@ export default function OrderDetail() {
 
     
 
-        <ComponentCard title="발주 라인" collapsible defaultCollapsed={true}>
-          <div className="space-y-4 dark:border-gray-700">
-            <div className="relative overflow-x-auto border-b dark:border-gray-800">
-              <Table className="w-full text-center text-sm text-gray-900 dark:text-white md:table-fixed">
-                <TableHeader className="border-b border-gray-100 dark:border-white/5">
-                  <TableRow className="hover:bg-transparent">
-                    <TableCell
-                      isHeader
-                      className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[22%]"
-                    >
-                      제품 정의·표시명
-                    </TableCell>
-                    <TableCell
-                      isHeader
-                      className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[15%]"
-                    >
-                      단위 · 수량
-                    </TableCell>
-                    <TableCell
-                      isHeader
-                      className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[18%]"
-                    >
-                      통화 · 단가
-                    </TableCell>
-                    <TableCell
-                      isHeader
-                      className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[14%]"
-                    >
-                      금액
-                    </TableCell>
-                    <TableCell
-                      isHeader
-                      className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[13%]"
-                    >
-                      납품 요청일
-                    </TableCell>
-                    <TableCell
-                      isHeader
-                      className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[12%]"
-                    >
-                      비고
-                    </TableCell>
-                    <TableCell
-                      isHeader
-                      className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[6%]"
-                    >
-                      납품
-                    </TableCell>
-                  </TableRow>
-                </TableHeader>
-                <TableBody className="divide-y divide-gray-200 dark:divide-gray-800">
-                  {orderLines.length === 0 ? (
-                    <TableRow>
-                      <TableCell
-                        colSpan={7}
-                        className="px-3 py-6 text-center text-theme-sm text-gray-500 dark:text-gray-400"
-                      >
-                        등록된 발주 라인이 없습니다.
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    orderLines.map((item) => {
-                      const lineCc =
-                        item.currencyCode ?? po.currencyCode ?? "KRW";
-                      return (
-                        <TableRow
-                          key={item.id}
-                          className="align-middle hover:bg-transparent"
-                        >
-                          <TableCell className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-900 dark:text-white">
-                            {item.itemName?.trim() ||
-                              item.productNameSnapshot?.trim() ||
-                              item.definitionNameSnapshot?.trim() ||
-                              item.item?.name ||
-                              (item.productDefinitionId > 0
-                                ? `정의 #${item.productDefinitionId}`
-                                : item.itemId != null && item.itemId > 0
-                                  ? `품목 #${item.itemId}`
-                                  : "-")}
-                          </TableCell>
-                          <TableCell className="px-3 py-3 text-center align-middle tabular-nums text-gray-800 dark:text-gray-200">
-                            <span>{item.unit ?? "-"}</span>
-                            <span className="mx-1 text-gray-300 dark:text-gray-600">
-                              ·
-                            </span>
-                            <span>{item.qty}</span>
-                          </TableCell>
-                          <TableCell className="px-3 py-3 text-center align-middle tabular-nums text-gray-800 dark:text-gray-200">
-                            <span className="text-gray-500 dark:text-gray-400">
-                              {lineCc}
-                            </span>
-                            <span className="mx-1 text-gray-300 dark:text-gray-600">
-                              ·
-                            </span>
-                            <span>
-                              {item.unitPrice != null
-                                ? formatCurrency(item.unitPrice, lineCc)
-                                : "-"}
-                            </span>
-                          </TableCell>
-                          <TableCell className="px-3 py-3 text-center align-middle font-medium tabular-nums text-gray-900 dark:text-white">
-                            {item.amount != null
-                              ? formatCurrency(item.amount, lineCc)
-                              : "-"}
-                          </TableCell>
-                          <TableCell className="px-3 py-3 text-center align-middle text-gray-600 dark:text-gray-400">
-                            {item.requestDeliveryDate ?? "-"}
-                          </TableCell>
-                          <TableCell className="px-3 py-3 text-center align-middle text-gray-600 dark:text-gray-400">
-                            {item.remark ?? "-"}
-                          </TableCell>
-                          <TableCell className="px-3 py-3 text-center align-middle tabular-nums text-gray-800 dark:text-gray-200">
-                            {item.deliveredQty ?? 0}
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-            <div className="relative inline-flex w-full items-center justify-center">
-              <hr className="my-8 h-px w-64 max-w-full border-0 bg-gray-200 dark:bg-gray-700" />
-              <span className="absolute left-1/2 -translate-x-1/2 bg-white px-3 text-sm font-medium text-gray-600 dark:bg-[#171F2F] dark:text-gray-400">
-                주문 요약
-              </span>
-            </div>
-              
-              <OrderLineAmountSummary
-                summaries={
-                  orderLineSummaries.length > 0
-                    ? orderLineSummaries
-                    : [
-                        {
-                          currencyCode: po.currencyCode || "KRW",
-                          subtotal: 0,
-                          vat: 0,
-                          total: 0,
-                        },
-                      ]
-                }
-              />
-          </div>
-        </ComponentCard>
+        <OrderDetailLinesCard
+          orderLines={orderLines}
+          defaultCurrencyCode={po.currencyCode ?? "KRW"}
+          orderLineSummaries={orderLineSummaries}
+        />
 
-        <ComponentCard 
-          title="납품 목록"
-          collapsible
-          defaultCollapsed={true}
-          headerEnd={
-            <button
-              type="button"
-              title={
-                canRegisterDelivery
-                  ? undefined
-                  : "발주 상태가 종결(PO_CLOSED)일 때만 납품을 등록할 수 있습니다."
-                }
-                disabled={!canRegisterDelivery}
-                onClick={openDeliveryRegistrationModal}
-                className="rounded-lg border border-brand-500 bg-white px-3 py-1.5 text-sm font-medium text-brand-600 hover:bg-brand-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-brand-600 dark:bg-gray-800 dark:text-brand-400"
-              >
-                납품 등록
-              </button>
-            }
-          >
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex-1 min-w-[12rem]">
-              {!canRegisterDelivery ? (
-                <p className="text-theme-xs text-amber-700 dark:text-amber-400/90">
-                  발주가 종결(PO_CLOSED)된 뒤에만 납품을 등록할 수 있습니다.
-                </p>
-              ) : null}
-            </div>
-          </div>
-          
-          {(deliveries as Delivery[]).length === 0 ? (
-            <p className="text-theme-sm text-gray-500">납품 이력이 없습니다.</p>
-          ) : (
-            <ul className="space-y-3">
-              {(deliveries as Delivery[]).map((d) => (
-                <li
-                  key={d.id}
-                  className="rounded-lg border border-gray-100 p-3 dark:border-white/5"
-                >
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Link
-                      to={`/delivery/${d.id}`}
-                      className="font-medium text-brand-600 hover:underline dark:text-brand-400"
-                    >
-                      {d.title?.trim() || d.deliveryNo || d.id}
-                    </Link>
-                    <span className="text-theme-sm text-gray-600 dark:text-gray-400">
-                      {formatDate(d.deliveryDate)}
-                    </span>
-                    {d.status && (
-                      <Badge size="sm" color="primary">
-                        {deliveryStatusDisplayName(d.status)}
-                      </Badge>
-                    )}
-                  </div>
-                  {d.remark && (
-                    <p className="mt-1 text-theme-xs text-gray-500">{d.remark}</p>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </ComponentCard>
+        <OrderDetailDeliveriesCard
+          deliveries={deliveries as Delivery[]}
+          canRegisterDelivery={canRegisterDelivery}
+          onRegisterDeliveryClick={openDeliveryRegistrationModal}
+          formatDeliveryDate={formatDate}
+          deliveryStatusDisplayName={deliveryStatusDisplayName}
+        />
 
         {po.currentApprovalRequest ? (
           <CurrentApprovalRequestSection

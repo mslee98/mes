@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getPermissions, type PermissionItem } from "../api/permission";
 import PageMeta from "../components/common/PageMeta";
@@ -21,7 +21,7 @@ import {
   TableRow,
 } from "../components/ui/table";
 import { useAuth } from "../context/AuthContext";
-import { usePagination } from "../hooks/usePagination";
+import { useClientListPagination } from "../hooks/useClientListPagination";
 
 const SEARCH_FIELD_OPTIONS = [
   { value: "all", label: "전체" },
@@ -106,9 +106,10 @@ export default function Permission() {
     });
   }, [permissions, searchField, searchKeyword, statusFilter]);
 
-  const pagination = usePagination({
-    totalCount: filteredPermissions.length,
+  const pagination = useClientListPagination({
+    filteredCount: filteredPermissions.length,
     initialPageSize: 10,
+    resetPageDeps: [searchKeyword, searchField, statusFilter],
   });
 
   const paginatedPermissions = useMemo(() => {
@@ -118,16 +119,6 @@ export default function Permission() {
       startIndex + pagination.pageSize
     );
   }, [filteredPermissions, pagination.currentPage, pagination.pageSize]);
-
-  useEffect(() => {
-    pagination.setCurrentPage(1);
-  }, [searchKeyword, searchField, statusFilter]);
-
-  useEffect(() => {
-    if (pagination.totalPages > 0 && pagination.currentPage > pagination.totalPages) {
-      pagination.setCurrentPage(pagination.totalPages);
-    }
-  }, [pagination.currentPage, pagination.setCurrentPage, pagination.totalPages]);
 
   return (
     <>

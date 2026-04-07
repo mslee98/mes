@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { Modal } from "../ui/modal";
 import Label from "./Label";
@@ -9,12 +9,12 @@ import Select from "./Select";
 import { useAuth } from "../../context/AuthContext";
 import { createHousingTemplate } from "../../api/housingTemplates";
 import {
-  getCommonCodesByGroup,
   COMMON_CODE_GROUP_USE_STATUS,
   USE_STATUS_CODE_ACTIVE,
   buildUseStatusSelectOptions,
 } from "../../api/commonCode";
-import { isForbiddenError } from "../../lib/apiError";
+import { showForbiddenToast } from "../../lib/forbiddenToast";
+import { useCommonCodesByGroup } from "../../hooks/useCommonCodesByGroup";
 
 export type HousingTemplateCreateModalProps = {
   isOpen: boolean;
@@ -43,15 +43,11 @@ export default function HousingTemplateCreateModal({
     setRemark("");
   }, [isOpen]);
 
-  const { data: useStatusCodes = [] } = useQuery({
-    queryKey: ["commonCodes", COMMON_CODE_GROUP_USE_STATUS],
-    queryFn: () =>
-      getCommonCodesByGroup(
-        COMMON_CODE_GROUP_USE_STATUS,
-        accessToken as string
-      ),
-    enabled: isOpen && !!accessToken,
-  });
+  const { data: useStatusCodes = [] } = useCommonCodesByGroup(
+    COMMON_CODE_GROUP_USE_STATUS,
+    accessToken,
+    { enabled: isOpen && !!accessToken }
+  );
 
   const statusOptions = useMemo(
     () => buildUseStatusSelectOptions(useStatusCodes, status),
@@ -73,8 +69,8 @@ export default function HousingTemplateCreateModal({
       onClose();
     },
     onError: (e: unknown) => {
-      if (isForbiddenError(e)) toast.error("등록 권한이 없습니다.");
-      else toast.error(e instanceof Error ? e.message : "등록에 실패했습니다.");
+      if (showForbiddenToast(e, "등록 권한이 없습니다.")) return;
+      toast.error(e instanceof Error ? e.message : "등록에 실패했습니다.");
     },
   });
 

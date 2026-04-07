@@ -10,11 +10,11 @@ import DatePicker from "../form/date-picker";
 import { createProductDefinition } from "../../api/products";
 import { getHousingTemplates } from "../../api/housingTemplates";
 import {
-  getCommonCodesByGroup,
   COMMON_CODE_GROUP_PURCHASE_ORDER_TYPE,
   commonCodesToSelectOptions,
 } from "../../api/commonCode";
-import { isForbiddenError } from "../../lib/apiError";
+import { showForbiddenToast } from "../../lib/forbiddenToast";
+import { useCommonCodesByGroup } from "../../hooks/useCommonCodesByGroup";
 import SearchableSelectWithCreate from "../form/SearchableSelectWithCreate";
 
 const ORDER_TYPE_NONE = "__none__";
@@ -54,15 +54,11 @@ export default function ProductDefinitionCreateModal({
   const [remark, setRemark] = useState("");
   const [housingTemplateIdStr, setHousingTemplateIdStr] = useState("");
 
-  const { data: orderTypeCodes = [] } = useQuery({
-    queryKey: ["commonCodes", COMMON_CODE_GROUP_PURCHASE_ORDER_TYPE],
-    queryFn: () =>
-      getCommonCodesByGroup(
-        COMMON_CODE_GROUP_PURCHASE_ORDER_TYPE,
-        accessToken
-      ),
-    enabled: isOpen && !!accessToken,
-  });
+  const { data: orderTypeCodes = [] } = useCommonCodesByGroup(
+    COMMON_CODE_GROUP_PURCHASE_ORDER_TYPE,
+    accessToken,
+    { enabled: isOpen && !!accessToken }
+  );
 
   const { data: housingTemplates = [], isLoading: housingLoading } = useQuery({
     queryKey: ["housingTemplates"],
@@ -133,8 +129,8 @@ export default function ProductDefinitionCreateModal({
       onClose();
     },
     onError: (e: unknown) => {
-      if (isForbiddenError(e)) toast.error("등록 권한이 없습니다.");
-      else toast.error(e instanceof Error ? e.message : "등록에 실패했습니다.");
+      if (showForbiddenToast(e, "등록 권한이 없습니다.")) return;
+      toast.error(e instanceof Error ? e.message : "등록에 실패했습니다.");
     },
   });
 

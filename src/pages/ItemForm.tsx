@@ -20,11 +20,11 @@ import {
   ITEM_TYPE_OPTIONS_FALLBACK,
 } from "../api/itemMaster";
 import {
-  getCommonCodesByGroup,
   COMMON_CODE_GROUP_ITEM_TYPE,
   commonCodesToSelectOptions,
 } from "../api/commonCode";
-import { isForbiddenError } from "../lib/apiError";
+import { showForbiddenToast } from "../lib/forbiddenToast";
+import { useCommonCodesByGroup } from "../hooks/useCommonCodesByGroup";
 
 const inputClass =
   "mt-1 h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white";
@@ -55,12 +55,11 @@ export default function ItemForm() {
     enabled: !isNew && !!accessToken && editId > 0,
   });
 
-  const { data: itemTypeCodes = [] } = useQuery({
-    queryKey: ["commonCodes", COMMON_CODE_GROUP_ITEM_TYPE],
-    queryFn: () =>
-      getCommonCodesByGroup(COMMON_CODE_GROUP_ITEM_TYPE, accessToken as string),
-    enabled: !!accessToken && canManageItems,
-  });
+  const { data: itemTypeCodes = [] } = useCommonCodesByGroup(
+    COMMON_CODE_GROUP_ITEM_TYPE,
+    accessToken,
+    { enabled: !!accessToken && canManageItems }
+  );
 
   const itemTypeSelectOptions = useMemo(() => {
     let base = commonCodesToSelectOptions(itemTypeCodes);
@@ -156,10 +155,7 @@ export default function ItemForm() {
       navigate(`/items/${data.id}`);
     },
     onError: (e: unknown) => {
-      if (isForbiddenError(e)) {
-        toast.error("품목을 등록할 권한이 없습니다.");
-        return;
-      }
+      if (showForbiddenToast(e, "품목을 등록할 권한이 없습니다.")) return;
       toast.error(e instanceof Error ? e.message : "등록에 실패했습니다.");
     },
   });
@@ -179,10 +175,7 @@ export default function ItemForm() {
       navigate(`/items/${editId}`);
     },
     onError: (e: unknown) => {
-      if (isForbiddenError(e)) {
-        toast.error("품목을 수정할 권한이 없습니다.");
-        return;
-      }
+      if (showForbiddenToast(e, "품목을 수정할 권한이 없습니다.")) return;
       toast.error(e instanceof Error ? e.message : "수정에 실패했습니다.");
     },
   });

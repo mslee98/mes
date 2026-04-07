@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import PageMeta from "../components/common/PageMeta";
@@ -26,7 +26,7 @@ import {
   TableRow,
 } from "../components/ui/table";
 import { useAuth } from "../context/AuthContext";
-import { usePagination } from "../hooks/usePagination";
+import { useClientListPagination } from "../hooks/useClientListPagination";
 import { useModal } from "../hooks/useModal";
 import { PencilIcon, TrashBinIcon } from "../icons";
 import {
@@ -106,28 +106,16 @@ export default function ItemTypes() {
     });
   }, [types, searchField, searchKeyword, statusFilter]);
 
-  const pagination = usePagination({
-    totalCount: filteredTypes.length,
+  const pagination = useClientListPagination({
+    filteredCount: filteredTypes.length,
     initialPageSize: 10,
+    resetPageDeps: [searchKeyword, searchField, statusFilter],
   });
 
   const paginatedTypes = useMemo(() => {
     const start = (pagination.currentPage - 1) * pagination.pageSize;
     return filteredTypes.slice(start, start + pagination.pageSize);
   }, [filteredTypes, pagination.currentPage, pagination.pageSize]);
-
-  useEffect(() => {
-    pagination.setCurrentPage(1);
-  }, [searchKeyword, searchField, statusFilter]);
-
-  useEffect(() => {
-    if (
-      pagination.totalPages > 0 &&
-      pagination.currentPage > pagination.totalPages
-    ) {
-      pagination.setCurrentPage(pagination.totalPages);
-    }
-  }, [pagination.currentPage, pagination.setCurrentPage, pagination.totalPages]);
 
   const createMutation = useMutation({
     mutationFn: (payload: ItemTypeCreatePayload) =>

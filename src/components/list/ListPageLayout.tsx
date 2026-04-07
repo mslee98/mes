@@ -4,12 +4,16 @@ import ComponentCard from "../common/ComponentCard";
 export interface ListPageLayoutProps {
   /** 카드 제목 (예: "발주 목록") */
   title: string;
+  /** 카드 부제 ([ComponentCard] `desc`) */
+  desc?: string;
   /** 상단 툴바: 검색창 + 검색 옵션 버튼 + 필터 등 */
   toolbar: React.ReactNode;
   /** 검색 옵션 패널 열림 여부 */
   searchOptionsOpen: boolean;
   /** 검색 옵션 패널 내용 (제품명, 업체명 등 필터 폼) */
   searchOptions: React.ReactNode;
+  /** 접이식 필터 아래·테이블 스크롤 영역 위 (안내 문구 등) */
+  belowSearchOptions?: React.ReactNode;
   /** 테이블 영역 */
   children: React.ReactNode;
   /** 페이지네이션 (TablePagination 등) */
@@ -27,15 +31,17 @@ export interface ListPageLayoutProps {
  */
 export function ListPageLayout({
   title,
+  desc,
   toolbar,
   searchOptionsOpen,
   searchOptions,
+  belowSearchOptions,
   children,
   pagination,
   contentRef,
 }: ListPageLayoutProps) {
   return (
-    <ComponentCard title={title}>
+    <ComponentCard title={title} desc={desc}>
       <div ref={contentRef} className="relative z-[100]">
         {/* 툴바: 검색 + 검색 옵션 버튼 + 필터 등 */}
         <div className="flex flex-col items-stretch gap-3 border-b border-gray-100 pb-4 dark:border-white/[0.05] md:flex-row md:items-center md:justify-between md:gap-4">
@@ -54,6 +60,10 @@ export function ListPageLayout({
             </div>
           </div>
         </div>
+
+        {belowSearchOptions != null ? (
+          <div className="min-h-0">{belowSearchOptions}</div>
+        ) : null}
 
         {/* 테이블 */}
         <div className="custom-scrollbar max-w-full overflow-x-auto pt-4">

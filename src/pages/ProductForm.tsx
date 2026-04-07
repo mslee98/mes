@@ -11,8 +11,8 @@ import Input from "../components/form/input/InputField";
 import TextArea from "../components/form/input/TextArea";
 import Select from "../components/form/Select";
 import { useAuth } from "../context/AuthContext";
+import { useCommonCodesByGroup } from "../hooks/useCommonCodesByGroup";
 import {
-  getCommonCodesByGroup,
   COMMON_CODE_GROUP_PRODUCT_CATEGORY,
   commonCodesToSelectOptions,
 } from "../api/commonCode";
@@ -33,15 +33,11 @@ export default function ProductForm() {
   const [description, setDescription] = useState("");
   const [isActive, setIsActive] = useState(true);
 
-  const { data: categoryCodeItems = [] } = useQuery({
-    queryKey: ["commonCodes", COMMON_CODE_GROUP_PRODUCT_CATEGORY],
-    queryFn: () =>
-      getCommonCodesByGroup(
-        COMMON_CODE_GROUP_PRODUCT_CATEGORY,
-        accessToken as string
-      ),
-    enabled: !!accessToken && !isAuthLoading,
-  });
+  const { data: categoryCodeItems = [] } = useCommonCodesByGroup(
+    COMMON_CODE_GROUP_PRODUCT_CATEGORY,
+    accessToken,
+    { enabled: !!accessToken && !isAuthLoading }
+  );
 
   const categorySelectOptions = useMemo(() => {
     const base = commonCodesToSelectOptions(categoryCodeItems);

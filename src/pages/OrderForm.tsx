@@ -40,6 +40,7 @@ import {
 import { ReactComponent as ArrowDownOnSquareIcon } from "../icons/arrow-down-on-square.svg?react";
 import { ReactComponent as XCircleSolidIcon } from "../icons/x-circle.svg?react";
 import { useAuth } from "../context/AuthContext";
+import { useCommonCodesByGroup } from "../hooks/useCommonCodesByGroup";
 import { getCurrencySymbol } from "../lib/formatCurrency";
 import {
   ORDER_LINE_VAT_RATE,
@@ -48,7 +49,6 @@ import {
 } from "../lib/orderLineAmountSummary";
 import { itemFormStrings as S } from "./itemFormStrings";
 import {
-  getCommonCodesByGroup,
   COMMON_CODE_GROUP_PURCHASE_ORDER_TYPE,
   COMMON_CODE_GROUP_PURCHASE_ORDER_STATUS,
   COMMON_CODE_GROUP_COUNTRY,
@@ -350,12 +350,11 @@ export default function OrderForm() {
     enabled: !!accessToken,
   });
 
-  const { data: countryCodes = [] } = useQuery({
-    queryKey: ["commonCodes", COMMON_CODE_GROUP_COUNTRY],
-    queryFn: () =>
-      getCommonCodesByGroup(COMMON_CODE_GROUP_COUNTRY, accessToken!),
-    enabled: !!accessToken,
-  });
+  const { data: countryCodes = [] } = useCommonCodesByGroup(
+    COMMON_CODE_GROUP_COUNTRY,
+    accessToken,
+    { enabled: !!accessToken }
+  );
 
   /**
    * 
@@ -373,37 +372,27 @@ export default function OrderForm() {
   });
   const productList: RepresentativeProduct[] = productListResult?.items ?? [];
 
-  const { data: currencyCodes = [] } = useQuery({
-    queryKey: ["commonCodes", "CURRENCY"],
-    queryFn: () => getCommonCodesByGroup("CURRENCY", accessToken!),
+  const { data: currencyCodes = [] } = useCommonCodesByGroup(
+    "CURRENCY",
+    accessToken,
+    { enabled: !!accessToken }
+  );
+
+  const { data: unitCodes = [] } = useCommonCodesByGroup("UNIT", accessToken, {
     enabled: !!accessToken,
   });
 
-  const { data: unitCodes = [] } = useQuery({
-    queryKey: ["commonCodes", "UNIT"],
-    queryFn: () => getCommonCodesByGroup("UNIT", accessToken!),
-    enabled: !!accessToken,
-  });
+  const { data: purchaseOrderTypeCodes = [] } = useCommonCodesByGroup(
+    COMMON_CODE_GROUP_PURCHASE_ORDER_TYPE,
+    accessToken,
+    { enabled: !!accessToken }
+  );
 
-  const { data: purchaseOrderTypeCodes = [] } = useQuery({
-    queryKey: ["commonCodes", COMMON_CODE_GROUP_PURCHASE_ORDER_TYPE],
-    queryFn: () =>
-      getCommonCodesByGroup(
-        COMMON_CODE_GROUP_PURCHASE_ORDER_TYPE,
-        accessToken!
-      ),
-    enabled: !!accessToken,
-  });
-
-  const { data: purchaseOrderStatusCodes = [] } = useQuery({
-    queryKey: ["commonCodes", COMMON_CODE_GROUP_PURCHASE_ORDER_STATUS],
-    queryFn: () =>
-      getCommonCodesByGroup(
-        COMMON_CODE_GROUP_PURCHASE_ORDER_STATUS,
-        accessToken!
-      ),
-    enabled: !!accessToken,
-  });
+  const { data: purchaseOrderStatusCodes = [] } = useCommonCodesByGroup(
+    COMMON_CODE_GROUP_PURCHASE_ORDER_STATUS,
+    accessToken,
+    { enabled: !!accessToken }
+  );
 
   const {
     data: organizationTree = [],

@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useCommonCodesByGroup } from "../hooks/useCommonCodesByGroup";
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import ComponentCard from "../components/common/ComponentCard";
@@ -7,10 +8,7 @@ import ListPageLoading from "../components/common/ListPageLoading";
 import { getOrganizationTree, type OrganizationUnitNode } from "../api/organization";
 import OrganizationTreeNode from "../components/organization/OrganizationTreeNode";
 import { useAuth } from "../context/AuthContext";
-import {
-  getCommonCodesByGroup,
-  COMMON_CODE_GROUP_ORG_TYPE,
-} from "../api/commonCode";
+import { COMMON_CODE_GROUP_ORG_TYPE } from "../api/commonCode";
 
 export default function Organization() {
   const { accessToken, isLoading: isAuthLoading } = useAuth();
@@ -25,12 +23,11 @@ export default function Organization() {
     enabled: !isAuthLoading,
   });
 
-  const { data: orgTypeCodes = [] } = useQuery({
-    queryKey: ["commonCodes", COMMON_CODE_GROUP_ORG_TYPE],
-    queryFn: () =>
-      getCommonCodesByGroup(COMMON_CODE_GROUP_ORG_TYPE, accessToken as string),
-    enabled: !!accessToken && !isAuthLoading,
-  });
+  const { data: orgTypeCodes = [] } = useCommonCodesByGroup(
+    COMMON_CODE_GROUP_ORG_TYPE,
+    accessToken,
+    { enabled: !!accessToken && !isAuthLoading }
+  );
 
   const orgTypeLabels = useMemo(() => {
     const m: Record<string, string> = {};

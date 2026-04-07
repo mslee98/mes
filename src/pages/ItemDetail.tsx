@@ -1,27 +1,22 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Link, useParams, useNavigate } from "react-router";
+import { useParams, useNavigate } from "react-router";
 import toast from "react-hot-toast";
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import PageNotice from "../components/common/PageNotice";
-import ComponentCard from "../components/common/ComponentCard";
 import LoadingLottie from "../components/common/LoadingLottie";
+import { ItemDetailBasicTab } from "../components/items/ItemDetailBasicTab";
+import { ItemDetailRevisionsTab } from "../components/items/ItemDetailRevisionsTab";
+import { ItemDetailUsageTab } from "../components/items/ItemDetailUsageTab";
 import SegmentedControl from "../components/common/SegmentedControl";
-import Badge from "../components/ui/badge/Badge";
 import { Modal } from "../components/ui/modal";
 import Input from "../components/form/input/InputField";
 import Label from "../components/form/Label";
 import FileUploadDropzone from "../components/form/FileUploadDropzone";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHeader,
-  TableRow,
-} from "../components/ui/table";
 import { useAuth } from "../context/AuthContext";
 import { useItemPermissions } from "../hooks/useItemPermissions";
+import { useCommonCodesByGroup } from "../hooks/useCommonCodesByGroup";
 import {
   getItemMaster,
   getItemRevisions,
@@ -34,48 +29,22 @@ import {
   uploadItemRevisionFile,
   deleteItemRevisionFile,
   REVISION_STATUS_OPTIONS,
-  ITEM_TYPE_OPTIONS_FALLBACK,
   type ItemRevision,
   type ItemRevisionFileLink,
-  type ItemUsageRow,
 } from "../api/itemMaster";
 import {
   getCommonCodesByGroup,
   COMMON_CODE_GROUP_ITEM_TYPE,
   COMMON_CODE_GROUP_ITEM_REVISION_STATUS,
   commonCodesToSelectOptions,
-  labelForCommonCode,
 } from "../api/commonCode";
 import { isApiError, isForbiddenError } from "../lib/apiError";
+import { showForbiddenToast } from "../lib/forbiddenToast";
+import { formatItemDetailDt } from "../lib/itemDetailDisplay";
 import { ReactComponent as ArrowDownOnSquareIcon } from "../icons/arrow-down-on-square.svg?react";
 import { TrashBinIcon } from "../icons";
 
 type DetailTab = "basic" | "revisions" | "usage";
-
-function DetailRow({
-  label,
-  value,
-}: {
-  label: string;
-  value: React.ReactNode;
-}) {
-  return (
-    <div className="flex border-b border-gray-100 py-3 dark:border-white/[0.05]">
-      <dt className="w-36 shrink-0 text-sm font-medium text-gray-500 dark:text-gray-400">
-        {label}
-      </dt>
-      <dd className="min-w-0 flex-1 text-sm text-gray-800 dark:text-white/90">
-        {value}
-      </dd>
-    </div>
-  );
-}
-
-function formatDt(iso?: string) {
-  if (!iso) return "-";
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? iso : d.toLocaleString("ko-KR");
-}
 
 function triggerBrowserDownload(blob: Blob, fileName: string) {
   const objectUrl = URL.createObjectURL(blob);
@@ -90,23 +59,6 @@ function triggerBrowserDownload(blob: Blob, fileName: string) {
 
 const REVISION_CONFLICT_MSG =
   "이 리비전은 이미 제품 정의에 연결되어 있어 삭제할 수 없습니다.";
-
-function revisionStatusLabel(
-  apiCodes: { code: string; name?: string; isActive?: boolean }[],
-  statusCode: string
-): string {
-  const c = String(statusCode ?? "").trim();
-  if (!c) return "—";
-  if (apiCodes.length) {
-    const hit = apiCodes.find(
-      (x) => x.code === c && x.isActive !== false
-    );
-    const name = (hit?.name ?? "").trim();
-    if (name) return name;
-  }
-  const fb = REVISION_STATUS_OPTIONS.find((o) => o.value === c.toUpperCase());
-  return fb?.label ?? c;
-}
 
 export default function ItemDetail() {
   const { itemId } = useParams();
@@ -145,12 +97,11 @@ export default function ItemDetail() {
     enabled: !!accessToken && !isAuthLoading && canReadItems && Number.isFinite(id),
   });
 
-  const { data: itemTypeCodes = [] } = useQuery({
-    queryKey: ["commonCodes", COMMON_CODE_GROUP_ITEM_TYPE],
-    queryFn: () =>
-      getCommonCodesByGroup(COMMON_CODE_GROUP_ITEM_TYPE, accessToken as string),
-    enabled: !!accessToken && !isAuthLoading && canReadItems,
-  });
+  const { data: itemTypeCodes = [] } = useCommonCodesByGroup(
+    COMMON_CODE_GROUP_ITEM_TYPE,
+    accessToken,
+    { enabled: !!accessToken && !isAuthLoading && canReadItems }
+  );
 
   const { data: revisionStatusCodes = [] } = useQuery({
     queryKey: ["commonCodes", COMMON_CODE_GROUP_ITEM_REVISION_STATUS],
@@ -268,10 +219,7 @@ export default function ItemDetail() {
       closeRevisionModal();
     },
     onError: (e: unknown) => {
-      if (isForbiddenError(e)) {
-        toast.error("권한이 없습니다.");
-        return;
-      }
+      if (showForbiddenToast(e, "권한이 없습니다.")) return;
       toast.error(e instanceof Error ? e.message : "등록에 실패했습니다.");
     },
   });
@@ -295,10 +243,7 @@ export default function ItemDetail() {
       closeRevisionModal();
     },
     onError: (e: unknown) => {
-      if (isForbiddenError(e)) {
-        toast.error("권한이 없습니다.");
-        return;
-      }
+      if (showForbiddenToast(e, "권한이 없습니다.")) return;
       toast.error(e instanceof Error ? e.message : "수정에 실패했습니다.");
     },
   });
@@ -339,10 +284,7 @@ export default function ItemDetail() {
       });
     },
     onError: (e: unknown) => {
-      if (isForbiddenError(e)) {
-        toast.error("업로드 권한이 없습니다.");
-        return;
-      }
+      if (showForbiddenToast(e, "업로드 권한이 없습니다.")) return;
       toast.error(e instanceof Error ? e.message : "업로드에 실패했습니다.");
     },
   });
@@ -361,10 +303,7 @@ export default function ItemDetail() {
       });
     },
     onError: (e: unknown) => {
-      if (isForbiddenError(e)) {
-        toast.error("삭제 권한이 없습니다.");
-        return;
-      }
+      if (showForbiddenToast(e, "삭제 권한이 없습니다.")) return;
       toast.error(e instanceof Error ? e.message : "삭제에 실패했습니다.");
     },
   });
@@ -489,334 +428,39 @@ export default function ItemDetail() {
         />
       </div>
 
-      {tab === "basic" && (
-        <ComponentCard title="기본 정보" desc="품목 마스터">
-          <dl className="min-w-0 flex-1">
-            <DetailRow
-              label="품목코드"
-              value={
-                <code className="rounded bg-gray-200/80 px-1.5 py-0.5 text-theme-xs dark:bg-gray-700 dark:text-gray-100">
-                  {i.itemCode}
-                </code>
-              }
-            />
-            <DetailRow
-              label="품목명"
-              value={
-                <span className="font-medium text-gray-800 dark:text-white/90">
-                  {i.itemName}
-                </span>
-              }
-            />
-            <DetailRow
-              label="유형"
-              value={
-                <span title={i.itemType || undefined}>
-                  {itemTypeCodes.length
-                    ? labelForCommonCode(itemTypeCodes, i.itemType)
-                    : (ITEM_TYPE_OPTIONS_FALLBACK.find(
-                        (o) => o.value === i.itemType
-                      )?.label ?? (i.itemType || "-"))}
-                </span>
-              }
-            />
-            <DetailRow
-              label="설명"
-              value={
-                i.description?.trim() ? (
-                  <span className="whitespace-pre-wrap text-gray-800 dark:text-white/90">
-                    {i.description}
-                  </span>
-                ) : (
-                  "-"
-                )
-              }
-            />
-            <DetailRow
-              label="사용 여부"
-              value={
-                <Badge
-                  size="sm"
-                  color={i.isActive === false ? "error" : "success"}
-                >
-                  {i.isActive === false ? "미사용" : "사용"}
-                </Badge>
-              }
-            />
-            <DetailRow label="등록일" value={formatDt(i.createdAt)} />
-            <DetailRow label="수정일" value={formatDt(i.updatedAt)} />
-          </dl>
-          <div className="mt-4 flex flex-wrap gap-3 border-t border-gray-100 pt-4 dark:border-white/5">
-            {canManageItems ? (
-              <button
-                type="button"
-                onClick={() => navigate(`/items/${id}/edit`)}
-                className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white hover:bg-brand-600 dark:bg-brand-600 dark:hover:bg-brand-500"
-              >
-                수정
-              </button>
-            ) : null}
-            <Link
-              to="/items"
-              className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
-            >
-              목록
-            </Link>
-          </div>
-        </ComponentCard>
-      )}
+      {tab === "basic" ? (
+        <ItemDetailBasicTab
+          item={i}
+          itemTypeCodes={itemTypeCodes}
+          canManageItems={canManageItems}
+          onEditClick={() => navigate(`/items/${id}/edit`)}
+        />
+      ) : null}
 
-      {tab === "revisions" && (
-        <ComponentCard
-          title="리비전 목록"
-          desc="revisionCode 순으로 정렬되어 조회됩니다."
-          headerEnd={
-            canManageItems ? (
-              <button
-                type="button"
-                onClick={openCreateRevision}
-                className="rounded-lg bg-brand-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-600 dark:bg-brand-600 dark:hover:bg-brand-500"
-              >
-                리비전 등록
-              </button>
-            ) : null
-          }
-        >
-          {revLoading ? (
-            <LoadingLottie message="리비전을 불러오는 중..." />
-          ) : revError ? (
-            <p className="text-sm text-red-600 dark:text-red-400">
-              {isForbiddenError(revError)
-                ? "리비전을 조회할 권한이 없습니다."
-                : revError instanceof Error
-                  ? revError.message
-                  : "목록을 불러오지 못했습니다."}
-            </p>
-          ) : revisions.length === 0 ? (
-            <p className="text-theme-sm text-gray-500 dark:text-gray-400">
-              등록된 리비전이 없습니다.
-            </p>
-          ) : (
-            <div className="max-w-full overflow-x-auto rounded-lg border border-gray-100 dark:border-white/[0.06]">
-            <Table>
-              <TableHeader className="border-b border-gray-100 dark:border-white/[0.05]">
-                <TableRow>
-                  <TableCell isHeader className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">
-                    코드
-                  </TableCell>
-                  <TableCell isHeader className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">
-                    이름
-                  </TableCell>
-                  <TableCell isHeader className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">
-                    상태
-                  </TableCell>
-                  <TableCell isHeader className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">
-                    기본
-                  </TableCell>
-                  <TableCell isHeader className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">
-                    도면번호
-                  </TableCell>
-                  <TableCell isHeader className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">
-                    설명
-                  </TableCell>
-                  <TableCell isHeader className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">
-                    생성 / 수정
-                  </TableCell>
-                  <TableCell isHeader className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">
-                    첨부
-                  </TableCell>
-                  {canManageItems ? (
-                    <TableCell isHeader className="px-5 py-3 text-right text-theme-xs font-medium text-gray-500 dark:text-gray-400">
-                      관리
-                    </TableCell>
-                  ) : null}
-                </TableRow>
-              </TableHeader>
-              <TableBody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
-                {revisions.map((r) => (
-                  <TableRow
-                    key={r.id}
-                    className="hover:bg-gray-50 dark:hover:bg-white/[0.03]"
-                  >
-                    <TableCell className="px-5 py-4 text-sm text-gray-800 dark:text-white/90">
-                      <code className="rounded bg-gray-200/80 px-1 py-0.5 text-theme-xs dark:bg-gray-700 dark:text-gray-100">
-                        {r.revisionCode}
-                      </code>
-                    </TableCell>
-                    <TableCell className="px-5 py-4 text-sm font-medium text-gray-800 dark:text-white/90">
-                      {r.revisionName}
-                    </TableCell>
-                    <TableCell className="px-5 py-4 text-sm text-gray-600 dark:text-gray-300">
-                      <span title={r.status}>{revisionStatusLabel(revisionStatusCodes, r.status)}</span>
-                    </TableCell>
-                    <TableCell className="px-5 py-4 text-sm">
-                      {r.isDefault ? (
-                        <Badge size="sm" color="success">
-                          기본
-                        </Badge>
-                      ) : (
-                        <span className="text-gray-400 dark:text-gray-500">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="px-5 py-4 text-sm text-gray-500 dark:text-gray-400">
-                      {r.drawingNo?.trim() ? r.drawingNo : (
-                        <span className="text-gray-400 dark:text-gray-500">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="max-w-[12rem] truncate px-5 py-4 text-sm text-gray-500 dark:text-gray-400">
-                      <span title={r.description ?? ""}>
-                        {r.description?.trim() ? r.description : (
-                          <span className="text-gray-400 dark:text-gray-500">—</span>
-                        )}
-                      </span>
-                    </TableCell>
-                    <TableCell className="whitespace-nowrap px-5 py-4 text-xs text-gray-500 dark:text-gray-400">
-                      {formatDt(r.createdAt)}
-                      <br />
-                      {formatDt(r.updatedAt)}
-                    </TableCell>
-                    <TableCell className="whitespace-nowrap px-5 py-4 text-sm">
-                      <button
-                        type="button"
-                        onClick={() => setFilesModalRevision(r)}
-                        className="text-theme-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
-                      >
-                        파일
-                      </button>
-                    </TableCell>
-                    {canManageItems ? (
-                      <TableCell className="px-5 py-4 text-right text-sm">
-                        <button
-                          type="button"
-                          onClick={() => openEditRevision(r)}
-                          className="mr-2 text-theme-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
-                        >
-                          수정
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setDeleteConflict(null);
-                            setDeleteTarget(r);
-                          }}
-                          className="text-theme-xs font-medium text-red-600 hover:underline dark:text-red-400"
-                        >
-                          삭제
-                        </button>
-                      </TableCell>
-                    ) : null}
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-            </div>
-          )}
-        </ComponentCard>
-      )}
+      {tab === "revisions" ? (
+        <ItemDetailRevisionsTab
+          revisions={revisions}
+          revLoading={revLoading}
+          revError={revError}
+          revisionStatusCodes={revisionStatusCodes}
+          canManageItems={canManageItems}
+          onOpenCreate={openCreateRevision}
+          onOpenEdit={openEditRevision}
+          onOpenFiles={setFilesModalRevision}
+          onRequestDelete={(r) => {
+            setDeleteConflict(null);
+            setDeleteTarget(r);
+          }}
+        />
+      ) : null}
 
-      {tab === "usage" && (
-        <ComponentCard title="사용처" desc="제품 정의·제품에서의 사용 내역">
-          {usageLoading ? (
-            <LoadingLottie message="사용처를 불러오는 중..." />
-          ) : usageError ? (
-            <p className="text-sm text-red-600 dark:text-red-400">
-              {isForbiddenError(usageError)
-                ? "사용처를 조회할 권한이 없습니다."
-                : usageError instanceof Error
-                  ? usageError.message
-                  : "조회에 실패했습니다."}
-            </p>
-          ) : usage.length === 0 ? (
-            <p className="text-theme-sm text-gray-500 dark:text-gray-400">
-              연결된 사용처가 없습니다.
-            </p>
-          ) : (
-            <div className="max-w-full overflow-x-auto rounded-lg border border-gray-100 dark:border-white/[0.06]">
-            <Table>
-              <TableHeader className="border-b border-gray-100 dark:border-white/[0.05]">
-                <TableRow>
-                  <TableCell isHeader className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">
-                    제품정의 코드
-                  </TableCell>
-                  <TableCell isHeader className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">
-                    제품정의명
-                  </TableCell>
-                  <TableCell isHeader className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">
-                    제품명
-                  </TableCell>
-                  <TableCell isHeader className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">
-                    역할
-                  </TableCell>
-                  <TableCell isHeader className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">
-                    리비전
-                  </TableCell>
-                  <TableCell isHeader className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">
-                    상태
-                  </TableCell>
-                  <TableCell isHeader className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">
-                    사용 위치
-                  </TableCell>
-                </TableRow>
-              </TableHeader>
-              <TableBody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
-                {usage.map((u: ItemUsageRow, idx: number) => (
-                  <TableRow
-                    key={idx}
-                    className="hover:bg-gray-50 dark:hover:bg-white/[0.03]"
-                  >
-                    <TableCell className="px-5 py-4 text-sm text-gray-500 dark:text-gray-400">
-                      {u.productDefinitionCode?.trim() ? (
-                        <code className="rounded bg-gray-200/80 px-1 py-0.5 text-theme-xs dark:bg-gray-700 dark:text-gray-100">
-                          {u.productDefinitionCode}
-                        </code>
-                      ) : (
-                        <span className="text-gray-400 dark:text-gray-500">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="px-5 py-4 text-sm font-medium text-gray-800 dark:text-white/90">
-                      {u.productDefinitionName?.trim() ? u.productDefinitionName : (
-                        <span className="font-normal text-gray-400 dark:text-gray-500">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="px-5 py-4 text-sm text-gray-800 dark:text-white/90">
-                      {u.productName?.trim() ? u.productName : (
-                        <span className="text-gray-400 dark:text-gray-500">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="px-5 py-4 text-sm text-gray-600 dark:text-gray-300">
-                      {u.itemRole?.trim() ? u.itemRole : (
-                        <span className="text-gray-400 dark:text-gray-500">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="px-5 py-4 text-sm text-gray-500 dark:text-gray-400">
-                      {u.revisionCode?.trim() ? (
-                        <code className="rounded bg-gray-200/80 px-1 py-0.5 text-theme-xs dark:bg-gray-700 dark:text-gray-100">
-                          {u.revisionCode}
-                        </code>
-                      ) : (
-                        <span className="text-gray-400 dark:text-gray-500">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="px-5 py-4 text-sm text-gray-600 dark:text-gray-300">
-                      {u.status?.trim() ? u.status : (
-                        <span className="text-gray-400 dark:text-gray-500">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="max-w-[14rem] truncate px-5 py-4 text-sm text-gray-500 dark:text-gray-400">
-                      <span title={String(u.usageLocation ?? "")}>
-                        {u.usageLocation?.trim() ? u.usageLocation : (
-                          <span className="text-gray-400 dark:text-gray-500">—</span>
-                        )}
-                      </span>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-            </div>
-          )}
-        </ComponentCard>
-      )}
+      {tab === "usage" ? (
+        <ItemDetailUsageTab
+          usage={usage}
+          usageLoading={usageLoading}
+          usageError={usageError}
+        />
+      ) : null}
       </div>
 
       <Modal
@@ -977,7 +621,7 @@ export default function ItemDetail() {
                   </span>
                   <div className="flex shrink-0 items-center gap-2">
                     <span className="text-theme-xs text-gray-500 dark:text-gray-400">
-                      {f.uploadedAt ? formatDt(f.uploadedAt) : ""}
+                      {f.uploadedAt ? formatItemDetailDt(f.uploadedAt) : ""}
                     </span>
                     <button
                       type="button"

@@ -8,6 +8,7 @@ import SegmentedControl from "../components/common/SegmentedControl";
 import ApprovalDetailContent from "../components/approval/ApprovalDetailContent";
 import { DataListSearchInput } from "../components/list";
 import Badge from "../components/ui/badge/Badge";
+import { badgeColorFromApprovalInboxLabel } from "../lib/badgeStatusColor";
 import Button from "../components/ui/button/Button";
 import { Modal } from "../components/ui/modal";
 import {
@@ -121,15 +122,6 @@ const INBOX_SEGMENT_OPTIONS = (Object.keys(TAB_LABELS) as InboxTab[]).map(
     label: TAB_LABELS[key],
   })
 );
-
-function statusBadgeColor(
-  status: string
-): "warning" | "success" | "error" | "primary" {
-  if (status.includes("결재중") || status.includes("임시")) return "warning";
-  if (status.includes("완료") || status.includes("승인")) return "success";
-  if (status.includes("반려")) return "error";
-  return "primary";
-}
 
 export default function ApprovalList() {
   const [tab, setTab] = useState<InboxTab>("pending");
@@ -311,7 +303,7 @@ export default function ApprovalList() {
                       {row.draftDate}
                     </TableCell>
                     <TableCell>
-                      <Badge size="sm" color={statusBadgeColor(row.approvalStatus)}>
+                      <Badge size="sm" color={badgeColorFromApprovalInboxLabel(row.approvalStatus)}>
                         {row.approvalStatus}
                       </Badge>
                     </TableCell>
