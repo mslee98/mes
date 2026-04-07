@@ -39,7 +39,7 @@ export function ListPageLayout({
       <div ref={contentRef} className="relative z-[100]">
         {/* 툴바: 검색 + 검색 옵션 버튼 + 필터 등 */}
         <div className="flex flex-col items-stretch gap-3 border-b border-gray-100 pb-4 dark:border-white/[0.05] md:flex-row md:items-center md:justify-between md:gap-4">
-          {toolbar}
+          <div className="w-full min-w-0 md:flex-1">{toolbar}</div>
         </div>
 
         {/* 검색 옵션 (코랩스) */}

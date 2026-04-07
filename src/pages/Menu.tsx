@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import {
@@ -15,6 +16,7 @@ import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import ComponentCard from "../components/common/ComponentCard";
 import ConfirmModal from "../components/common/ConfirmModal";
 import ListPageLoading from "../components/common/ListPageLoading";
+import SegmentedControl from "../components/common/SegmentedControl";
 import MenuDetailPanel, {
   type MenuFormValues,
 } from "../components/menu/MenuDetailPanel";
@@ -137,6 +139,7 @@ function getChangedMenuOrders(previousItems: MenuItem[], nextItems: MenuItem[]) 
 }
 
 export default function Menu() {
+  const navigate = useNavigate();
   const { accessToken, isLoading: isAuthLoading } = useAuth();
   const queryClient = useQueryClient();
   const {
@@ -443,35 +446,19 @@ export default function Menu() {
         </ComponentCard>
       ) : (
         <>
-          <nav
-            className="flex flex-wrap border-b border-gray-200 dark:border-gray-800 text-center text-sm font-medium"
-            aria-label="메뉴 관리 탭"
-          >
-            <button
-              type="button"
-              onClick={() => setMenuActiveTab("tree")}
-              className={`inline-block rounded-t-lg px-4 py-4 transition-colors ${
-                menuActiveTab === "tree"
-                  ? "bg-brand-50 text-brand-600 dark:bg-brand-500/10 dark:text-brand-400"
-                  : "text-gray-500 hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-white/90"
-              }`}
-            >
-              메뉴 트리
-            </button>
-            <button
-              type="button"
-              onClick={() => setMenuActiveTab("roleMenus")}
-              className={`inline-block rounded-t-lg px-4 py-4 transition-colors ${
-                menuActiveTab === "roleMenus"
-                  ? "bg-brand-50 text-brand-600 dark:bg-brand-500/10 dark:text-brand-400"
-                  : "text-gray-500 hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-white/90"
-              }`}
-            >
-              역할별 메뉴 연결
-            </button>
-          </nav>
+          <SegmentedControl<"tree" | "roleMenus">
+            ariaLabel="메뉴 관리 탭"
+            value={menuActiveTab}
+            onChange={setMenuActiveTab}
+            equalWidth
+            className="max-w-md mb-6"
+            options={[
+              { value: "tree", label: "메뉴 트리" },
+              { value: "roleMenus", label: "역할별 메뉴 연결" },
+            ]}
+          />
           {menuActiveTab === "tree" && (
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.3fr)_minmax(340px,0.9fr)] rounded-b-xl border border-t-0 border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-white/[0.03]">
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.3fr)_minmax(340px,0.9fr)] rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-white/[0.03]">
           <ComponentCard
             title="메뉴 트리"
             desc="드래그해서 정렬 순서와 상하위 관계를 조정할 수 있습니다."
@@ -539,7 +526,7 @@ export default function Menu() {
         </div>
           )}
           {menuActiveTab === "roleMenus" && (
-            <div className="rounded-b-xl border border-t-0 border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-white/[0.03]">
+            <div className="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-white/[0.03]">
               <RoleMenuCard accessToken={accessToken} />
             </div>
           )}
@@ -549,6 +536,10 @@ export default function Menu() {
       <ConfirmModal
         isOpen={isDeleteModalOpen}
         onClose={() => setIsDeleteModalOpen(false)}
+        onCloseButtonClick={() => {
+          setIsDeleteModalOpen(false);
+          navigate(-1);
+        }}
         onConfirm={handleConfirmDelete}
         title="메뉴 삭제"
         message={

@@ -26,9 +26,6 @@ export interface ItemMasterListItem {
   itemCode: string;
   itemName: string;
   itemType: string;
-  parentItemId: number | null;
-  parentItemCode?: string | null;
-  parentItemName?: string | null;
   revisionCount: number;
   defaultRevisionId?: number | null;
   defaultRevisionCode?: string | null;
@@ -72,9 +69,6 @@ export interface ItemMasterDetail {
   itemCode: string;
   itemName: string;
   itemType: string;
-  parentItemId: number | null;
-  parentItemCode?: string | null;
-  parentItemName?: string | null;
   description?: string | null;
   spec?: string | null;
   isActive: boolean;
@@ -98,7 +92,6 @@ export interface ItemMasterCreatePayload {
   itemCode: string;
   itemName: string;
   itemType: string;
-  parentItemId?: number | null;
   description?: string | null;
   isActive?: boolean;
 }
@@ -106,7 +99,6 @@ export interface ItemMasterCreatePayload {
 export interface ItemMasterUpdatePayload {
   itemName: string;
   itemType: string;
-  parentItemId?: number | null;
   description?: string | null;
   isActive: boolean;
 }
@@ -153,18 +145,11 @@ function num(o: unknown, fallback = 0): number {
 
 function mapListItem(raw: unknown): ItemMasterListItem {
   const o = raw as Record<string, unknown>;
-  const parentId = o.parentItemId ?? o.parent_id;
   return {
     id: num(o.id),
     itemCode: String(o.itemCode ?? o.code ?? ""),
     itemName: String(o.itemName ?? o.name ?? ""),
     itemType: String(o.itemType ?? o.item_type ?? "").toUpperCase(),
-    parentItemId:
-      parentId == null || parentId === "" ? null : Number(parentId) || null,
-    parentItemCode:
-      o.parentItemCode != null ? String(o.parentItemCode) : null,
-    parentItemName:
-      o.parentItemName != null ? String(o.parentItemName) : null,
     revisionCount: num(o.revisionCount ?? o.revision_count ?? 0),
     defaultRevisionId:
       o.defaultRevisionId != null
@@ -223,19 +208,12 @@ function mapRevision(raw: unknown): ItemRevision {
 
 function mapDetail(raw: unknown): ItemMasterDetail {
   const o = raw as Record<string, unknown>;
-  const parentId = o.parentItemId ?? o.parent_id;
   const revs = o.revisions;
   return {
     id: num(o.id),
     itemCode: String(o.itemCode ?? o.code ?? ""),
     itemName: String(o.itemName ?? o.name ?? ""),
     itemType: String(o.itemType ?? o.item_type ?? "").toUpperCase(),
-    parentItemId:
-      parentId == null || parentId === "" ? null : Number(parentId) || null,
-    parentItemCode:
-      o.parentItemCode != null ? String(o.parentItemCode) : null,
-    parentItemName:
-      o.parentItemName != null ? String(o.parentItemName) : null,
     description:
       o.description != null ? String(o.description) : null,
     spec: o.spec != null ? String(o.spec) : null,
@@ -327,7 +305,6 @@ export async function createItemMaster(
       itemCode: body.itemCode.trim(),
       itemName: body.itemName.trim(),
       itemType: body.itemType.trim().toUpperCase(),
-      parentItemId: body.parentItemId ?? null,
       description: body.description?.trim() || null,
       isActive: body.isActive !== false,
     }),
@@ -351,7 +328,6 @@ export async function updateItemMaster(
     body: JSON.stringify({
       itemName: body.itemName.trim(),
       itemType: body.itemType.trim().toUpperCase(),
-      parentItemId: body.parentItemId ?? null,
       description: body.description?.trim() || null,
       isActive: body.isActive,
     }),

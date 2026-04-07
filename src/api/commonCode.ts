@@ -47,6 +47,27 @@ export const COMMON_CODE_GROUP_PURCHASE_ORDER_STATUS = "PURCHASE_ORDER_STATUS";
 export const COMMON_CODE_GROUP_DELIVERY_STATUS = "DELIVERY_STATUS";
 /** 제품 분류 — `GET /api/common-codes/groups/PRODUCT_CATEGORY/codes` */
 export const COMMON_CODE_GROUP_PRODUCT_CATEGORY = "PRODUCT_CATEGORY";
+/**
+ * 사용 여부(활성/비활성) — `GET /api/common-codes/groups/USE_STATUS/codes`
+ * (별칭: `GET /api/code-groups/USE_STATUS/codes` — 동일 응답)
+ */
+export const COMMON_CODE_GROUP_USE_STATUS = "USE_STATUS";
+
+/** 백엔드와 맞춘 코드 값(API 미조회·폴백 시 비교·저장용) */
+export const USE_STATUS_CODE_ACTIVE = "ACTIVE";
+export const USE_STATUS_CODE_INACTIVE = "INACTIVE";
+
+/**
+ * 공통코드 조회 실패·빈 응답 시 셀렉트용 폴백.
+ * `name`은 서버와 동일하게 유지하는 것이 좋음.
+ */
+export const USE_STATUS_FALLBACK_SELECT_OPTIONS: {
+  value: string;
+  label: string;
+}[] = [
+  { value: USE_STATUS_CODE_ACTIVE, label: "활성" },
+  { value: USE_STATUS_CODE_INACTIVE, label: "비활성" },
+];
 /** 발주 목록 등 승인 상태 필터 — `GET /api/common-codes/groups/APPROVAL_STATUS/codes` */
 export const COMMON_CODE_GROUP_APPROVAL_STATUS = "APPROVAL_STATUS";
 /** 품목 마스터 유형 — `GET /api/common-codes/groups/ITEM_TYPE/codes` */
@@ -82,8 +103,36 @@ export function labelForCommonCode(
 ): string {
   const c = String(code ?? "").trim();
   if (!c) return "—";
-  const hit = items.find((x) => x.code === c && x.isActive !== false);
+  const upper = c.toUpperCase();
+  const hit = items.find(
+    (x) =>
+      String(x.code).trim().toUpperCase() === upper && x.isActive !== false
+  );
   return (hit?.name ?? "").trim() || c;
+}
+
+/**
+ * USE_STATUS 그룹용 셀렉트 옵션. API에 항목이 있으면 `name` 표시, 없으면 폴백 옵션.
+ * 현재 폼 값이 목록에 없을 때(구 데이터 등) 한 줄 추가.
+ */
+export function buildUseStatusSelectOptions(
+  items: CommonCodeItem[],
+  currentCode?: string | null
+): { value: string; label: string }[] {
+  const fromApi = commonCodesToSelectOptions(items).map((o) => ({
+    value: String(o.value).trim().toUpperCase(),
+    label: o.label,
+  }));
+  const base =
+    fromApi.length > 0
+      ? fromApi
+      : [...USE_STATUS_FALLBACK_SELECT_OPTIONS];
+  const c = String(currentCode ?? "").trim().toUpperCase();
+  if (!c || base.some((o) => o.value === c)) {
+    return base;
+  }
+  const label = labelForCommonCode(items, c);
+  return [{ value: c, label: label === "—" ? c : label }, ...base];
 }
 
 function authHeaders(accessToken: string) {

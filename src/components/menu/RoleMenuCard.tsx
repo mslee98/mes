@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { getRoles, type RoleItem } from "../../api/role";
@@ -30,6 +31,7 @@ export interface RoleMenuCardProps {
 }
 
 export default function RoleMenuCard({ accessToken }: RoleMenuCardProps) {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [selectedRoleId, setSelectedRoleId] = useState<number | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<RoleMenuAssignment | null>(null);
@@ -323,6 +325,10 @@ export default function RoleMenuCard({ accessToken }: RoleMenuCardProps) {
       <ConfirmModal
         isOpen={deleteTarget != null}
         onClose={() => setDeleteTarget(null)}
+        onCloseButtonClick={() => {
+          setDeleteTarget(null);
+          navigate(-1);
+        }}
         onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
         title="연결 삭제"
         message={

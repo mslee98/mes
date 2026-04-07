@@ -53,6 +53,7 @@ import {
   getCommonCodesByGroup,
   COMMON_CODE_GROUP_PURCHASE_ORDER_TYPE,
   COMMON_CODE_GROUP_PURCHASE_ORDER_STATUS,
+  COMMON_CODE_GROUP_DELIVERY_STATUS,
   COMMON_CODE_GROUP_COUNTRY,
 } from "../api/commonCode";
 import { partnerSelectLabel } from "../lib/partnerDisplay";
@@ -352,6 +353,13 @@ export default function OrderDetail() {
     enabled: !!accessToken && !isAuthLoading,
   });
 
+  const { data: deliveryStatusCodes = [] } = useQuery({
+    queryKey: ["commonCodes", COMMON_CODE_GROUP_DELIVERY_STATUS],
+    queryFn: () =>
+      getCommonCodesByGroup(COMMON_CODE_GROUP_DELIVERY_STATUS, accessToken!),
+    enabled: !!accessToken && !isAuthLoading,
+  });
+
   /** 팀장 후보: 전 사용자 + nested `userOrganizations` (다른 화면과 동일 키로 캐시 공유) */
   const { data: users = [], isLoading: isUsersLoading } = useQuery({
     queryKey: ["users"],
@@ -497,6 +505,16 @@ export default function OrderDetail() {
     return hit?.name || code || "-";
   }, [order, purchaseOrderStatusCodes]);
 
+  const deliveryStatusDisplayName = useCallback(
+    (statusCode: string | null | undefined) => {
+      const code = String(statusCode ?? "").trim();
+      if (!code) return "-";
+      const hit = deliveryStatusCodes.find((item) => item.code === code);
+      return hit?.name || code;
+    },
+    [deliveryStatusCodes]
+  );
+
   /** `currentApprovalRequest`·발주 status(PO_CLOSED) 기준 */
   const approvalPhaseLabel = useMemo(() => {
     if (!order) return "-";
@@ -512,6 +530,21 @@ export default function OrderDetail() {
       return hint !== "—" ? hint : "결재 진행 중";
     }
     return "미상신";
+  }, [order]);
+
+  const currentApprovalAssigneeLabel = useMemo(() => {
+    if (!order) return "-";
+    const d = order as PurchaseOrderDetail;
+    const req = d.currentApprovalRequest;
+    if (!req) return "-";
+    const lines = Array.isArray(req.lines) ? req.lines : [];
+    const pending = lines.find(
+      (line) =>
+        String(line.status ?? line.lineStatus ?? "")
+          .trim()
+          .toUpperCase() === "PENDING"
+    );
+    return pending?.approver?.name?.trim() || "-";
   }, [order]);
 
   /**
@@ -912,10 +945,6 @@ export default function OrderDetail() {
                       현재 결재 요청
                     </dt>
                     <dd className="min-w-0 font-medium text-gray-900 dark:text-gray-100">
-                      <span className="font-mono text-theme-xs">
-                        #{po.currentApprovalRequest.id}
-                      </span>
-                      {" · "}
                       {approvalRequestStatusLabel(
                         po.currentApprovalRequest.status
                       )}
@@ -925,6 +954,16 @@ export default function OrderDetail() {
                           · {po.currentApprovalRequest.currentStep}차 처리 구간
                         </span>
                       ) : null}
+                    </dd>
+                  </div>
+                ) : null}
+                {po.currentApprovalRequest ? (
+                  <div className="flex items-baseline gap-1.5">
+                    <dt className="shrink-0 text-gray-500 dark:text-gray-400">
+                      현재 결재자
+                    </dt>
+                    <dd className="font-medium text-gray-900 dark:text-gray-100">
+                      {currentApprovalAssigneeLabel}
                     </dd>
                   </div>
                 ) : null}
@@ -1385,7 +1424,7 @@ export default function OrderDetail() {
                     </span>
                     {d.status && (
                       <Badge size="sm" color="primary">
-                        {d.status}
+                        {deliveryStatusDisplayName(d.status)}
                       </Badge>
                     )}
                   </div>
@@ -1407,16 +1446,8 @@ export default function OrderDetail() {
         ) : (
           <ComponentCard title="결재 요청">
             <PageNotice variant="neutral" className="text-theme-sm">
-              아직 이 발주에 대한{" "}
-              <code className="rounded bg-gray-200/80 px-1 dark:bg-gray-700">
-                approval_requests
-              </code>{" "}
-              레코드가 없습니다. 헤더의 <strong>상신</strong>으로 결재선을 지정하면 요청이
-              생성되고, 이후 단계는{" "}
-              <code className="rounded bg-gray-200/80 px-0.5 dark:bg-gray-700">
-                approval_lines
-              </code>
-              의 <strong>PENDING</strong> / <strong>WAITING</strong> 상태로 표시됩니다.
+              아직 결재 요청이 없습니다. 헤더의 <strong>상신</strong> 버튼에서 결재선을 지정해 결재를 시작할 수
+              있습니다.
             </PageNotice>
           </ComponentCard>
         )}
@@ -1424,16 +1455,14 @@ export default function OrderDetail() {
         {canShowSubmitButton ? (
           <ComponentCard
             title="결재"
-            desc="발주 본문 저장과 결재 상신은 분리됩니다. 상신 시 approval_requests 1건과 approval_lines 다건이 생성됩니다."
+            desc="발주 정보 저장과 결재 상신은 별도 단계로 진행됩니다."
             collapsible
             defaultCollapsed={true}
           >
             <PageNotice variant="neutral" className="mb-0 text-theme-sm">
               <strong>결재선</strong>·결재 제목·상신 메모는 헤더의 <strong>상신</strong>으로 열리는
               모달 오른쪽 패널에서 지정합니다. 반려 후에는 발주를 수정한 뒤{" "}
-              <strong>새 결재 요청</strong>(새 id)으로 재상신합니다. 후보 결재자는{" "}
-              <code className="rounded bg-gray-200/80 px-1 dark:bg-gray-700">GET /users</code>
-              기준입니다.
+              <strong>다시 상신</strong>할 수 있습니다.
             </PageNotice>
           </ComponentCard>
         ) : null}
@@ -1450,7 +1479,7 @@ export default function OrderDetail() {
         className={
           approvalModalOpen && modalApprovalAction === "submit"
             ? "mx-2 flex max-h-[min(92vh,100dvh)] w-[calc(100%-1rem)] max-w-7xl flex-col overflow-hidden p-0 sm:mx-4"
-            : "mx-4 w-[calc(100%-2rem)] max-w-5xl p-6 sm:p-8"
+            : "mx-4 flex max-h-[min(88vh,100dvh)] w-[calc(100%-2rem)] max-w-5xl flex-col overflow-hidden p-0"
         }
       >
         {approvalModalOpen && modalApprovalAction === "submit" ? (
@@ -1561,113 +1590,116 @@ export default function OrderDetail() {
           </>
         ) : (
           <>
-            {po.currentApprovalRequest ? (
-              <div className="mb-4 flex max-h-[min(50vh,22rem)] flex-col overflow-hidden rounded-lg bg-gray-50/90 dark:bg-gray-950/65">
-                <div className="shrink-0 border-b border-gray-200 bg-white px-3 py-2.5 dark:border-gray-700 dark:bg-gray-900">
-                  <h2 className="text-sm font-semibold text-gray-900 dark:text-white py-2.5">
-                    <ApprovalRequestCompactSummary
-                      request={po.currentApprovalRequest}
-                    />
-                  </h2>
-                </div>
-                <div className="min-h-0 flex-1 border border-gray-200 dark:border-gray-700 overflow-y-auto overscroll-y-contain">
-                  <div className="min-h-0 flex-1 overflow-y-auto p-3">
-                    <ApprovalRequestDetailBody
-                      request={po.currentApprovalRequest}
-                      orderId={id}
-                      orderNo={po.orderNo}
-                      compact
-                      omitCompactSummary
-                    />
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 sm:py-6">
+              {po.currentApprovalRequest ? (
+                <div className="mb-4 flex max-h-[min(62vh,36rem)] flex-col overflow-hidden rounded-lg bg-gray-50/90 dark:bg-gray-950/65">
+                  <div className="shrink-0 border-b border-gray-200 bg-white px-3 py-2.5 dark:border-gray-700 dark:bg-gray-900">
+                    <h2 className="text-sm font-semibold text-gray-900 dark:text-white py-2.5">
+                      <ApprovalRequestCompactSummary
+                        request={po.currentApprovalRequest}
+                      />
+                    </h2>
+                  </div>
+                  <div className="min-h-0 flex-1 border border-gray-200 dark:border-gray-700 overflow-y-auto overscroll-y-contain">
+                    <div className="min-h-0 flex-1 overflow-y-auto p-3">
+                      <ApprovalRequestDetailBody
+                        request={po.currentApprovalRequest}
+                        orderId={id}
+                        orderNo={po.orderNo}
+                        compact
+                        omitCompactSummary
+                      />
+                    </div>
                   </div>
                 </div>
-              </div>
-            ) : null}
-            <h3 className="pr-10 text-lg font-semibold text-gray-900 dark:text-white">
-              발주 결재
-            </h3>
-            <p className="mt-1 text-theme-sm text-gray-500 dark:text-gray-400">
-              {po.orderNo} · 결재선에서 <strong className="text-gray-700 dark:text-gray-300">PENDING</strong>인
-              단계를 승인하면 다음 단계가 열립니다. 반려 시 요청이 종료되며, 발주 수정 후 재상신할 수 있습니다. 최종
-              승인 시 발주가 종결됩니다.
-            </p>
-            <ApprovalModalAlternateAction
-              show={showSubmitTabInModal}
-              actionLabel="상신 요청으로 바꾸기"
-              onAction={() => setApprovalAction("submit")}
-            />
-            <div className="mt-4">
-              <Label htmlFor="approval-comment-approve">의견 (선택)</Label>
-              <div className="mt-1">
-                <TextArea
-                  id="approval-comment-approve"
-                  rows={4}
-                  value={approvalComment}
-                  onChange={setApprovalComment}
-                  placeholder="승인·반려 시 전달할 메모가 있으면 입력하세요."
-                />
+              ) : null}
+              <h3 className="pr-10 text-lg font-semibold text-gray-900 dark:text-white">
+                발주 결재
+              </h3>
+              <p className="mt-1 text-theme-sm text-gray-500 dark:text-gray-400">
+                {po.orderNo} · 현재 처리 대기인 단계를 승인하면 다음 단계로 진행됩니다. 반려 시 요청이 종료되며,
+                발주를 수정한 뒤 다시 상신할 수 있습니다. 최종 승인까지 완료되면 발주가 종결됩니다.
+              </p>
+              <ApprovalModalAlternateAction
+                show={showSubmitTabInModal}
+                actionLabel="상신 요청으로 바꾸기"
+                onAction={() => setApprovalAction("submit")}
+              />
+              <div className="mt-4">
+                <Label htmlFor="approval-comment-approve">의견 (선택)</Label>
+                <div className="mt-1">
+                  <TextArea
+                    id="approval-comment-approve"
+                    rows={4}
+                    value={approvalComment}
+                    onChange={setApprovalComment}
+                    placeholder="승인·반려 시 전달할 메모가 있으면 입력하세요."
+                  />
+                </div>
               </div>
             </div>
-            <div className="mt-6 flex flex-wrap justify-end gap-2">
-              <button
-                type="button"
-                onClick={closeApprovalModal}
-                className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300"
-              >
-                취소
-              </button>
-              {modalApprovalAction === "approve" ? (
+            <div className="shrink-0 border-t border-gray-200 bg-white px-4 py-4 dark:border-gray-800 dark:bg-gray-900 sm:px-6 sm:py-5">
+              <div className="flex flex-wrap justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => setRejectConfirmOpen(true)}
-                  disabled={
-                    rejectConfirmOpen ||
-                    rejectApprovalMutation.isPending ||
-                    approvalMutation.isPending ||
-                    isApprovalSubmitBlocked
-                  }
-                  className="rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 dark:border-red-900/60 dark:bg-gray-900 dark:text-red-400 dark:hover:bg-red-500/10"
+                  onClick={closeApprovalModal}
+                  className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300"
                 >
-                  반려하기
+                  취소
                 </button>
-              ) : null}
-              <button
-                type="button"
-                onClick={() => {
-                  if (modalApprovalAction === "submit") {
-                    if (isUsersLoading) {
-                      toast.error("사용자 목록을 불러오는 중입니다. 잠시 후 다시 시도하세요.");
-                      return;
+                {modalApprovalAction === "approve" ? (
+                  <button
+                    type="button"
+                    onClick={() => setRejectConfirmOpen(true)}
+                    disabled={
+                      rejectConfirmOpen ||
+                      rejectApprovalMutation.isPending ||
+                      approvalMutation.isPending ||
+                      isApprovalSubmitBlocked
                     }
-                    const lines = buildApprovalLinesFromDraft(approvalLineDraftRows);
-                    if (lines.length === 0) {
-                      toast.error("상신할 결재자를 한 명 이상 선택하세요.");
+                    className="rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 dark:border-red-900/60 dark:bg-gray-900 dark:text-red-400 dark:hover:bg-red-500/10"
+                  >
+                    반려하기
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (modalApprovalAction === "submit") {
+                      if (isUsersLoading) {
+                        toast.error("사용자 목록을 불러오는 중입니다. 잠시 후 다시 시도하세요.");
+                        return;
+                      }
+                      const lines = buildApprovalLinesFromDraft(approvalLineDraftRows);
+                      if (lines.length === 0) {
+                        toast.error("상신할 결재자를 한 명 이상 선택하세요.");
+                        return;
+                      }
+                      approvalMutation.mutate({
+                        action: "submit",
+                        comment: approvalComment,
+                        firstApproverUserId: lines[0]!.approverUserId,
+                        title: approvalSubmitTitle.trim() || null,
+                        remark: approvalSubmitRemark.trim() || null,
+                        lines,
+                      });
                       return;
                     }
                     approvalMutation.mutate({
-                      action: "submit",
+                      action: modalApprovalAction,
                       comment: approvalComment,
-                      firstApproverUserId: lines[0]!.approverUserId,
-                      title: approvalSubmitTitle.trim() || null,
-                      remark: approvalSubmitRemark.trim() || null,
-                      lines,
                     });
-                    return;
-                  }
-                  approvalMutation.mutate({
-                    action: modalApprovalAction,
-                    comment: approvalComment,
-                  });
-                }}
-                disabled={approvalMutation.isPending || isApprovalSubmitBlocked}
-                className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white hover:bg-brand-600 disabled:opacity-50"
-              >
-                {approvalMutation.isPending
-                  ? "처리 중..."
-                  : modalApprovalAction === "submit"
-                    ? "상신하기"
-                    : "승인하기"}
-              </button>
+                  }}
+                  disabled={approvalMutation.isPending || isApprovalSubmitBlocked}
+                  className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white hover:bg-brand-600 disabled:opacity-50"
+                >
+                  {approvalMutation.isPending
+                    ? "처리 중..."
+                    : modalApprovalAction === "submit"
+                      ? "상신하기"
+                      : "승인하기"}
+                </button>
+              </div>
             </div>
           </>
         )}

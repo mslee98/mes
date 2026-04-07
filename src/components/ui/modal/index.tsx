@@ -7,6 +7,8 @@ interface ModalProps {
   children: React.ReactNode;
   showCloseButton?: boolean; // New prop to control close button visibility
   isFullscreen?: boolean; // Default to false for backwards compatibility
+  /** 지정 시 우측 X 버튼만 이 콜백 사용. 배경 클릭·Esc는 계속 `onClose` */
+  onCloseButtonClick?: () => void;
 }
 
 export const Modal: React.FC<ModalProps> = ({
@@ -16,6 +18,7 @@ export const Modal: React.FC<ModalProps> = ({
   className,
   showCloseButton = true, // Default to true for backwards compatibility
   isFullscreen = false,
+  onCloseButtonClick,
 }) => {
   const modalRef = useRef<HTMLDivElement>(null);
 
@@ -49,6 +52,8 @@ export const Modal: React.FC<ModalProps> = ({
 
   if (!isOpen) return null;
 
+  const handleCloseButtonClick = onCloseButtonClick ?? onClose;
+
   const contentClasses = isFullscreen
     ? "w-full h-full"
     : "relative w-full rounded-3xl border border-gray-200 bg-white shadow-theme-lg dark:border-gray-800 dark:bg-gray-900";
@@ -70,7 +75,7 @@ export const Modal: React.FC<ModalProps> = ({
           <button
             type="button"
             aria-label="닫기"
-            onClick={onClose}
+            onClick={handleCloseButtonClick}
             className="absolute right-3 top-3 z-999 flex h-9.5 w-9.5 items-center justify-center rounded-full bg-gray-100 text-gray-400 transition-colors hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white sm:right-6 sm:top-6 sm:h-11 sm:w-11"
           >
             <svg

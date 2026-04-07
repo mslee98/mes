@@ -75,6 +75,10 @@ export interface ProductDefinition {
   effectiveTo?: string | null;
   isDefault?: boolean;
   product?: RepresentativeProduct;
+  /** 연결된 하우징 템플릿 (선택) */
+  housingTemplateId?: number | null;
+  housingTemplateCode?: string | null;
+  housingTemplateName?: string | null;
 }
 
 export interface ProductDefinitionCandidatesResultDto {
@@ -115,9 +119,11 @@ export interface CreateProductDefinitionPayload {
   effectiveFrom?: string | null;
   effectiveTo?: string | null;
   remark?: string | null;
+  housingTemplateId?: number | null;
 }
 
-export type UpdateProductDefinitionPayload = Partial<CreateProductDefinitionPayload>;
+export type UpdateProductDefinitionPayload =
+  Partial<CreateProductDefinitionPayload>;
 
 export interface CreateDefinitionItemRevisionPayload {
   itemRevisionId: number;
@@ -209,7 +215,17 @@ export function filterProductDefinitionsByOrderType(
 export function productDefinitionSelectLabel(d: ProductDefinition): string {
   const base = (d.name || d.code || `#${d.id}`).trim();
   const v = d.version != null ? String(d.version).trim() : "";
-  return v ? `${base} · ${v}` : base;
+  const core = v ? `${base} · ${v}` : base;
+  const htCode = (d.housingTemplateCode ?? "").trim();
+  const htName = (d.housingTemplateName ?? "").trim();
+  if (htCode || htName) {
+    const ht =
+      htCode && htName && htCode !== htName
+        ? `${htName} (${htCode})`
+        : htCode || htName;
+    return `${core} · 하우징: ${ht}`;
+  }
+  return core;
 }
 
 function normalizeList<T>(data: unknown): T[] {
@@ -228,6 +244,36 @@ function mapStatusToIsActive(
   if (s === "DRAFT" || s === "OBSOLETE" || s === "INACTIVE" || s === "ARCHIVED")
     return false;
   return undefined;
+}
+
+function housingTemplateRefsFromRaw(o: Record<string, unknown>): Pick<
+  ProductDefinition,
+  "housingTemplateId" | "housingTemplateCode" | "housingTemplateName"
+> {
+  const hid = o.housingTemplateId ?? o.housing_template_id;
+  const n =
+    hid == null || hid === ""
+      ? null
+      : typeof hid === "number"
+        ? hid
+        : Number(hid);
+  const housingTemplateId =
+    n != null && Number.isFinite(n) && n > 0 ? n : null;
+  const codeRaw = o.housingTemplateCode ?? o.housing_template_code;
+  const nameRaw = o.housingTemplateName ?? o.housing_template_name;
+  const housingTemplateCode =
+    codeRaw == null || codeRaw === ""
+      ? null
+      : typeof codeRaw === "string"
+        ? codeRaw.trim() || null
+        : String(codeRaw).trim() || null;
+  const housingTemplateName =
+    nameRaw == null || nameRaw === ""
+      ? null
+      : typeof nameRaw === "string"
+        ? nameRaw.trim() || null
+        : String(nameRaw).trim() || null;
+  return { housingTemplateId, housingTemplateCode, housingTemplateName };
 }
 
 /** 상세 내장 definitions[] · 후보 요약 등 */
@@ -292,6 +338,7 @@ export function mapDefinitionSummary(raw: unknown): ProductDefinition {
       typeof ef === "string" ? ef : ef != null ? String(ef) : null,
     effectiveTo: typeof et === "string" ? et : et != null ? String(et) : null,
     isDefault: typeof o.isDefault === "boolean" ? o.isDefault : undefined,
+    ...housingTemplateRefsFromRaw(o),
   };
 }
 
@@ -453,6 +500,7 @@ function mapDefinition(raw: unknown): ProductDefinition {
       productRaw && typeof productRaw === "object"
         ? mapProduct(productRaw)
         : undefined,
+    ...housingTemplateRefsFromRaw(o),
   };
 }
 
@@ -570,6 +618,13 @@ function buildCreateDefinitionJson(
   if (body.remark != null && body.remark.trim() !== "") {
     payload.remark = body.remark.trim();
   }
+  if (
+    body.housingTemplateId != null &&
+    Number.isFinite(body.housingTemplateId) &&
+    body.housingTemplateId > 0
+  ) {
+    payload.housingTemplateId = body.housingTemplateId;
+  }
   return payload;
 }
 
@@ -623,6 +678,17 @@ function buildPatchDefinitionJson(
   if (body.remark !== undefined) {
     payload.remark =
       body.remark == null || body.remark.trim() === "" ? null : body.remark.trim();
+  }
+  if (body.housingTemplateId !== undefined) {
+    if (
+      body.housingTemplateId != null &&
+      Number.isFinite(body.housingTemplateId) &&
+      body.housingTemplateId > 0
+    ) {
+      payload.housingTemplateId = body.housingTemplateId;
+    } else {
+      payload.housingTemplateId = null;
+    }
   }
   return payload;
 }

@@ -342,6 +342,12 @@ export default function ProductDetail() {
                     isHeader
                     className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400"
                   >
+                    하우징 템플릿
+                  </TableCell>
+                  <TableCell
+                    isHeader
+                    className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400"
+                  >
                     구분
                   </TableCell>
                   <TableCell
@@ -387,6 +393,20 @@ export default function ProductDetail() {
                     <TableCell className="px-5 py-4 text-sm text-gray-500 dark:text-gray-400">
                       {d.projectCode ? (
                         <code>{d.projectCode}</code>
+                      ) : (
+                        "—"
+                      )}
+                    </TableCell>
+                    <TableCell className="max-w-[12rem] px-5 py-4 text-sm text-gray-500 dark:text-gray-400">
+                      {d.housingTemplateId != null && d.housingTemplateId > 0 ? (
+                        <span className="line-clamp-2" title={d.housingTemplateName ?? undefined}>
+                          {d.housingTemplateName ?? "—"}
+                          {d.housingTemplateCode ? (
+                            <span className="block text-theme-xs">
+                              <code>{d.housingTemplateCode}</code>
+                            </span>
+                          ) : null}
+                        </span>
                       ) : (
                         "—"
                       )}

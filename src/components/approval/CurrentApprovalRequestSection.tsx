@@ -46,27 +46,33 @@ const metaDtClass =
 const metaDdClass =
   "mt-0.5 text-sm font-medium text-gray-900 dark:text-gray-100";
 
+function toStatusCode(status: string | undefined): string {
+  return String(status ?? "").trim().toUpperCase();
+}
+
+function elapsedSinceLabel(dateTime: string | null | undefined): string {
+  const raw = String(dateTime ?? "").trim();
+  if (!raw) return "—";
+  const startedAt = new Date(raw);
+  if (Number.isNaN(startedAt.getTime())) return "—";
+  const nowMs = Date.now();
+  const diffMs = Math.max(0, nowMs - startedAt.getTime());
+  const dayMs = 24 * 60 * 60 * 1000;
+  const hourMs = 60 * 60 * 1000;
+  const diffDays = Math.floor(diffMs / dayMs);
+  if (diffDays >= 1) return `${diffDays}일 경과`;
+  const diffHours = Math.floor(diffMs / hourMs);
+  if (diffHours >= 1) return `${diffHours}시간 경과`;
+  const diffMinutes = Math.floor(diffMs / (60 * 1000));
+  if (diffMinutes >= 1) return `${diffMinutes}분 경과`;
+  return "방금 전";
+}
+
 function ApproverCell({ line }: { line: ApprovalRequestLine }) {
   const name = line.approver?.name?.trim();
+  if (name) return <span className="text-sm text-gray-800 dark:text-gray-100">{name}</span>;
   const uid = line.approverUserId;
-  if (name) {
-    return (
-      <span className="text-sm text-gray-800 dark:text-gray-100">
-        {name}
-        {uid != null ? (
-          <span className="ml-1 text-xs font-normal text-gray-500 dark:text-gray-400">
-            (#{uid})
-          </span>
-        ) : null}
-      </span>
-    );
-  }
-  if (uid != null)
-    return (
-      <span className="font-mono text-sm text-gray-800 dark:text-gray-200">
-        #{uid}
-      </span>
-    );
+  if (uid != null) return <span className="text-sm text-gray-500 dark:text-gray-400">담당자 확인 필요</span>;
   return (
     <span className="text-sm text-gray-400 dark:text-gray-500">—</span>
   );
@@ -86,9 +92,6 @@ export function ApprovalRequestCompactSummary({
       <Badge size="sm" color={requestBadgeColor(request.status)}>
         {approvalRequestStatusLabel(request.status)}
       </Badge>
-      <span className="font-mono text-xs text-gray-500 dark:text-gray-400">
-        #{request.id}
-      </span>
       <span className="text-xs text-gray-600 dark:text-gray-400">
         {approvalCurrentStepSummary(request)}
       </span>
@@ -111,6 +114,11 @@ export function ApprovalRequestDetailBody({
   omitCompactSummary?: boolean;
 }) {
   const lines = sortApprovalLines(request.lines);
+  const pendingLine = lines.find((line) => toStatusCode(line.status ?? line.lineStatus) === "PENDING");
+  const currentApproverName =
+    pendingLine?.approver?.name?.trim() ||
+    (pendingLine?.approverUserId != null ? "결재자 확인 필요" : "—");
+  const elapsedLabel = elapsedSinceLabel(request.requestedAt ?? request.submittedAt ?? null);
   const targetOk =
     request.targetId == null || request.targetId === orderId;
 
@@ -123,26 +131,39 @@ export function ApprovalRequestDetailBody({
       ) : null}
       {!compact ? (
         <PageNotice variant="neutral" className="mb-4 text-sm leading-relaxed">
-          <strong>발주({orderNo})와 결재 요청은 별도 문서입니다.</strong> 이 카드는{" "}
-          <code>approval_requests</code> 한 건과 그에 딸린 <code>approval_lines</code>를 보여 줍니다. 반려 후
-          발주를 수정하고 <strong>재상신</strong>하면 새 <code>approval_requests</code> id가 생기며, 이전 요청
-          이력(예: 반려)과 구분됩니다.
+          <strong>발주 {orderNo}</strong>에 연결된 결재 진행 현황입니다. 단계별 처리 상태와 의견을 확인할 수
+          있으며, 반려된 경우 발주 내용을 수정한 뒤 다시 상신할 수 있습니다.
         </PageNotice>
       ) : null}
+
+      <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-lg border border-gray-200 bg-white px-3 py-2.5 dark:border-gray-700 dark:bg-gray-900/40">
+          <p className={metaDtClass}>진행 상태</p>
+          <p className={metaDdClass}>{approvalRequestStatusLabel(request.status)}</p>
+        </div>
+        <div className="rounded-lg border border-gray-200 bg-white px-3 py-2.5 dark:border-gray-700 dark:bg-gray-900/40">
+          <p className={metaDtClass}>현재 단계</p>
+          <p className={metaDdClass}>{approvalCurrentStepSummary(request)}</p>
+        </div>
+        <div className="rounded-lg border border-gray-200 bg-white px-3 py-2.5 dark:border-gray-700 dark:bg-gray-900/40">
+          <p className={metaDtClass}>현재 결재자</p>
+          <p className={metaDdClass}>{currentApproverName}</p>
+        </div>
+        <div className="rounded-lg border border-gray-200 bg-white px-3 py-2.5 dark:border-gray-700 dark:bg-gray-900/40">
+          <p className={metaDtClass}>상신 후 경과</p>
+          <p className={metaDdClass}>{elapsedLabel}</p>
+        </div>
+      </div>
 
       <div className="rounded-lg border border-gray-200 bg-gray-50/80 px-4 py-3 dark:border-gray-600 dark:bg-gray-900/55">
         <dl className={metaDlClass}>
           <div>
-            <dt className={metaDtClass}>대상 유형 · 대상 ID</dt>
+            <dt className={metaDtClass}>결재 대상</dt>
             <dd className={metaDdClass}>
-              {request.targetType ?? "ORDER"}
-              {" · "}
-              <span className="font-mono text-xs text-gray-700 dark:text-gray-300">
-                {request.targetId ?? orderId}
-              </span>
+              발주서
               {!targetOk ? (
                 <span className="ml-2 text-xs text-amber-800 dark:text-amber-300/95">
-                  (발주 id {orderId}와 불일치 — 응답 확인)
+                  (연결 정보 확인 필요)
                 </span>
               ) : null}
             </dd>
@@ -265,11 +286,6 @@ export function ApprovalRequestDetailBody({
                           <Badge size="sm" color={lineBadgeColor(st)}>
                             {approvalLineStatusLabel(st)}
                           </Badge>
-                          {st ? (
-                            <span className="font-mono text-[0.7rem] leading-none text-gray-500 dark:text-gray-400">
-                              {st}
-                            </span>
-                          ) : null}
                         </div>
                       </TableCell>
                       <TableCell className="align-middle px-3 py-3 text-xs text-gray-700 dark:text-gray-300">
@@ -295,10 +311,8 @@ export function ApprovalRequestDetailBody({
 
       {!compact ? (
         <p className="mt-3 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
-          상태 코드 참고:{" "}
-          <strong>PENDING</strong> 지금 처리 차례 · <strong>WAITING</strong> 앞 단계 후 차례 ·{" "}
-          <strong>APPROVED</strong> 승인 · <strong>REJECTED</strong> 반려 ·{" "}
-          <strong>SKIPPED</strong> 생략
+          처리 대기: 지금 결재할 단계 · 순번 대기: 이전 단계 처리 후 진행 · 승인됨: 결재 완료 · 반려: 결재
+          중단(수정 후 재상신 가능)
         </p>
       ) : null}
     </>
@@ -325,9 +339,6 @@ export default function CurrentApprovalRequestSection({
           <Badge size="sm" color={requestBadgeColor(request.status)}>
             {approvalRequestStatusLabel(request.status)}
           </Badge>
-          <span className="font-mono text-xs text-gray-500 dark:text-gray-400">
-            #{request.id}
-          </span>
         </span>
       }
     >

@@ -28,7 +28,7 @@ export default function PageNotice({
 }: PageNoticeProps) {
   return (
     <div
-      className={`rounded-lg border border-dashed px-4 py-3 text-theme-sm ${variantClass[variant]} ${className}`}
+      className={`rounded-lg border border-dashed px-4 py-3 text-theme-sm mb-6 bg-primary-50/50 text-primary-800 dark:bg-primary-900/60 dark:text-primary-200 ${variantClass[variant]} ${className}`}
     >
       {children}
     </div>

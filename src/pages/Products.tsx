@@ -11,7 +11,14 @@ import Label from "../components/form/Label";
 import TextArea from "../components/form/input/TextArea";
 import Badge from "../components/ui/badge/Badge";
 import { Modal } from "../components/ui/modal";
-import { ListPageLayout, TablePagination } from "../components/list";
+import {
+  DataListPrimaryActionButton,
+  DataListSearchInput,
+  DataListSearchOptionsButton,
+  ListPageLayout,
+  ListPageToolbarRow,
+  TablePagination,
+} from "../components/list";
 import {
   Table,
   TableBody,
@@ -20,6 +27,9 @@ import {
   TableRow,
 } from "../components/ui/table";
 import { useAuth } from "../context/AuthContext";
+import { useProductPermissions } from "../hooks/useProductPermissions";
+import ConfirmModal from "../components/common/ConfirmModal";
+import ProductDefinitionCreateModal from "../components/products/ProductDefinitionCreateModal";
 import {
   getCommonCodesByGroup,
   COMMON_CODE_GROUP_PRODUCT_CATEGORY,
@@ -46,13 +56,20 @@ export default function Products() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { accessToken, isLoading: isAuthLoading } = useAuth();
+  const { canManageProducts } = useProductPermissions();
   const [searchKeyword, setSearchKeyword] = useState("");
+  const [searchOptionsOpen, setSearchOptionsOpen] = useState(false);
   const [categoryCode, setCategoryCode] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [listPage, setListPage] = useState(1);
   const [listPageSize, setListPageSize] = useState(20);
 
   const [createOpen, setCreateOpen] = useState(false);
+  const [definePromptOpen, setDefinePromptOpen] = useState(false);
+  const [definitionModalOpen, setDefinitionModalOpen] = useState(false);
+  const [pendingProductId, setPendingProductId] = useState<number | null>(
+    null
+  );
   const [npCode, setNpCode] = useState("");
   const [npName, setNpName] = useState("");
   const [npCategory, setNpCategory] = useState(CREATE_CATEGORY_NONE);
@@ -113,8 +130,14 @@ export default function Products() {
     onSuccess: (p) => {
       queryClient.invalidateQueries({ queryKey: ["productList"] });
       toast.success("제품을 등록했습니다.");
+      resetCreateForm();
       setCreateOpen(false);
-      navigate(`/products/${p.id}`);
+      if (canManageProducts && accessToken) {
+        setPendingProductId(p.id);
+        setDefinePromptOpen(true);
+      } else {
+        navigate(`/products/${p.id}`);
+      }
     },
     onError: (e: Error) =>
       toast.error(e.message || "등록에 실패했습니다."),
@@ -304,57 +327,62 @@ export default function Products() {
       </p>
       <ListPageLayout
         title="제품 목록"
-        searchOptionsOpen={false}
-        searchOptions={<></>}
+        searchOptionsOpen={searchOptionsOpen}
+        searchOptions={
+          <>
+            <div className="w-full sm:w-48">
+              <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">
+                분류
+              </p>
+              <Select
+                options={filterCategoryOptions}
+                value={
+                  categoryCode === "" ? FILTER_CATEGORY_ALL : categoryCode
+                }
+                onChange={(v) =>
+                  setCategoryCode(v === FILTER_CATEGORY_ALL ? "" : v)
+                }
+                placeholder="분류 필터"
+                size="md"
+              />
+            </div>
+            <div className="w-full sm:w-[200px]">
+              <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">
+                활성 여부
+              </p>
+              <Select
+                options={STATUS_FILTER_OPTIONS}
+                defaultValue={statusFilter}
+                onChange={setStatusFilter}
+                size="md"
+              />
+            </div>
+          </>
+        }
         toolbar={
-          <div className="flex w-full flex-col gap-3 md:flex-row md:flex-wrap md:items-end md:justify-between">
-            <div className="flex w-full flex-col gap-3 sm:flex-row sm:flex-wrap md:max-w-3xl">
-              <div className="min-w-0 flex-1">
-                <Input
-                  type="text"
-                  placeholder="제품 코드·제품명 키워드 (서버 검색)"
-                  value={searchKeyword}
-                  onChange={(e) => setSearchKeyword(e.target.value)}
-                />
-              </div>
-              <div className="w-full sm:w-48">
-                <p className="mb-2 text-xs text-gray-500 dark:text-gray-400 md:hidden">
-                  분류
-                </p>
-                <Select
-                  options={filterCategoryOptions}
-                  value={
-                    categoryCode === "" ? FILTER_CATEGORY_ALL : categoryCode
-                  }
-                  onChange={(v) =>
-                    setCategoryCode(v === FILTER_CATEGORY_ALL ? "" : v)
-                  }
-                  placeholder="분류 필터"
-                  size="md"
-                />
-              </div>
-            </div>
-            <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center md:w-auto">
-              <div className="w-full sm:w-[200px]">
-                <p className="mb-2 text-xs text-gray-500 dark:text-gray-400 md:hidden">
-                  활성 여부
-                </p>
-                <Select
-                  options={STATUS_FILTER_OPTIONS}
-                  defaultValue={statusFilter}
-                  onChange={setStatusFilter}
-                  size="md"
-                />
-              </div>
-              <button
-                type="button"
-                onClick={openCreateModal}
-                className="inline-flex shrink-0 items-center justify-center rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600 dark:bg-brand-600 dark:hover:bg-brand-500"
-              >
-                제품 등록
-              </button>
-            </div>
-          </div>
+          <ListPageToolbarRow
+            search={
+              <DataListSearchInput
+                id="products-list-search"
+                placeholder="제품 코드·제품명 키워드 (서버 검색)"
+                value={searchKeyword}
+                onChange={setSearchKeyword}
+              />
+            }
+            actions={
+              <>
+                <DataListPrimaryActionButton onClick={openCreateModal}>
+                  제품 등록
+                </DataListPrimaryActionButton>
+                <div className="flex items-center gap-3">
+                  <DataListSearchOptionsButton
+                    open={searchOptionsOpen}
+                    onToggle={() => setSearchOptionsOpen((o) => !o)}
+                  />
+                </div>
+              </>
+            }
+          />
         }
         pagination={
           !isAuthLoading &&
@@ -512,6 +540,52 @@ export default function Products() {
           </Table>
         )}
       </ListPageLayout>
+
+      {canManageProducts && accessToken ? (
+        <>
+          <ConfirmModal
+            isOpen={definePromptOpen}
+            illustration="check-circle"
+            title="제품 정의를 등록할까요?"
+            message="제품 등록이 완료되었습니다. 제품 정의를 추가하면 발주 유형·하우징 템플릿 등을 연결할 수 있습니다. 지금 등록 화면을 열까요?"
+            confirmText="정의 등록하기"
+            cancelText="나중에"
+            confirmVariant="primary"
+            onClose={() => {
+              setDefinePromptOpen(false);
+              setPendingProductId(null);
+            }}
+            onCancel={() => {
+              const pid = pendingProductId;
+              setDefinePromptOpen(false);
+              setPendingProductId(null);
+              if (pid != null) navigate(`/products/${pid}`);
+            }}
+            onConfirm={() => {
+              setDefinePromptOpen(false);
+              setDefinitionModalOpen(true);
+            }}
+          />
+          {pendingProductId != null ? (
+            <ProductDefinitionCreateModal
+              isOpen={definitionModalOpen}
+              onClose={() => {
+                setDefinitionModalOpen(false);
+                setPendingProductId(null);
+              }}
+              productId={pendingProductId}
+              accessToken={accessToken}
+              onCreated={(definitionId) => {
+                navigate(
+                  `/products/${pendingProductId}/definitions/${definitionId}`
+                );
+                setDefinitionModalOpen(false);
+                setPendingProductId(null);
+              }}
+            />
+          ) : null}
+        </>
+      ) : null}
     </>
   );
 }

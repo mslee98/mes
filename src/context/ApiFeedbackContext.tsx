@@ -49,7 +49,7 @@ export default function ApiFeedbackProvider({
       {children}
       <Modal
         isOpen={forbiddenError !== null}
-        onClose={closeModal}
+        onClose={handleGoBack}
         className="mx-4 max-w-md p-6 sm:p-8"
       >
         <div className="text-center">

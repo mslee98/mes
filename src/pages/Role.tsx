@@ -5,9 +5,14 @@ import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import ListPageLoading from "../components/common/ListPageLoading";
 import Badge from "../components/ui/badge/Badge";
-import Input from "../components/form/input/InputField";
 import Select from "../components/form/Select";
-import { ListPageLayout, TablePagination } from "../components/list";
+import {
+  DataListSearchInput,
+  DataListSearchOptionsButton,
+  ListPageLayout,
+  ListPageToolbarRow,
+  TablePagination,
+} from "../components/list";
 import {
   Table,
   TableBody,
@@ -131,23 +136,24 @@ export default function Role() {
       <ListPageLayout
         title="역할 관리"
         toolbar={
-          <div className="flex w-full flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div className="w-full md:max-w-md">
-              <Input
-                type="text"
+          <ListPageToolbarRow
+            search={
+              <DataListSearchInput
+                id="roles-list-search"
                 placeholder="역할 이름, 코드, 설명 검색"
                 value={searchKeyword}
-                onChange={(e) => setSearchKeyword(e.target.value)}
+                onChange={setSearchKeyword}
               />
-            </div>
-            <button
-              type="button"
-              onClick={() => setSearchOptionsOpen((prev) => !prev)}
-              className="inline-flex h-11 items-center justify-center rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
-            >
-              검색 옵션
-            </button>
-          </div>
+            }
+            actions={
+              <div className="flex items-center gap-3">
+                <DataListSearchOptionsButton
+                  open={searchOptionsOpen}
+                  onToggle={() => setSearchOptionsOpen((prev) => !prev)}
+                />
+              </div>
+            }
+          />
         }
         searchOptionsOpen={searchOptionsOpen}
         searchOptions={

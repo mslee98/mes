@@ -382,14 +382,6 @@ export default function ItemDetail() {
     }
   };
 
-  const parentLabel = useMemo(() => {
-    if (!item) return "-";
-    if (item.parentItemCode || item.parentItemName) {
-      return [item.parentItemCode, item.parentItemName].filter(Boolean).join(" · ");
-    }
-    return "-";
-  }, [item]);
-
   if (!Number.isFinite(id)) {
     return (
       <>
@@ -525,14 +517,6 @@ export default function ItemDetail() {
                     : (ITEM_TYPE_OPTIONS_FALLBACK.find(
                         (o) => o.value === i.itemType
                       )?.label ?? (i.itemType || "-"))}
-                </span>
-              }
-            />
-            <DetailRow
-              label="상위 품목"
-              value={
-                <span className="text-gray-800 dark:text-white/90">
-                  {parentLabel}
                 </span>
               }
             />

@@ -16,7 +16,12 @@ import {
   TableRow,
 } from "../components/ui/table";
 import Badge from "../components/ui/badge/Badge";
-import { TablePagination } from "../components/list/TablePagination";
+import {
+  DataListSearchInput,
+  DataListSearchOptionsButton,
+  ListPageToolbarRow,
+  TablePagination,
+} from "../components/list";
 import type { UsePaginationReturn } from "../hooks/usePagination";
 import ListPageLoading from "../components/common/ListPageLoading";
 import { useAuth } from "../context/AuthContext";
@@ -260,56 +265,25 @@ export default function Delivery() {
       <div className="space-y-6">
         <ComponentCard title="납품 목록">
           <div className="relative z-[100]">
-            <div className="flex flex-col items-stretch gap-3 border-b border-gray-100 pb-4 dark:border-white/[0.05] md:flex-row md:items-center md:justify-between md:gap-4">
-              <div className="w-full md:w-1/2">
-                <label htmlFor="delivery-simple-search" className="sr-only">
-                  검색
-                </label>
-                <div className="relative w-full">
-                  <span className="absolute left-4 top-1/2 z-10 -translate-y-1/2 pointer-events-none text-gray-500 dark:text-gray-400">
-                    <svg width="20" height="20" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-                      <path
-                        fillRule="evenodd"
-                        clipRule="evenodd"
-                        d="M3.04175 9.37363C3.04175 5.87693 5.87711 3.04199 9.37508 3.04199C12.8731 3.04199 15.7084 5.87693 15.7084 9.37363C15.7084 12.8703 12.8731 15.7053 9.37508 15.7053C5.87711 15.7053 3.04175 12.8703 3.04175 9.37363ZM9.37508 1.54199C5.04902 1.54199 1.54175 5.04817 1.54175 9.37363C1.54175 13.6991 5.04902 17.2053 9.37508 17.2053C11.2674 17.2053 13.003 16.5344 14.357 15.4176L17.177 18.238C17.4699 18.5309 17.9448 18.5309 18.2377 18.238C18.5306 17.9451 18.5306 17.4703 18.2377 17.1774L15.418 14.3573C16.5365 13.0033 17.2084 11.2669 17.2084 9.37363C17.2084 5.04817 13.7011 1.54199 9.37508 1.54199Z"
-                        fill="currentColor"
-                      />
-                    </svg>
-                  </span>
-                  <Input
+            <div className="border-b border-gray-100 pb-4 dark:border-white/[0.05]">
+              <ListPageToolbarRow
+                search={
+                  <DataListSearchInput
                     id="delivery-simple-search"
-                    type="text"
                     placeholder="납품번호·제목·발주·거래처 (현재 페이지만)"
                     value={searchKeyword}
-                    onChange={(e) => setSearchKeyword(e.target.value)}
-                    className="!border-gray-200 !bg-transparent !py-2.5 !pl-12 !text-gray-800 !placeholder:text-gray-400 focus:!border-brand-300 focus:!ring-brand-500/10 dark:!border-gray-800 dark:!bg-white/[0.03] dark:!text-white/90 dark:!placeholder:text-white/30 dark:focus:!border-brand-800 !text-sm"
+                    onChange={setSearchKeyword}
                   />
-                </div>
-              </div>
-              <div className="flex flex-shrink-0 flex-col items-stretch justify-end gap-2 md:flex-row md:items-center md:gap-3">
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setSearchOptionsOpen((open) => !open)}
-                    className="flex w-full items-center justify-center rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-100 hover:text-brand-600 focus:z-10 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white dark:focus:ring-gray-700 md:w-auto"
-                  >
-                    <span>검색 옵션</span>
-                    <svg
-                      className={`ml-1.5 h-5 w-5 transition-transform ${searchOptionsOpen ? "rotate-180" : ""}`}
-                      fill="currentColor"
-                      viewBox="0 0 20 20"
-                      xmlns="http://www.w3.org/2000/svg"
-                      aria-hidden
-                    >
-                      <path
-                        clipRule="evenodd"
-                        fillRule="evenodd"
-                        d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-                      />
-                    </svg>
-                  </button>
-                </div>
-              </div>
+                }
+                actions={
+                  <div className="flex items-center gap-3">
+                    <DataListSearchOptionsButton
+                      open={searchOptionsOpen}
+                      onToggle={() => setSearchOptionsOpen((open) => !open)}
+                    />
+                  </div>
+                }
+              />
             </div>
 
             <div

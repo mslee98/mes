@@ -10,7 +10,14 @@ import Input from "../components/form/input/InputField";
 import Label from "../components/form/Label";
 import Select from "../components/form/Select";
 import { Modal } from "../components/ui/modal";
-import { ListPageLayout, TablePagination } from "../components/list";
+import {
+  DataListPrimaryActionButton,
+  DataListSearchInput,
+  DataListSearchOptionsButton,
+  ListPageLayout,
+  ListPageToolbarRow,
+  TablePagination,
+} from "../components/list";
 import {
   Table,
   TableBody,
@@ -212,32 +219,29 @@ export default function ItemTypes() {
       <ListPageLayout
         title="품목 유형"
         toolbar={
-          <div className="flex w-full flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div className="w-full md:max-w-md">
-              <Input
-                type="text"
+          <ListPageToolbarRow
+            search={
+              <DataListSearchInput
+                id="item-types-list-search"
                 placeholder="유형 이름, 코드, 설명 검색"
                 value={searchKeyword}
-                onChange={(e) => setSearchKeyword(e.target.value)}
+                onChange={setSearchKeyword}
               />
-            </div>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={openAddModal}
-                className="inline-flex h-11 items-center justify-center rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600 dark:bg-brand-600 dark:hover:bg-brand-700"
-              >
-                유형 추가
-              </button>
-              <button
-                type="button"
-                onClick={() => setSearchOptionsOpen((prev) => !prev)}
-                className="inline-flex h-11 items-center justify-center rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
-              >
-                검색 옵션
-              </button>
-            </div>
-          </div>
+            }
+            actions={
+              <>
+                <DataListPrimaryActionButton onClick={openAddModal}>
+                  유형 추가
+                </DataListPrimaryActionButton>
+                <div className="flex items-center gap-3">
+                  <DataListSearchOptionsButton
+                    open={searchOptionsOpen}
+                    onToggle={() => setSearchOptionsOpen((prev) => !prev)}
+                  />
+                </div>
+              </>
+            }
+          />
         }
         searchOptionsOpen={searchOptionsOpen}
         searchOptions={

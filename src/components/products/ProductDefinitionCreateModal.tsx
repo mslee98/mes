@@ -8,12 +8,14 @@ import TextArea from "../form/input/TextArea";
 import Select from "../form/Select";
 import DatePicker from "../form/date-picker";
 import { createProductDefinition } from "../../api/products";
+import { getHousingTemplates } from "../../api/housingTemplates";
 import {
   getCommonCodesByGroup,
   COMMON_CODE_GROUP_PURCHASE_ORDER_TYPE,
   commonCodesToSelectOptions,
 } from "../../api/commonCode";
 import { isForbiddenError } from "../../lib/apiError";
+import SearchableSelectWithCreate from "../form/SearchableSelectWithCreate";
 
 const ORDER_TYPE_NONE = "__none__";
 
@@ -50,6 +52,7 @@ export default function ProductDefinitionCreateModal({
   const [effectiveFrom, setEffectiveFrom] = useState("");
   const [effectiveTo, setEffectiveTo] = useState("");
   const [remark, setRemark] = useState("");
+  const [housingTemplateIdStr, setHousingTemplateIdStr] = useState("");
 
   const { data: orderTypeCodes = [] } = useQuery({
     queryKey: ["commonCodes", COMMON_CODE_GROUP_PURCHASE_ORDER_TYPE],
@@ -60,6 +63,22 @@ export default function ProductDefinitionCreateModal({
       ),
     enabled: isOpen && !!accessToken,
   });
+
+  const { data: housingTemplates = [], isLoading: housingLoading } = useQuery({
+    queryKey: ["housingTemplates"],
+    queryFn: () => getHousingTemplates(accessToken),
+    enabled: isOpen && !!accessToken,
+    staleTime: 60_000,
+  });
+
+  const housingSelectOptions = useMemo(
+    () =>
+      housingTemplates.map((t) => ({
+        value: String(t.id),
+        label: `${t.templateName} (${t.templateCode})`,
+      })),
+    [housingTemplates]
+  );
 
   const orderTypeSelectOptions = useMemo(() => {
     const fromApi = commonCodesToSelectOptions(orderTypeCodes);
@@ -81,11 +100,15 @@ export default function ProductDefinitionCreateModal({
     setEffectiveFrom("");
     setEffectiveTo("");
     setRemark("");
+    setHousingTemplateIdStr("");
   }, [isOpen]);
 
   const createMutation = useMutation({
-    mutationFn: () =>
-      createProductDefinition(productId, accessToken, {
+    mutationFn: () => {
+      const htId = housingTemplateIdStr.trim()
+        ? Number(housingTemplateIdStr)
+        : NaN;
+      return createProductDefinition(productId, accessToken, {
         definitionCode: definitionCode.trim(),
         definitionName: definitionName.trim(),
         versionNo: versionNo.trim() || null,
@@ -97,11 +120,15 @@ export default function ProductDefinitionCreateModal({
         effectiveFrom: effectiveFrom.trim() || null,
         effectiveTo: effectiveTo.trim() || null,
         remark: remark.trim() || null,
-      }),
+        housingTemplateId:
+          Number.isFinite(htId) && htId > 0 ? htId : undefined,
+      });
+    },
     onSuccess: (data) => {
       toast.success("제품 정의를 등록했습니다.");
       queryClient.invalidateQueries({ queryKey: ["product", productId] });
       queryClient.invalidateQueries({ queryKey: ["productList"] });
+      queryClient.invalidateQueries({ queryKey: ["housingTemplates"] });
       onCreated(data.id);
       onClose();
     },
@@ -184,6 +211,22 @@ export default function ProductDefinitionCreateModal({
             className="mt-1.5"
           />
         </div>
+        <SearchableSelectWithCreate
+          id="pdef-create-housing"
+          label="하우징 템플릿"
+          value={housingTemplateIdStr}
+          onChange={setHousingTemplateIdStr}
+          options={housingSelectOptions}
+          placeholder={
+            housingLoading
+              ? "하우징 템플릿 불러오는 중…"
+              : "검색하여 선택 (선택)"
+          }
+          addTrigger="none"
+          addButtonLabel="추가"
+          onAddClick={() => {}}
+          isDisabled={housingLoading}
+        />
         <div>
           <Label htmlFor="pdef-create-status">상태</Label>
           <Select

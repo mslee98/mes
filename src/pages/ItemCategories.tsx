@@ -21,6 +21,11 @@ import {
   type ItemCategory,
   type ItemCategoryCreatePayload,
 } from "../api/items";
+import {
+  DataListPrimaryActionButton,
+  DataListSearchInput,
+  ListPageToolbarRow,
+} from "../components/list";
 
 function flattenTree(
   nodes: ItemCategory[],
@@ -268,22 +273,21 @@ export default function ItemCategories() {
           title="품목 분류 (트리)"
           desc="품목 분류를 트리로 조회하고, 추가/수정/삭제할 수 있습니다. 하위 분류가 있으면 삭제할 수 없습니다."
         >
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <Input
-              type="text"
-              placeholder="분류명, 코드 검색"
-              value={keyword}
-              onChange={(e) => setKeyword(e.target.value)}
-              className="max-w-xs"
-            />
-            <button
-              type="button"
-              onClick={openAddModal}
-              className="inline-flex h-11 items-center justify-center rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600 dark:bg-brand-600 dark:hover:bg-brand-700"
-            >
-              분류 추가
-            </button>
-          </div>
+          <ListPageToolbarRow
+            search={
+              <DataListSearchInput
+                id="item-categories-search"
+                placeholder="분류명, 코드 검색"
+                value={keyword}
+                onChange={setKeyword}
+              />
+            }
+            actions={
+              <DataListPrimaryActionButton onClick={openAddModal}>
+                분류 추가
+              </DataListPrimaryActionButton>
+            }
+          />
 
           {isAuthLoading || isLoading ? (
             <div className="flex min-h-[240px] items-center justify-center py-8">

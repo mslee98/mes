@@ -27,6 +27,8 @@ import Products from "./pages/Products";
 import ProductForm from "./pages/ProductForm";
 import ProductDetail from "./pages/ProductDetail";
 import ProductDefinitionDetail from "./pages/ProductDefinitionDetail";
+import HousingTemplates from "./pages/HousingTemplates";
+import HousingTemplateDetail from "./pages/HousingTemplateDetail";
 import ApprovalDocumentSample from "./pages/ApprovalDocumentSample";
 import ApprovalList from "./pages/ApprovalList";
 import ApprovalDetailPublish from "./pages/ApprovalDetailPublish";
@@ -116,6 +118,16 @@ function App() {
               />
               <Route path="products/:productId" element={<ProductDetail />} />
               <Route path="products" element={<Products />} />
+
+              <Route
+                path="housing-templates/new"
+                element={<Navigate to="/housing-templates" replace />}
+              />
+              <Route
+                path="housing-templates/:templateId"
+                element={<HousingTemplateDetail />}
+              />
+              <Route path="housing-templates" element={<HousingTemplates />} />
 
               {/* 발주 관리 */}
               <Route path="order" element={<Order />} />

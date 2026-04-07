@@ -313,12 +313,17 @@ export interface DeliveryItem {
 
 /** GET 납품 응답의 품목별 행 (`deliveryItems` 등) */
 export interface DeliveryRecordLine {
+  id?: number;
+  deliveryId?: number;
   orderItemId?: number;
   purchaseOrderItemId?: number;
-  quantity?: number;
-  deliveryQty?: number;
+  /** decimal 문자열일 수 있음 */
+  quantity?: number | string;
+  deliveryQty?: number | string;
   itemId?: number;
   itemName?: string;
+  /** 관계 로드 시 중첩 발주 라인 */
+  orderItem?: unknown;
 }
 
 /** GET `/deliveries`·관계 로드 시 포함되는 발주 헤더 요약 */
@@ -330,20 +335,66 @@ export interface DeliveryOrderRef {
   partnerId?: number;
 }
 
+/**
+ * 납품 상세 `GET /deliveries/:id` 등에서 `order` 관계 풀 로드 시 함께 올 수 있는 필드.
+ * (목록·경량 응답에서는 대부분 비어 있거나 생략될 수 있음.)
+ */
+export interface DeliveryOrderDetailFields {
+  orderType?: string | null;
+  requesterName?: string | null;
+  requestDepartment?: string | null;
+  requesterDepartment?: string | null;
+  orderedAt?: string | null;
+  dueDate?: string | null;
+  requestDeliveryDate?: string | null;
+  currencyCode?: string | null;
+  vendorOrderNo?: string | null;
+  vendorRequest?: string | null;
+  specialNote?: string | null;
+  supplyAmount?: number | null;
+  totalAmountVatIncluded?: number | null;
+  status?: string | null;
+  priority?: string | null;
+  memo?: string | null;
+  /** 발주 전체 품목(납품과 무관하게 전 라인) */
+  orderItems?: unknown[];
+}
+
+export type DeliveryOrderWithDetail = DeliveryOrderRef & DeliveryOrderDetailFields;
+
+/** 납품 응답에 실리는 사용자 요약 — UI에는 `name` 등만 사용(비밀번호 등 직렬화 시 노출 금지) */
+export interface DeliveryActorUserRef {
+  id?: number;
+  name?: string;
+  employeeNo?: string | number;
+  email?: string;
+  phoneNumber?: string;
+}
+
 export interface Delivery {
   id: number;
   deliveryNo?: string;
   title?: string | null;
   partnerId?: number;
   partner?: Partner;
+  orderId?: number;
   /** 발주 PK — 응답에 따라 `order.id` 또는 최상위 필드 */
   purchaseOrderId?: number;
-  order?: DeliveryOrderRef;
+  order?: DeliveryOrderWithDetail;
   deliveryDate: string;
   plannedDeliveryDate?: string | null;
   status?: string;
   remark?: string | null;
   deliveryManagerId?: number | null;
+  deliveryManagerDepartment?: string | null;
+  deliveryManager?: DeliveryActorUserRef | null;
+  createdById?: number | null;
+  updatedById?: number | null;
+  createdBy?: DeliveryActorUserRef | null;
+  updatedBy?: DeliveryActorUserRef | null;
+  updateReason?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
   deliveryItems?: DeliveryRecordLine[];
   /** 레거시 매핑 */
   items?: DeliveryItem[];

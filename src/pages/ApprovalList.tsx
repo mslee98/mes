@@ -6,8 +6,7 @@ import ComponentCard from "../components/common/ComponentCard";
 import PageNotice from "../components/common/PageNotice";
 import SegmentedControl from "../components/common/SegmentedControl";
 import ApprovalDetailContent from "../components/approval/ApprovalDetailContent";
-import Input from "../components/form/input/InputField";
-import Label from "../components/form/Label";
+import { DataListSearchInput } from "../components/list";
 import Badge from "../components/ui/badge/Badge";
 import Button from "../components/ui/button/Button";
 import { Modal } from "../components/ui/modal";
@@ -198,13 +197,11 @@ export default function ApprovalList() {
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <div className="sm:col-span-2 lg:col-span-1">
-            <Label htmlFor="approval-search">검색</Label>
-            <Input
+            <DataListSearchInput
               id="approval-search"
               value={keyword}
-              onChange={(e) => setKeyword(e.target.value)}
+              onChange={setKeyword}
               placeholder="제목·문서번호·기안자"
-              className="mt-1"
             />
           </div>
         </div>

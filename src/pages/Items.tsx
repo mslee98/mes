@@ -5,10 +5,16 @@ import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import PageNotice from "../components/common/PageNotice";
 import ListPageLoading from "../components/common/ListPageLoading";
-import Input from "../components/form/input/InputField";
 import Select from "../components/form/Select";
 import Badge from "../components/ui/badge/Badge";
-import { ListPageLayout, TablePagination } from "../components/list";
+import {
+  DataListPrimaryActionButton,
+  DataListSearchInput,
+  DataListSearchOptionsButton,
+  ListPageLayout,
+  ListPageToolbarRow,
+  TablePagination,
+} from "../components/list";
 import {
   Table,
   TableBody,
@@ -193,44 +199,33 @@ export default function Items() {
       <ListPageLayout
         title="품목 목록"
         toolbar={
-          <div className="flex w-full flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <form
-              className="flex w-full flex-col gap-2 sm:flex-row sm:items-center md:max-w-xl"
-              onSubmit={handleSearchSubmit}
-            >
-              <Input
-                type="text"
-                placeholder="품목코드·품목명 검색"
-                value={keyword}
-                onChange={(e) => setKeyword(e.target.value)}
-                className="sm:flex-1"
-              />
-              <button
-                type="submit"
-                className="inline-flex h-11 shrink-0 items-center justify-center rounded-lg bg-gray-800 px-4 text-sm font-medium text-white hover:bg-gray-900 dark:bg-gray-700 dark:hover:bg-gray-600"
-              >
-                검색
-              </button>
-            </form>
-            <div className="flex flex-wrap gap-2">
-              {canManageItems ? (
-                <button
-                  type="button"
-                  onClick={() => navigate("/items/new")}
-                  className="inline-flex h-11 items-center justify-center rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600 dark:bg-brand-600 dark:hover:bg-brand-700"
-                >
-                  품목 등록
-                </button>
-              ) : null}
-              <button
-                type="button"
-                onClick={() => setSearchOptionsOpen((prev) => !prev)}
-                className="inline-flex h-11 items-center justify-center rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
-              >
-                필터
-              </button>
-            </div>
-          </div>
+          <form className="w-full min-w-0" onSubmit={handleSearchSubmit}>
+            <ListPageToolbarRow
+              search={
+                <DataListSearchInput
+                  id="items-list-search"
+                  placeholder="품목코드·품목명 (Enter로 검색)"
+                  value={keyword}
+                  onChange={setKeyword}
+                />
+              }
+              actions={
+                <>
+                  {canManageItems ? (
+                    <DataListPrimaryActionButton onClick={() => navigate("/items/new")}>
+                      품목 등록
+                    </DataListPrimaryActionButton>
+                  ) : null}
+                  <div className="flex items-center gap-3">
+                    <DataListSearchOptionsButton
+                      open={searchOptionsOpen}
+                      onToggle={() => setSearchOptionsOpen((prev) => !prev)}
+                    />
+                  </div>
+                </>
+              }
+            />
+          </form>
         }
         searchOptionsOpen={searchOptionsOpen}
         searchOptions={
@@ -325,9 +320,6 @@ export default function Items() {
                 <TableCell isHeader className="px-4 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">
                   유형
                 </TableCell>
-                <TableCell isHeader className="px-4 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400">
-                  상위 품목
-                </TableCell>
                 <TableCell isHeader className="px-4 py-3 text-right text-theme-xs font-medium text-gray-500 dark:text-gray-400">
                   리비전
                 </TableCell>
@@ -347,12 +339,6 @@ export default function Items() {
             </TableHeader>
             <TableBody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
               {items.map((row) => {
-                const parentLabel =
-                  row.parentItemCode || row.parentItemName
-                    ? [row.parentItemCode, row.parentItemName]
-                        .filter(Boolean)
-                        .join(" · ")
-                    : "-";
                 const defaultRev =
                   row.defaultRevisionCode ??
                   (row.defaultRevisionId != null
@@ -393,9 +379,6 @@ export default function Items() {
                             )?.label ??
                             (row.itemType || "-"))}
                       </span>
-                    </TableCell>
-                    <TableCell className="max-w-[12rem] truncate px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
-                      <span title={parentLabel}>{parentLabel}</span>
                     </TableCell>
                     <TableCell className="px-4 py-3 text-right text-sm text-gray-600 dark:text-gray-300">
                       {row.revisionCount}

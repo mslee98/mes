@@ -10,14 +10,11 @@ import LoadingLottie from "../components/common/LoadingLottie";
 import ConfirmLeaveModal from "../components/common/ConfirmLeaveModal";
 import Input from "../components/form/input/InputField";
 import Label from "../components/form/Label";
-import SearchableSelectWithCreate from "../components/form/SearchableSelectWithCreate";
 import { useAuth } from "../context/AuthContext";
 import { useConfirmLeave } from "../hooks/useConfirmLeave";
-import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { useItemPermissions } from "../hooks/useItemPermissions";
 import {
   getItemMaster,
-  getItemMasterList,
   createItemMaster,
   updateItemMaster,
   ITEM_TYPE_OPTIONS_FALLBACK,
@@ -49,11 +46,8 @@ export default function ItemForm() {
   const [itemCode, setItemCode] = useState("");
   const [itemName, setItemName] = useState("");
   const [itemType, setItemType] = useState("");
-  const [parentItemId, setParentItemId] = useState("");
   const [description, setDescription] = useState("");
   const [isActive, setIsActive] = useState(true);
-  const [parentSearch, setParentSearch] = useState("");
-  const debouncedParentSearch = useDebouncedValue(parentSearch, 300);
 
   const { data: detail, isLoading: detailLoading } = useQuery({
     queryKey: ["itemMaster", editId],
@@ -83,54 +77,12 @@ export default function ItemForm() {
     return base;
   }, [itemTypeCodes, itemType]);
 
-  const { data: parentSearchResult } = useQuery({
-    queryKey: ["itemMasterList", "parentPick", debouncedParentSearch],
-    queryFn: () =>
-      getItemMasterList(accessToken as string, {
-        keyword: debouncedParentSearch.trim() || undefined,
-        page: 1,
-        size: 50,
-      }),
-    enabled:
-      !!accessToken &&
-      debouncedParentSearch.trim().length >= 1 &&
-      canManageItems,
-  });
-
-  const parentOptions = useMemo(() => {
-    const opts: { value: string; label: string; isDisabled?: boolean }[] = [];
-    const seen = new Set<string>();
-
-    const push = (value: string, label: string, disabled?: boolean) => {
-      if (seen.has(value)) return;
-      seen.add(value);
-      opts.push({ value, label, isDisabled: disabled });
-    };
-
-    if (!isNew && detail?.parentItemId != null) {
-      const code = detail.parentItemCode ?? "";
-      const name = detail.parentItemName ?? "";
-      const label = [code, name].filter(Boolean).join(" · ") || `ID ${detail.parentItemId}`;
-      push(String(detail.parentItemId), label, false);
-    }
-
-    const rows = parentSearchResult?.items ?? [];
-    for (const row of rows) {
-      if (!isNew && row.id === editId) continue;
-      const label = `${row.itemCode} · ${row.itemName}`;
-      push(String(row.id), label, false);
-    }
-
-    return opts;
-  }, [isNew, detail, parentSearchResult, editId]);
-
   const initialSnapshot = useMemo(() => {
     if (isNew) {
       return {
         itemCode: "",
         itemName: "",
         itemType: "",
-        parentItemId: "",
         description: "",
         isActive: true,
       };
@@ -140,7 +92,6 @@ export default function ItemForm() {
       itemCode: detail.itemCode,
       itemName: detail.itemName,
       itemType: detail.itemType,
-      parentItemId: detail.parentItemId != null ? String(detail.parentItemId) : "",
       description: detail.description ?? "",
       isActive: detail.isActive !== false,
     };
@@ -151,7 +102,6 @@ export default function ItemForm() {
       setItemCode("");
       setItemName("");
       setItemType("");
-      setParentItemId("");
       setDescription("");
       setIsActive(true);
       return;
@@ -160,9 +110,6 @@ export default function ItemForm() {
       setItemCode(detail.itemCode);
       setItemName(detail.itemName);
       setItemType(detail.itemType);
-      setParentItemId(
-        detail.parentItemId != null ? String(detail.parentItemId) : ""
-      );
       setDescription(detail.description ?? "");
       setIsActive(detail.isActive !== false);
     }
@@ -174,7 +121,6 @@ export default function ItemForm() {
       initialSnapshot.itemCode !== itemCode ||
       initialSnapshot.itemName !== itemName ||
       initialSnapshot.itemType !== itemType ||
-      initialSnapshot.parentItemId !== parentItemId ||
       initialSnapshot.description !== description ||
       initialSnapshot.isActive !== isActive
     );
@@ -183,7 +129,6 @@ export default function ItemForm() {
     itemCode,
     itemName,
     itemType,
-    parentItemId,
     description,
     isActive,
   ]);
@@ -202,7 +147,6 @@ export default function ItemForm() {
         itemCode: itemCode.trim(),
         itemName: itemName.trim(),
         itemType,
-        parentItemId: parentItemId ? Number(parentItemId) : null,
         description: description.trim() || null,
         isActive,
       }),
@@ -225,7 +169,6 @@ export default function ItemForm() {
       updateItemMaster(editId, accessToken as string, {
         itemName: itemName.trim(),
         itemType,
-        parentItemId: parentItemId ? Number(parentItemId) : null,
         description: description.trim() || null,
         isActive,
       }),
@@ -256,11 +199,6 @@ export default function ItemForm() {
     }
     if (!itemType.trim()) {
       toast.error("품목 유형을 선택하세요.");
-      return;
-    }
-    const parentNum = parentItemId ? Number(parentItemId) : null;
-    if (!isNew && parentNum === editId) {
-      toast.error("상위 품목으로 자기 자신을 선택할 수 없습니다.");
       return;
     }
     if (isNew) {
@@ -349,13 +287,12 @@ export default function ItemForm() {
 
       <PageNotice className="mb-4" variant="neutral">
         품목 유형은 공통코드 <code>ITEM_TYPE</code>에서 선택합니다(코드값이 저장됩니다).
-        상위 품목은 검색 후 선택하세요.
       </PageNotice>
 
       <div className="space-y-6">
         <ComponentCard
           title={isNew ? "품목 등록" : "품목 수정"}
-          desc="기본 정보 · 상위 품목 · 설명 · 사용 여부"
+          desc="기본 정보 · 설명 · 사용 여부"
         >
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="grid gap-4 sm:grid-cols-2">
@@ -398,36 +335,6 @@ export default function ItemForm() {
                   value={itemName}
                   onChange={(e) => setItemName(e.target.value)}
                   className="mt-1"
-                />
-              </div>
-
-              <div className="sm:col-span-2">
-                <Label htmlFor="parent-search">상위 품목</Label>
-                <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                  검색어 입력 시 목록이 갱신됩니다. 미선택 시 최상위 품목입니다.
-                </p>
-                <Input
-                  id="parent-search"
-                  value={parentSearch}
-                  onChange={(e) => setParentSearch(e.target.value)}
-                  placeholder="상위 품목 코드·이름 검색"
-                  className="mt-1 mb-2"
-                />
-                <SearchableSelectWithCreate
-                  id="parent-item"
-                  label=""
-                  value={parentItemId}
-                  onChange={setParentItemId}
-                  options={parentOptions.map((o) => ({
-                    value: o.value,
-                    label: o.label,
-                    isDisabled:
-                      o.isDisabled || (!isNew && o.value === String(editId)),
-                  }))}
-                  placeholder="상위 품목 선택"
-                  addButtonLabel=""
-                  onAddClick={() => {}}
-                  addTrigger="none"
                 />
               </div>
 

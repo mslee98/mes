@@ -13,6 +13,7 @@ import Label from "../components/form/Label";
 import Input from "../components/form/input/InputField";
 import TextArea from "../components/form/input/TextArea";
 import Select from "../components/form/Select";
+import ProductDefinitionAddCompositionModal from "../components/products/ProductDefinitionAddCompositionModal";
 import DatePicker from "../components/form/date-picker";
 import {
   Table,
@@ -23,18 +24,17 @@ import {
 } from "../components/ui/table";
 import { useAuth } from "../context/AuthContext";
 import { useProductPermissions } from "../hooks/useProductPermissions";
-import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import {
   getProduct,
   getProductDefinition,
   updateProductDefinition,
-  addProductDefinitionItemRevision,
   deleteProductDefinitionItemRevision,
   productDefinitionSelectLabel,
   type ProductDefinitionDetailDto,
   type DefinitionItemRevisionLineDto,
 } from "../api/products";
-import { getItemMasterList, getItemRevisions } from "../api/itemMaster";
+import { getHousingTemplates } from "../api/housingTemplates";
+import SearchableSelectWithCreate from "../components/form/SearchableSelectWithCreate";
 import {
   getCommonCodesByGroup,
   COMMON_CODE_GROUP_PURCHASE_ORDER_TYPE,
@@ -79,16 +79,7 @@ export default function ProductDefinitionDetail() {
   const { canReadProducts, canManageProducts } = useProductPermissions();
 
   const [headerModalOpen, setHeaderModalOpen] = useState(false);
-  const [itemKeyword, setItemKeyword] = useState("");
-  const debouncedItemKeyword = useDebouncedValue(itemKeyword, 300);
-  const [pickedItemId, setPickedItemId] = useState<number | null>(null);
-  const [pickedItemLabel, setPickedItemLabel] = useState("");
-  const [revisionIdPick, setRevisionIdPick] = useState<number>(0);
-  const [lineItemRole, setLineItemRole] = useState("");
-  const [lineQuantity, setLineQuantity] = useState("");
-  const [lineSortOrder, setLineSortOrder] = useState("");
-  const [lineIsRequired, setLineIsRequired] = useState(true);
-  const [lineRemark, setLineRemark] = useState("");
+  const [addCompositionOpen, setAddCompositionOpen] = useState(false);
 
   const [editName, setEditName] = useState("");
   const [editCode, setEditCode] = useState("");
@@ -100,6 +91,7 @@ export default function ProductDefinitionDetail() {
   const [editFrom, setEditFrom] = useState("");
   const [editTo, setEditTo] = useState("");
   const [editRemark, setEditRemark] = useState("");
+  const [editHousingTemplateIdStr, setEditHousingTemplateIdStr] = useState("");
 
   const { data: product } = useQuery({
     queryKey: ["product", pid],
@@ -138,32 +130,28 @@ export default function ProductDefinitionDetail() {
     [orderTypeOptions]
   );
 
-  const { data: itemSearchResult } = useQuery({
-    queryKey: ["itemMasterList", "pick", debouncedItemKeyword],
-    queryFn: () =>
-      getItemMasterList(accessToken as string, {
-        keyword: debouncedItemKeyword.trim(),
-        page: 1,
-        size: 15,
-      }),
-    enabled:
-      !!accessToken &&
-      !isAuthLoading &&
-      canReadProducts &&
-      debouncedItemKeyword.trim().length >= 2,
-  });
+  const { data: housingTemplates = [], isLoading: housingListLoading } =
+    useQuery({
+      queryKey: ["housingTemplates"],
+      queryFn: () => getHousingTemplates(accessToken as string),
+      enabled:
+        !!accessToken &&
+        !isAuthLoading &&
+        canReadProducts &&
+        headerModalOpen,
+      staleTime: 60_000,
+    });
 
-  const { data: revisionsPick = [] } = useQuery({
-    queryKey: ["itemRevisions", pickedItemId],
-    queryFn: () =>
-      getItemRevisions(pickedItemId as number, accessToken as string),
-    enabled:
-      !!accessToken &&
-      !isAuthLoading &&
-      canReadProducts &&
-      pickedItemId != null &&
-      pickedItemId > 0,
-  });
+  const housingModalOptions = useMemo(
+    () => [
+      { value: "", label: "연결 안 함" },
+      ...housingTemplates.map((t) => ({
+        value: String(t.id),
+        label: `${t.templateName} (${t.templateCode})`,
+      })),
+    ],
+    [housingTemplates]
+  );
 
   const openHeaderModal = (d: ProductDefinitionDetailDto) => {
     setEditName(d.name ?? "");
@@ -178,12 +166,21 @@ export default function ProductDefinitionDetail() {
     );
     setEditTo(d.effectiveTo?.slice(0, 10) ?? d.effectiveTo ?? "");
     setEditRemark(d.remark ?? "");
+    setEditHousingTemplateIdStr(
+      d.housingTemplateId != null && d.housingTemplateId > 0
+        ? String(d.housingTemplateId)
+        : ""
+    );
     setHeaderModalOpen(true);
   };
 
   const updateHeaderMutation = useMutation({
-    mutationFn: () =>
-      updateProductDefinition(did, accessToken as string, {
+    mutationFn: () => {
+      const htRaw = editHousingTemplateIdStr.trim();
+      const htNum = htRaw ? Number(htRaw) : NaN;
+      const housingTemplateId =
+        Number.isFinite(htNum) && htNum > 0 ? htNum : null;
+      return updateProductDefinition(did, accessToken as string, {
         definitionName: editName.trim(),
         definitionCode: editCode.trim(),
         versionNo: editVersion.trim() || null,
@@ -197,7 +194,9 @@ export default function ProductDefinitionDetail() {
         effectiveFrom: editFrom.trim() || null,
         effectiveTo: editTo.trim() || null,
         remark: editRemark.trim() || null,
-      }),
+        housingTemplateId,
+      });
+    },
     onSuccess: () => {
       toast.success("저장했습니다.");
       queryClient.invalidateQueries({ queryKey: ["productDefinition", did] });
@@ -208,39 +207,6 @@ export default function ProductDefinitionDetail() {
     onError: (e: unknown) => {
       if (isForbiddenError(e)) toast.error("수정 권한이 없습니다.");
       else toast.error(e instanceof Error ? e.message : "수정에 실패했습니다.");
-    },
-  });
-
-  const addLineMutation = useMutation({
-    mutationFn: () => {
-      const sortRaw = lineSortOrder.trim();
-      const sortParsed =
-        sortRaw === "" ? undefined : Number(sortRaw);
-      const sortOrder =
-        sortParsed != null && Number.isFinite(sortParsed)
-          ? sortParsed
-          : undefined;
-      return addProductDefinitionItemRevision(did, accessToken as string, {
-        itemRevisionId: revisionIdPick,
-        itemRole: lineItemRole.trim() || null,
-        quantity: lineQuantity.trim() || null,
-        sortOrder,
-        isRequired: lineIsRequired,
-        remark: lineRemark.trim() || null,
-      });
-    },
-    onSuccess: () => {
-      toast.success("구성 품목을 추가했습니다.");
-      queryClient.invalidateQueries({ queryKey: ["productDefinition", did] });
-      setLineItemRole("");
-      setLineQuantity("");
-      setLineSortOrder("");
-      setLineRemark("");
-      setLineIsRequired(true);
-    },
-    onError: (e: unknown) => {
-      if (isForbiddenError(e)) toast.error("추가 권한이 없습니다.");
-      else toast.error(e instanceof Error ? e.message : "추가에 실패했습니다.");
     },
   });
 
@@ -344,19 +310,6 @@ export default function ProductDefinitionDetail() {
 
   const titleLabel = productDefinitionSelectLabel(d);
 
-  const pickItem = (id: number, label: string) => {
-    setPickedItemId(id);
-    setPickedItemLabel(label);
-    setRevisionIdPick(0);
-    setItemKeyword("");
-  };
-
-  const clearPick = () => {
-    setPickedItemId(null);
-    setPickedItemLabel("");
-    setRevisionIdPick(0);
-  };
-
   return (
     <>
       <PageMeta title={`정의: ${titleLabel}`} description="제품 정의 상세" />
@@ -440,6 +393,32 @@ export default function ProductDefinitionDetail() {
               }
             />
             <DetailRow
+              label="하우징 템플릿"
+              value={
+                d.housingTemplateId != null && d.housingTemplateId > 0 ? (
+                  <span className="flex flex-wrap items-center gap-2">
+                    <span>
+                      {d.housingTemplateName ?? "—"}
+                      {d.housingTemplateCode ? (
+                        <>
+                          {" "}
+                          (<code>{d.housingTemplateCode}</code>)
+                        </>
+                      ) : null}
+                    </span>
+                    <Link
+                      to={`/housing-templates/${d.housingTemplateId}`}
+                      className="text-theme-xs text-brand-600 underline dark:text-brand-400"
+                    >
+                      템플릿 보기
+                    </Link>
+                  </span>
+                ) : (
+                  <span className="text-gray-500 dark:text-gray-400">—</span>
+                )
+              }
+            />
+            <DetailRow
               label="유효 기간"
               value={
                 <span>
@@ -478,7 +457,18 @@ export default function ProductDefinitionDetail() {
 
         <ComponentCard
           title="구성 품목 (리비전)"
-          desc="동일 정의에 같은 itemRevisionId는 한 번만 등록할 수 있습니다."
+          desc="보드 등 직접 연결할 품목만 추가합니다. 하우징은 위 하우징 템플릿으로 지정합니다. 동일 정의에 같은 itemRevisionId는 한 번만 등록할 수 있습니다."
+          headerEnd={
+            canManageProducts && accessToken ? (
+              <button
+                type="button"
+                onClick={() => setAddCompositionOpen(true)}
+                className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+              >
+                구성 추가
+              </button>
+            ) : null
+          }
         >
           {sortedLines.length === 0 ? (
             <p className="text-theme-sm text-gray-500 dark:text-gray-400">
@@ -598,153 +588,18 @@ export default function ProductDefinitionDetail() {
             </div>
           )}
 
-          {canManageProducts ? (
-            <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50/80 p-4 dark:border-white/10 dark:bg-white/[0.03]">
-              <p className="mb-3 text-sm font-medium text-gray-800 dark:text-gray-100">
-                구성 추가
-              </p>
-              {!pickedItemId ? (
-                <div className="space-y-2">
-                  <Label htmlFor="item-search">품목 검색 (2글자 이상)</Label>
-                  <Input
-                    id="item-search"
-                    value={itemKeyword}
-                    onChange={(e) => setItemKeyword(e.target.value)}
-                    placeholder="품목코드·품목명"
-                    className="max-w-md"
-                  />
-                  {debouncedItemKeyword.trim().length >= 2 &&
-                  itemSearchResult?.items.length ? (
-                    <ul className="max-h-40 max-w-md overflow-auto rounded-lg border border-gray-200 bg-white shadow-theme-xs dark:border-gray-600 dark:bg-gray-900">
-                      {itemSearchResult.items.map((it) => (
-                        <li key={it.id}>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              pickItem(
-                                it.id,
-                                `${it.itemName} (${it.itemCode})`
-                              )
-                            }
-                            className="w-full px-3 py-2 text-left text-sm text-gray-800 hover:bg-gray-50 dark:text-white/90 dark:hover:bg-white/[0.06]"
-                          >
-                            <span className="font-medium">{it.itemName}</span>
-                            <code className="ml-2 rounded bg-gray-100 px-1 py-0.5 text-theme-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300">
-                              {it.itemCode}
-                            </code>
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : null}
-                  <p className="text-theme-xs text-gray-500 dark:text-gray-400">
-                    <Link
-                      to="/items"
-                      className="text-brand-600 underline dark:text-brand-400"
-                    >
-                      품목 목록
-                    </Link>
-                    에서 확인할 수도 있습니다.
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <div className="flex flex-wrap items-center gap-2 text-sm">
-                    <span className="font-medium text-gray-800 dark:text-gray-100">
-                      {pickedItemLabel}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={clearPick}
-                      className="text-theme-xs text-brand-600 underline dark:text-brand-400"
-                    >
-                      다른 품목
-                    </button>
-                  </div>
-                  <div className="max-w-md">
-                    <Label htmlFor="rev-pick">리비전</Label>
-                    <Select
-                      id="rev-pick"
-                      className="mt-1.5"
-                      placeholder="리비전 선택"
-                      value={revisionIdPick > 0 ? String(revisionIdPick) : ""}
-                      onChange={(v) =>
-                        setRevisionIdPick(v ? Number(v) || 0 : 0)
-                      }
-                      options={revisionsPick.map((r) => ({
-                        value: String(r.id),
-                        label: `${r.revisionCode} — ${r.revisionName} (#${r.id})`,
-                      }))}
-                      size="md"
-                    />
-                  </div>
-                  <div className="grid max-w-2xl gap-3 sm:grid-cols-2">
-                    <div>
-                      <Label htmlFor="lr-role">역할 (itemRole)</Label>
-                      <Input
-                        id="lr-role"
-                        value={lineItemRole}
-                        onChange={(e) => setLineItemRole(e.target.value)}
-                        className="mt-1.5"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="lr-qty">수량</Label>
-                      <Input
-                        id="lr-qty"
-                        value={lineQuantity}
-                        onChange={(e) => setLineQuantity(e.target.value)}
-                        className="mt-1.5"
-                        placeholder="숫자 또는 문자열"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="lr-sort">순서 (sortOrder)</Label>
-                      <Input
-                        id="lr-sort"
-                        value={lineSortOrder}
-                        onChange={(e) => setLineSortOrder(e.target.value)}
-                        className="mt-1.5"
-                        placeholder="비우면 맨 뒤"
-                      />
-                    </div>
-                    <label className="flex cursor-pointer items-center gap-2 pt-6 text-sm text-gray-700 dark:text-gray-300">
-                      <input
-                        id="lr-req"
-                        type="checkbox"
-                        checked={lineIsRequired}
-                        onChange={(e) => setLineIsRequired(e.target.checked)}
-                        className="rounded border-gray-300 text-brand-600 dark:border-gray-600"
-                      />
-                      필수 구성
-                    </label>
-                  </div>
-                  <div>
-                    <Label htmlFor="lr-remark">비고</Label>
-                    <Input
-                      id="lr-remark"
-                      value={lineRemark}
-                      onChange={(e) => setLineRemark(e.target.value)}
-                      className="mt-1.5 max-w-2xl"
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    disabled={
-                      addLineMutation.isPending ||
-                      revisionIdPick < 1
-                    }
-                    onClick={() => addLineMutation.mutate()}
-                    className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white shadow-theme-xs hover:bg-brand-600 disabled:opacity-50 dark:bg-brand-600 dark:hover:bg-brand-500"
-                  >
-                    구성에 추가
-                  </button>
-                </div>
-              )}
-            </div>
-          ) : null}
         </ComponentCard>
       </div>
+
+      {canManageProducts && accessToken ? (
+        <ProductDefinitionAddCompositionModal
+          isOpen={addCompositionOpen}
+          onClose={() => setAddCompositionOpen(false)}
+          definitionId={did}
+          productId={pid}
+          accessToken={accessToken}
+        />
+      ) : null}
 
       <Modal
         isOpen={headerModalOpen}
@@ -813,6 +668,22 @@ export default function ProductDefinitionDetail() {
               className="mt-1.5"
             />
           </div>
+          <SearchableSelectWithCreate
+            id="eh-housing"
+            label="하우징 템플릿"
+            value={editHousingTemplateIdStr}
+            onChange={setEditHousingTemplateIdStr}
+            options={housingModalOptions}
+            placeholder={
+              housingListLoading
+                ? "불러오는 중…"
+                : "검색하여 선택 · 연결 안 함"
+            }
+            addTrigger="none"
+            addButtonLabel="추가"
+            onAddClick={() => {}}
+            isDisabled={housingListLoading}
+          />
           <div>
             <Label htmlFor="eh-st">상태</Label>
             <Select
