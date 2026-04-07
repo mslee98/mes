@@ -62,6 +62,7 @@ import { ReactComponent as InformationCircleIcon } from "./information-circle.sv
 import { ReactComponent as ArrowDownOnSquareIcon } from "./arrow-down-on-square.svg?react";
 import { ReactComponent as XCircleSolidIcon } from "./x-circle.svg?react";
 import { ReactComponent as ArchiveBoxArrowDownIcon } from "./archive-box-arrow-down.svg?react";
+import { ReactComponent as UserGroupIcon } from "./user-group.svg?react";
 export {
   ErrorHexaIcon,
   AlertHexaIcon,
@@ -127,4 +128,5 @@ export {
   ArrowDownOnSquareIcon,
   XCircleSolidIcon,
   ArchiveBoxArrowDownIcon,
+  UserGroupIcon,
 };

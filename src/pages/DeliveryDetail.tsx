@@ -9,7 +9,6 @@ import { useAuth } from "../context/AuthContext";
 import { useCommonCodesByGroup } from "../hooks/useCommonCodesByGroup";
 import {
   getDeliveryById,
-  type DeliveryOrderWithDetail,
   type Partner,
 } from "../api/purchaseOrder";
 import { DeliveryPlanApprovalDemoPanel } from "../components/delivery/DeliveryPlanApprovalDemoPanel";
@@ -27,6 +26,7 @@ import {
   labelForCommonCode,
 } from "../api/commonCode";
 import { partnerSelectLabel } from "../lib/partnerDisplay";
+import { partnerCountryFlagUrl } from "../lib/partnerCountryOptions";
 import { getProductDefinition } from "../api/products";
 import { getHousingTemplate } from "../api/housingTemplates";
 import {
@@ -285,7 +285,23 @@ export default function DeliveryDetail() {
   const d = delivery!;
   const title = d.deliveryNo?.trim() || `#${d.id}`;
   const partner: Partner | undefined = order?.partner ?? d.partner;
-  const partnerLabel = partner ? partnerSelectLabel(partner, countryCodes) : "—";
+  const partnerLabelText = partner ? partnerSelectLabel(partner, countryCodes) : "—";
+  const partnerFlagUrl = partnerCountryFlagUrl(
+    String(partner?.countryCode ?? "")
+  );
+  const partnerLabel = (
+    <div className="flex items-center gap-2">
+      {partnerFlagUrl ? (
+        <img
+          src={partnerFlagUrl}
+          alt=""
+          className="h-5 w-[1.375rem] shrink-0 rounded-sm object-cover"
+          decoding="async"
+        />
+      ) : null}
+      <span>{partnerLabelText}</span>
+    </div>
+  );
 
   const orderCurrency =
     order?.currencyCode?.trim() ||
@@ -369,7 +385,7 @@ export default function DeliveryDetail() {
                 unitLabel={unitLabel}
               />
             ) : null}
-            {activeTab === "misc" ? (
+            {activeTab === "progress" ? (
               <DeliveryPlanApprovalDemoPanel
                 deliveryId={id}
                 sortedCodes={sortedDeliveryStatusCodes}
@@ -377,6 +393,18 @@ export default function DeliveryDetail() {
                 serverStatus={d.status}
                 simCode={deliveryStatusSimCode}
                 onSimChange={setDeliveryStatusSimCode}
+                section="progress"
+              />
+            ) : null}
+            {activeTab === "approval" ? (
+              <DeliveryPlanApprovalDemoPanel
+                deliveryId={id}
+                sortedCodes={sortedDeliveryStatusCodes}
+                codesLoading={deliveryStatusCodesLoading}
+                serverStatus={d.status}
+                simCode={deliveryStatusSimCode}
+                onSimChange={setDeliveryStatusSimCode}
+                section="approval"
               />
             ) : null}
           </div>

@@ -37,6 +37,9 @@ import { useAuth } from "./context/AuthContext";
 import NotFound from "./pages/NotFound";
 import Delivery from "./pages/Delivery";
 import DeliveryDetail from "./pages/DeliveryDetail";
+import DashboardMaterial from "./pages/DashboardMaterial";
+import DashboardExecutive from "./pages/DashboardExecutive";
+import DashboardTeamLead from "./pages/DashboardTeamLead";
 
 function RequireAuth() {
   const { isLoggedIn, isLoading } = useAuth();
@@ -94,6 +97,10 @@ function App() {
           <Route element={<RequireAuth />}>
             <Route path="/" element={<AppLayout />}>
               <Route index element={<Home />} />
+              <Route path="dashboard" element={<Navigate to="/dashboard/material" replace />} />
+              <Route path="dashboard/material" element={<DashboardMaterial />} />
+              <Route path="dashboard/executive" element={<DashboardExecutive />} />
+              <Route path="dashboard/team-lead" element={<DashboardTeamLead />} />
 
 
               {/* 품목 마스터(item) */}

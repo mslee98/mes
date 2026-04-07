@@ -105,6 +105,10 @@
   - **수정**: `/order/:orderId/edit` 링크  
   - **첨부**: 파일 선택 → `uploadPurchaseOrderFile(id, file)`  
   - **납품 등록**: 모달에서 납품일, 제품별 납품 수량/LOT/비고 입력 → `createDelivery(purchaseOrderId, payload)`
+- **결재(상신·승인·반려)**  
+  - 백엔드는 JWT 사용자와 `currentApprovalRequest.lines` 중 **현재 `PENDING`인 줄의 결재자**(`approverUserId` 등)를 맞추지 않으면 **403**(또는 상태 오류 시 **400**). 오류 메시지 문구는 API별로 다를 수 있음.  
+  - 성공 시 승인 API는 **200 + 발주 본문**을 줄 수 있으나, 클라이언트는 `void` 처리 후 `purchaseOrder` 쿼리 무효화로 상세를 다시 받는다.  
+  - API에 `canCurrentUserApprove` 같은 필드는 없음 → **승인·반려 버튼 노출**은 `lines`의 PENDING 결재자와 로그인 사용자 id 비교로 계산하고, **`ADMIN` / `SYSTEM_MANAGER`** 역할(로그인·refresh 페이로드의 `roles`/`permissions`)은 **결재선 우회** 정책에 맞춰 동일 버튼을 볼 수 있다(실제 승인은 백엔드가 최종 검증).
 
 ### 4.3 발주 등록 (`OrderForm.tsx`, `orderId === "new"`)
 

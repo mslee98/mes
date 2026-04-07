@@ -58,6 +58,7 @@ import {
   COMMON_CODE_GROUP_COUNTRY,
 } from "../api/commonCode";
 import { partnerSelectLabel } from "../lib/partnerDisplay";
+import { partnerCountryFlagUrl } from "../lib/partnerCountryOptions";
 import Input from "../components/form/input/InputField";
 import TextArea from "../components/form/input/TextArea";
 import Label from "../components/form/Label";
@@ -84,6 +85,7 @@ import {
   buildApprovalLinesFromDraft,
   type ApprovalLineDraftRow,
 } from "../lib/purchaseOrderApprovalDraft";
+import { canShowPurchaseOrderApproveRejectUi } from "../lib/purchaseOrderApprovalEligibility";
 import { getUsers, findTeamLeaderUserForDepartment } from "../api/user";
 import {
   getOrganizationTree,
@@ -140,9 +142,11 @@ function deliveryManagerUserIdFromSelect(selectValue: string): number | null {
  * -----------------------------------------------------------------
  * 1) 상신: POST `.../approval/submit` — `lines[]`는 `stepOrder`·`approverUserId`(선택 `status`).
  *    이미 PO_CLOSED이면 400.
- * 2) 승인: POST `.../approval/approve` — 발주 종결(PO_CLOSED).
+ * 2) 승인: POST `.../approval/approve` — 발주 종결(PO_CLOSED). 성공 시 200 + 발주 본문 등 백엔드 응답이 올 수 있음.
+ *    JWT 사용자와 현재 PENDING 라인의 결재자가 다르면 403(또는 상태 불가 시 400); ADMIN·SYSTEM_MANAGER는 결재선 우회.
  * 3) 납품: POST `.../deliveries` — **order.status === PO_CLOSED** 일 때만 백엔드에서 허용.
  * 4) 발주 헤더의 결재 시각·1차 결재자 필드는 제거됨 → `currentApprovalRequest` 로 표시.
+ *    승인/반려 버튼 노출은 `canCurrentUserApprove` 필드 없이 `currentApprovalRequest.lines`의 PENDING + 역할로 계산.
  */
 type ApprovalModalAction = "submit" | "approve";
 
@@ -869,8 +873,18 @@ export default function OrderDetail() {
   );
   const hasApproved = isPoClosed;
   const isWaitingFirstApproval = hasSubmittedApproval && !hasApproved;
-  /** 상신됐으나 아직 승인 전 — 서버 정책상 열람·수정 권한이 있으면 누구나 승인 API 호출 가능 */
-  const canPressApprove = isWaitingFirstApproval;
+  /** PENDING 라인 결재자(또는 ADMIN·SYSTEM_MANAGER)에게만 승인·반려 UI — 백엔드 403과 맞춤 */
+  const canPressApprove = canShowPurchaseOrderApproveRejectUi(
+    authUser,
+    currentUserId,
+    po.currentApprovalRequest,
+    isWaitingFirstApproval
+  );
+  const canEditOrder =
+    !isPoClosed &&
+    !hasSubmittedApproval &&
+    (createdById == null ||
+      (currentUserId != null && createdById === currentUserId));
   const canShowSubmitButton =
     !isPoClosed &&
     !hasSubmittedApproval &&
@@ -885,6 +899,9 @@ export default function OrderDetail() {
   const partnerName = partnerSelectLabel(
     po.partner as Partner | undefined,
     countryCodes
+  );
+  const partnerFlagUrl = partnerCountryFlagUrl(
+    String((po.partner as Partner | undefined)?.countryCode ?? "")
   );
   const headerCurrency = po.currencyCode ?? "KRW";
   const orderSummaryTh =
@@ -996,12 +1013,14 @@ export default function OrderDetail() {
                     상신
                   </button>
                 ) : null}
-                <Link
-                  to={`/order/${id}/edit`}
-                  className="inline-flex rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
-                >
-                  수정
-                </Link>
+                {canEditOrder ? (
+                  <Link
+                    to={`/order/${id}/edit`}
+                    className="inline-flex rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+                  >
+                    수정
+                  </Link>
+                ) : null}
                 <Link
                   to="/order"
                   className="inline-flex rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
@@ -1010,7 +1029,7 @@ export default function OrderDetail() {
                 </Link>
               </div>
             </div>
-            {canPressApprove ? (
+            {isWaitingFirstApproval ? (
               <div className="border-b border-emerald-200 bg-emerald-50 px-4 py-2.5 text-theme-sm text-emerald-900 dark:border-emerald-900/50 dark:bg-emerald-950/35 dark:text-emerald-100">
                 결재 요청이 진행 중입니다.{" "}
                 {po.currentApprovalRequest?.currentStep != null ? (
@@ -1040,7 +1059,19 @@ export default function OrderDetail() {
                   <th scope="row" className={orderSummaryTh}>
                     거래처
                   </th>
-                  <td className={orderSummaryTd}>{partnerName}</td>
+                  <td className={orderSummaryTd}>
+                    <div className="flex items-center gap-2">
+                      {partnerFlagUrl ? (
+                        <img
+                          src={partnerFlagUrl}
+                          alt=""
+                          className="h-5 w-[1.375rem] shrink-0 rounded-sm object-cover"
+                          decoding="async"
+                        />
+                      ) : null}
+                      <span>{partnerName}</span>
+                    </div>
+                  </td>
                   <th scope="row" className={orderSummaryTh}>
                     발주일
                   </th>

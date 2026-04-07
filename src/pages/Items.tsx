@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router";
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
-import PageNotice from "../components/common/PageNotice";
+// import PageNotice from "../components/common/PageNotice";
 import ListPageLoading from "../components/common/ListPageLoading";
 import Select from "../components/form/Select";
 import Badge from "../components/ui/badge/Badge";
@@ -144,7 +144,7 @@ export default function Items() {
       />
       <PageBreadcrumb pageTitle="품목 마스터" />
 
-      <PageNotice className="mb-4" variant="neutral">
+      {/* <PageNotice className="mb-4" variant="neutral">
         품목은 <strong>설계·구성 요소</strong> 마스터입니다. 발주 기준은{" "}
         <Link
           to="/products"
@@ -167,7 +167,7 @@ export default function Items() {
           품목 유형
         </Link>
         메뉴를 이용하세요.
-      </PageNotice>
+      </PageNotice> */}
 
       <ListPageLayout
         title="품목 목록"

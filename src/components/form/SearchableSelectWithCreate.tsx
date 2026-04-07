@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import Select, {
+  type FormatOptionLabelMeta,
   type GroupBase,
   type SingleValue,
   type StylesConfig,
@@ -12,6 +13,7 @@ export type SearchableSelectOption = {
   value: string;
   label: string;
   isDisabled?: boolean;
+  countryCode?: string;
 };
 
 export interface SearchableSelectWithCreateProps {
@@ -41,6 +43,11 @@ export interface SearchableSelectWithCreateProps {
   compact?: boolean;
   /** `false`면 선택 후 X(지우기) 숨김 — 테이블 제품 등 */
   isClearable?: boolean;
+  /** 옵션/선택값 커스텀 렌더 */
+  formatOptionLabel?: (
+    option: SearchableSelectOption,
+    meta: FormatOptionLabelMeta<SearchableSelectOption>
+  ) => React.ReactNode;
 }
 
 function buildStyles(
@@ -123,6 +130,7 @@ export default function SearchableSelectWithCreate({
   className = "",
   compact = false,
   isClearable = true,
+  formatOptionLabel,
 }: SearchableSelectWithCreateProps) {
   const { theme } = useTheme();
   const isDark = theme === "dark";
@@ -178,6 +186,7 @@ export default function SearchableSelectWithCreate({
         const valueStr = String(option.value ?? "").toLowerCase();
         return labelStr.includes(q) || valueStr.includes(q);
       }}
+      formatOptionLabel={formatOptionLabel}
     />
   );
 

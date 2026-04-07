@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Link } from "react-router";
 import type { DeliveryOrderWithDetail } from "../../api/purchaseOrder";
 import type { CommonCodeItem } from "../../api/commonCode";
@@ -23,7 +24,7 @@ import {
 
 type DeliveryDetailOrderTabProps = {
   order: DeliveryOrderWithDetail | undefined;
-  partnerLabel: string;
+  partnerLabel: ReactNode;
   orderCurrency: string;
   purchaseOrderId: number | undefined;
   poStatusCodes: CommonCodeItem[];

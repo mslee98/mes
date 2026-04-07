@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Link } from "react-router";
 import type { Delivery, DeliveryOrderWithDetail } from "../../api/purchaseOrder";
 import type { CommonCodeItem } from "../../api/commonCode";
@@ -25,7 +26,7 @@ type DeliveryDetailOverviewTabProps = {
   delivery: Delivery;
   order: DeliveryOrderWithDetail | undefined;
   purchaseOrderId: number | undefined;
-  partnerLabel: string;
+  partnerLabel: ReactNode;
   effectiveDeliveryStatus: string | null | undefined;
   deliveryStatusSimCode: string | null;
   statusName: (code: string | undefined) => string;
@@ -204,10 +205,18 @@ export function DeliveryDetailOverviewTab({
           <strong className="font-medium text-gray-800 dark:text-gray-200">계획·결재</strong> 와이어 시연은{" "}
           <button
             type="button"
-            onClick={() => onNavigateTab("misc")}
+            onClick={() => onNavigateTab("progress")}
             className="font-medium text-brand-600 underline hover:no-underline dark:text-brand-400"
           >
-            진행·기타
+            진행
+          </button>
+          ·{" "}
+          <button
+            type="button"
+            onClick={() => onNavigateTab("approval")}
+            className="font-medium text-brand-600 underline hover:no-underline dark:text-brand-400"
+          >
+            결재
           </button>
           탭에서 연동·조작할 수 있습니다.
         </p>

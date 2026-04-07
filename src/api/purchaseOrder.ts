@@ -1266,7 +1266,8 @@ export async function getDeliveries(
 // --- 결재(상신·승인) ---
 // POST `/purchase-orders/:id/approval/submit` — 상신. PO_CLOSED면 400.
 // - `lines[]`: `stepOrder`(권장)·`stepNo`(호환), `approverUserId`, 선택 `status`
-// POST `.../approval/approve` — 승인과 동시에 발주 종결(PO_CLOSED).
+// POST `.../approval/approve` — 승인. 백엔드: JWT 사용자 ≠ 현재 PENDING 라인 결재자면 403(또는 400);
+//   ADMIN·SYSTEM_MANAGER는 우회. 성공 시 200 + 발주 본문을 줄 수 있음(클라이언트는 void 처리·invalidate로 갱신).
 
 /** 상신 시 결재선 한 단계 */
 export interface PurchaseOrderApprovalLineInput {
@@ -1400,7 +1401,10 @@ export async function submitPurchaseOrderApproval(
   return postPurchaseOrderApprovalSegment(id, "submit", payload, accessToken);
 }
 
-/** `POST /purchase-orders/:id/approval/approve` — 결재 승인 */
+/**
+ * `POST /purchase-orders/:id/approval/approve` — 결재 승인.
+ * 응답 본문(발주 상세)은 선택적; 성공 시 쿼리 무효화로 상세를 다시 받는 패턴을 쓴다.
+ */
 export async function approvePurchaseOrderApproval(
   id: number,
   payload: PurchaseOrderApprovalActionPayload,

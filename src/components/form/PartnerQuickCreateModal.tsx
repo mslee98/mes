@@ -12,13 +12,16 @@ import {
 } from "../../api/purchaseOrder";
 import {
   COMMON_CODE_GROUP_PARTNER_DEFENSE_MARKET,
-  COMMON_CODE_GROUP_COUNTRY,
   commonCodesToSelectOptions,
 } from "../../api/commonCode";
 import { useCommonCodesByGroup } from "../../hooks/useCommonCodesByGroup";
+import CountrySelect from "./CountrySelect";
+import {
+  DEFAULT_PARTNER_COUNTRY_CODE,
+  isPartnerCountryCode,
+} from "../../lib/partnerCountryOptions";
 
 const DEFAULT_DEFENSE_MARKET = "CIVILIAN";
-const DEFAULT_COUNTRY_CODE = "KR";
 
 export interface PartnerQuickCreateModalProps {
   isOpen: boolean;
@@ -46,20 +49,9 @@ export default function PartnerQuickCreateModal({
     { enabled: isOpen && !!accessToken }
   );
 
-  const { data: countryCodes = [] } = useCommonCodesByGroup(
-    COMMON_CODE_GROUP_COUNTRY,
-    accessToken,
-    { enabled: isOpen && !!accessToken }
-  );
-
   const defenseOptions = useMemo(
     () => commonCodesToSelectOptions(defenseMarketCodes),
     [defenseMarketCodes]
-  );
-
-  const countryOptions = useMemo(
-    () => commonCodesToSelectOptions(countryCodes),
-    [countryCodes]
   );
 
   useEffect(() => {
@@ -68,7 +60,14 @@ export default function PartnerQuickCreateModal({
       setCountryCode("");
       return;
     }
-    if (defenseOptions.length === 0 || countryOptions.length === 0) return;
+    setCountryCode((prev) => {
+      if (prev && isPartnerCountryCode(prev)) return prev;
+      return DEFAULT_PARTNER_COUNTRY_CODE;
+    });
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen || defenseOptions.length === 0) return;
     setDefenseMarket((prev) => {
       if (prev && defenseOptions.some((o) => o.value === prev)) return prev;
       const preferred =
@@ -76,14 +75,7 @@ export default function PartnerQuickCreateModal({
         defenseOptions[0];
       return preferred?.value ?? "";
     });
-    setCountryCode((prev) => {
-      if (prev && countryOptions.some((o) => o.value === prev)) return prev;
-      const preferred =
-        countryOptions.find((o) => o.value === DEFAULT_COUNTRY_CODE) ??
-        countryOptions[0];
-      return preferred?.value ?? "";
-    });
-  }, [isOpen, defenseOptions, countryOptions]);
+  }, [isOpen, defenseOptions]);
 
   const mutation = useMutation({
     mutationFn: (payload: PartnerCreatePayload) =>
@@ -112,17 +104,13 @@ export default function PartnerQuickCreateModal({
       toast.error("민수/군수 공통코드를 불러올 수 없습니다.");
       return;
     }
-    if (countryOptions.length === 0) {
-      toast.error("국가 공통코드를 불러올 수 없습니다.");
-      return;
-    }
     const dm = defenseMarket.trim();
     const cc = countryCode.trim();
     if (!dm || !defenseOptions.some((o) => o.value === dm)) {
       toast.error("민수/군수를 선택하세요.");
       return;
     }
-    if (!cc || !countryOptions.some((o) => o.value === cc)) {
+    if (!cc || !isPartnerCountryCode(cc)) {
       toast.error("국가를 선택하세요.");
       return;
     }
@@ -135,8 +123,7 @@ export default function PartnerQuickCreateModal({
     });
   };
 
-  const codesReady =
-    defenseOptions.length > 0 && countryOptions.length > 0;
+  const codesReady = defenseOptions.length > 0;
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} className="mx-4 max-w-md p-6">
@@ -194,29 +181,14 @@ export default function PartnerQuickCreateModal({
             민수/군수 공통코드를 불러오는 중이거나 없습니다.
           </p>
         ) : null}
-        {countryOptions.length > 0 ? (
-          <div>
-            <Label htmlFor="partner-quick-country">국가 *</Label>
-            <select
-              id="partner-quick-country"
-              value={countryCode}
-              onChange={(e) => setCountryCode(e.target.value)}
-              className="mt-1 h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white"
-            >
-              {countryOptions.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-            <p className="mt-1 text-theme-xs text-gray-500 dark:text-gray-400">
-              공통코드 <code className="text-xs">COUNTRY</code>
-            </p>
-          </div>
-        ) : isOpen ? (
-          <p className="text-theme-sm text-amber-600 dark:text-amber-400">
-            국가 공통코드를 불러오는 중이거나 없습니다.
-          </p>
+        {isOpen ? (
+          <CountrySelect
+            id="partner-quick-country"
+            label="국가 *"
+            value={countryCode}
+            onChange={setCountryCode}
+            helpText="등록 화면에서 선택 가능한 국가만 표시됩니다."
+          />
         ) : null}
         <div>
           <Label htmlFor="partner-quick-contact">담당자 / 연락처</Label>

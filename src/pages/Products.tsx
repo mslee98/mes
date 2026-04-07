@@ -284,7 +284,7 @@ export default function Products() {
         description="대표 제품(발주·정의 연동 기준) 목록"
       />
       <PageBreadcrumb pageTitle="제품 목록" />
-      <p className="mb-3 text-sm text-gray-500 dark:text-gray-400">
+      {/* <p className="mb-3 text-sm text-gray-500 dark:text-gray-400">
         SKU·단가 단위 마스터는{" "}
         <Link
           to="/items"
@@ -297,7 +297,7 @@ export default function Products() {
           제품 정의
         </strong>
         (발주 유형·버전별 기준)를 연결한 뒤 발주 화면에서 선택합니다.
-      </p>
+      </p> */}
       <ListPageLayout
         title="제품 목록"
         searchOptionsOpen={searchOptionsOpen}

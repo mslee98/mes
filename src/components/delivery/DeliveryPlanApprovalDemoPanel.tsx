@@ -75,6 +75,7 @@ export function DeliveryPlanApprovalDemoPanel({
   serverStatus,
   simCode,
   onSimChange,
+  section,
 }: {
   deliveryId: number;
   sortedCodes: CommonCodeItem[];
@@ -82,6 +83,7 @@ export function DeliveryPlanApprovalDemoPanel({
   serverStatus: string | undefined;
   simCode: string | null;
   onSimChange: (code: string | null) => void;
+  section: "progress" | "approval";
 }) {
   const [planPhase, setPlanPhase] = useState<WireDemoPhase>(0);
 
@@ -150,9 +152,13 @@ export function DeliveryPlanApprovalDemoPanel({
   const segmentClass = (afterStep: 1 | 2) =>
     `mt-2 w-px flex-1 min-h-[1.5rem] ${planPhase >= afterStep ? "bg-blue-600 dark:bg-blue-500" : "bg-gray-200 dark:bg-gray-600"}`;
 
+  const isProgressSection = section === "progress";
+  const isApprovalSection = section === "approval";
+  const cardTitle = isProgressSection ? "납품 진행 시연" : "납품 결재 처리";
+
   return (
     <ComponentCard
-      title="납품 계획 · 결재 처리"
+      title={cardTitle}
       collapsible
       defaultCollapsed={false}
       headerEnd={
@@ -166,15 +172,20 @@ export function DeliveryPlanApprovalDemoPanel({
         </span>
       }
     >
-      <div className="mb-6 rounded-lg border border-dashed border-amber-300/90 bg-gradient-to-br from-amber-50/80 via-white to-sky-50/50 px-3 py-2.5 text-theme-xs leading-relaxed text-gray-800 dark:border-amber-600/40 dark:from-amber-500/10 dark:via-white/[0.02] dark:to-sky-500/10 dark:text-gray-100">
-        <strong className="font-medium text-gray-900 dark:text-white">DELIVERY_STATUS</strong> 공통코드 순서는 개요 탭{" "}
-        <strong className="font-medium">납품 진행 단계</strong> 스테퍼·진행률과 같습니다. 아래 첫 구간에서 단계를
-        옮기면 개요와 동일하게 반영됩니다. 이어지는{" "}
-        <strong className="font-medium">계획·결재·승인</strong> 블록은 상세 필드 와이어이며, 상태 시연과 별도로
-        로컬(sessionStorage)만 씁니다. 서버 PATCH는 없습니다.
-      </div>
+      {isProgressSection ? (
+        <div className="mb-6 rounded-lg border border-dashed border-amber-300/90 bg-gradient-to-br from-amber-50/80 via-white to-sky-50/50 px-3 py-2.5 text-theme-xs leading-relaxed text-gray-800 dark:border-amber-600/40 dark:from-amber-500/10 dark:via-white/[0.02] dark:to-sky-500/10 dark:text-gray-100">
+          <strong className="font-medium text-gray-900 dark:text-white">DELIVERY_STATUS</strong> 공통코드 순서는 개요
+          탭 <strong className="font-medium">납품 진행 단계</strong> 스테퍼·진행률과 같습니다. 아래에서 단계를
+          옮기면 개요와 동일하게 반영됩니다.
+        </div>
+      ) : (
+        <div className="mb-6 rounded-lg border border-dashed border-amber-300/90 bg-gradient-to-br from-amber-50/80 via-white to-sky-50/50 px-3 py-2.5 text-theme-xs leading-relaxed text-gray-800 dark:border-amber-600/40 dark:from-amber-500/10 dark:via-white/[0.02] dark:to-sky-500/10 dark:text-gray-100">
+          <strong className="font-medium text-gray-900 dark:text-white">계획·결재·승인</strong> 블록은 상세 필드
+          와이어 시연입니다. 납품 상태 시연과 별도로 로컬(sessionStorage)만 사용하며 서버 PATCH는 없습니다.
+        </div>
+      )}
 
-      <section aria-label="납품 진행 단계 DELIVERY_STATUS">
+      {isProgressSection ? <section aria-label="납품 진행 단계 DELIVERY_STATUS">
         <h3 className="text-sm font-semibold text-gray-900 dark:text-white">납품 진행 (공통코드)</h3>
         <p className="mt-1 text-theme-xs text-gray-500 dark:text-gray-400">
           정렬된 상태 코드별 타임라인과 시연 버튼입니다.
@@ -324,11 +335,9 @@ export function DeliveryPlanApprovalDemoPanel({
             </div>
           </>
         )}
-      </section>
+      </section> : null}
 
-      <div className="my-8 border-t border-gray-200 dark:border-gray-700" aria-hidden />
-
-      <section aria-label="계획 결재 승인 와이어">
+      {isApprovalSection ? <section aria-label="계획 결재 승인 와이어">
         <h3 className="text-sm font-semibold text-gray-900 dark:text-white">계획 · 결재 · 승인 (상세 필드)</h3>
         <p className="mt-1 text-theme-xs text-gray-500 dark:text-gray-400">
           현장 계획 수립 → 결재 상신 → 승인 흐름의 확장 필드 골격입니다. 위 진행 단계와 별도의 로컬 시연 단계입니다.
@@ -516,7 +525,7 @@ export function DeliveryPlanApprovalDemoPanel({
             </li>
           </ol>
         </div>
-      </section>
+      </section> : null}
     </ComponentCard>
   );
 }

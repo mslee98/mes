@@ -1,4 +1,4 @@
-export type DeliveryDetailTab = "overview" | "lines" | "order" | "misc";
+export type DeliveryDetailTab = "overview" | "lines" | "order" | "progress" | "approval";
 
 export const DELIVERY_DETAIL_TAB_OPTIONS: {
   value: DeliveryDetailTab;
@@ -7,5 +7,6 @@ export const DELIVERY_DETAIL_TAB_OPTIONS: {
   { value: "overview", label: "개요" },
   { value: "lines", label: "납품 품목" },
   { value: "order", label: "발주 연동" },
-  { value: "misc", label: "진행·기타" },
+  { value: "progress", label: "진행" },
+  { value: "approval", label: "결재" },
 ];

@@ -23,6 +23,7 @@ import Label from "../components/form/Label";
 import DatePicker from "../components/form/date-picker";
 import SelectInput from "../components/form/SelectInput";
 import SearchableSelectWithCreate from "../components/form/SearchableSelectWithCreate";
+import type { SearchableSelectOption } from "../components/form/SearchableSelectWithCreate";
 import PartnerQuickCreateModal from "../components/form/PartnerQuickCreateModal";
 import FileUploadDropzone from "../components/form/FileUploadDropzone";
 import {
@@ -55,6 +56,7 @@ import {
   commonCodesToSelectOptions,
 } from "../api/commonCode";
 import { partnerSelectLabel } from "../lib/partnerDisplay";
+import { partnerCountryFlagUrl } from "../lib/partnerCountryOptions";
 import {
   getProductList,
   representativeProductLabel,
@@ -89,6 +91,12 @@ import {
 
 function todayString() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function parsePositiveIntId(v: unknown): number | undefined {
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  if (typeof v === "string" && /^\d+$/.test(v.trim())) return Number(v.trim());
+  return undefined;
 }
 
 type ItemRow = {
@@ -319,6 +327,51 @@ export default function OrderForm() {
     !!order &&
     ((order.orderItems?.length ?? 0) === 0 &&
       (order.items?.length ?? 0) === 0);
+
+  const authUserId = useMemo(() => {
+    if (!user) return undefined;
+    return parsePositiveIntId((user as Record<string, unknown>).id);
+  }, [user]);
+
+  const canEditExistingOrder = useMemo(() => {
+    if (isNew) return true;
+    if (!order) return false;
+    const createdBy = order.createdBy as Record<string, unknown> | undefined;
+    const createdById = parsePositiveIntId(createdBy?.id);
+    const createdByEmployeeNo = String(
+      (createdBy?.employeeNo as string | undefined) ?? ""
+    ).trim();
+    const authEmployeeNo = String(user?.employeeNo ?? "").trim();
+    const isOwnerById =
+      createdById == null || (authUserId != null && authUserId === createdById);
+    const isOwnerByEmployeeNo =
+      createdByEmployeeNo === "" ||
+      (authEmployeeNo !== "" && authEmployeeNo === createdByEmployeeNo);
+    const isOwner = isOwnerById || isOwnerByEmployeeNo;
+    const approvalStatus = String(order.currentApprovalRequest?.status ?? "")
+      .trim()
+      .toUpperCase();
+    const isApprovalInProgress =
+      !!order.currentApprovalRequest &&
+      approvalStatus !== "" &&
+      approvalStatus !== "DRAFT" &&
+      approvalStatus !== "REJECTED";
+    const isPoClosed =
+      String(order.status ?? order.orderStatus ?? "").trim() === "PO_CLOSED";
+    return isOwner && !isApprovalInProgress && !isPoClosed;
+  }, [isNew, order, user?.employeeNo, authUserId]);
+
+  const blockedEditToastShownRef = useRef(false);
+
+  useEffect(() => {
+    if (isNew || !order) return;
+    if (canEditExistingOrder) return;
+    if (!blockedEditToastShownRef.current) {
+      toast.error("작성자만 수정할 수 있으며, 상신 진행 중/종결 상태는 수정할 수 없습니다.");
+      blockedEditToastShownRef.current = true;
+    }
+    navigate(`/order/${id}`, { replace: true });
+  }, [isNew, order, canEditExistingOrder, navigate, id]);
 
   /**
    * 
@@ -603,8 +656,31 @@ export default function OrderForm() {
     return (partners as Partner[]).map((p) => ({
       value: String(p.id),
       label: partnerSelectLabel(p, countryCodes),
+      countryCode: String(p.countryCode ?? "").trim().toUpperCase(),
     }));
   }, [partners, countryCodes]);
+
+  const renderPartnerOptionLabel = useCallback(
+    (option: SearchableSelectOption) => {
+      const flagUrl = option.countryCode
+        ? partnerCountryFlagUrl(option.countryCode)
+        : undefined;
+      return (
+        <div className="flex items-center gap-2">
+          {flagUrl ? (
+            <img
+              src={flagUrl}
+              alt=""
+              className="h-5 w-[1.375rem] shrink-0 rounded-sm object-cover"
+              decoding="async"
+            />
+          ) : null}
+          <span>{option.label}</span>
+        </div>
+      );
+    },
+    []
+  );
 
   const productSelectOptions = useMemo(() => {
     return productList.map((p) => ({
@@ -798,15 +874,22 @@ export default function OrderForm() {
     onError: (e: Error) => toast.error(e.message || "삭제에 실패했습니다."),
   });
 
-  const addItemRow = () =>
-    setItems((prev) => [
-      ...prev,
-      { ...emptyItemRow(), unitCode: firstUnitValue },
-    ]);
-  const removeItemRow = (index: number) =>
+  const addItemRow = () => {
+    if (!isNew && !canEditExistingOrder) {
+      toast.error("수정 권한이 없습니다.");
+      return;
+    }
+    setItems((prev) => [...prev, { ...emptyItemRow(), unitCode: firstUnitValue }]);
+  };
+  const removeItemRow = (index: number) => {
+    if (!isNew && !canEditExistingOrder) {
+      toast.error("수정 권한이 없습니다.");
+      return;
+    }
     setItems((prev) =>
       prev.length <= 1 ? prev : prev.filter((_, i) => i !== index)
     );
+  };
 
   const addPendingFileForCreate = (file: File) => {
     setPendingFilesForCreate((prev) => [...prev, file]);
@@ -841,6 +924,10 @@ export default function OrderForm() {
   };
 
   const beginLineEdit = (lineId?: number) => {
+    if (!isNew && !canEditExistingOrder) {
+      toast.error("수정 권한이 없습니다.");
+      return;
+    }
     if (!lineId) return;
     setEditingLineIds((prev) =>
       prev.includes(lineId) ? prev : [...prev, lineId]
@@ -853,6 +940,10 @@ export default function OrderForm() {
   };
 
   const saveLine = (index: number) => {
+    if (!isNew && !canEditExistingOrder) {
+      toast.error("수정 권한이 없습니다.");
+      return;
+    }
     const row = items[index];
     if (!row) return;
     if (row.productId <= 0) {
@@ -908,6 +999,10 @@ export default function OrderForm() {
   };
 
   const removeLine = (index: number) => {
+    if (!isNew && !canEditExistingOrder) {
+      toast.error("수정 권한이 없습니다.");
+      return;
+    }
     const row = items[index];
     if (!row) return;
     if (!row.lineId) {
@@ -954,6 +1049,10 @@ export default function OrderForm() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isNew && !canEditExistingOrder) {
+      toast.error("작성자만 수정할 수 있으며, 상신 진행 중/종결 상태는 수정할 수 없습니다.");
+      return;
+    }
     if (!title.trim()) {
       toast.error("제목을 입력하세요.");
       return;
@@ -1314,6 +1413,7 @@ export default function OrderForm() {
                   value={partnerId}
                   onChange={setPartnerId}
                   options={partnerSelectOptions}
+                  formatOptionLabel={renderPartnerOptionLabel}
                   placeholder="검색하여 업체 선택"
                   addTrigger="popover"
                   popoverDescription="목록에 없는 업체는 정보 아이콘을 눌러 빠르게 등록할 수 있습니다. 등록 후 자동으로 선택됩니다."
