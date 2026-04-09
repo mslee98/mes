@@ -1,15 +1,13 @@
 import PageMeta from "../components/common/PageMeta";
-import { useState } from "react";
 import Chart from "react-apexcharts";
 import type { ApexOptions } from "apexcharts";
-import Select from "../components/form/Select";
 import MonthlyTarget from "../components/ecommerce/MonthlyTarget";
 import { MoreDotIcon } from "../icons";
 
 const materialKpis = [
-  { label: "저재고 품목", value: "12건", note: "안전재고 미달" },
-  { label: "productDefinitionId 누락", value: "5건", note: "라인 품질 이슈" },
-  { label: "단가 누락 라인 비율", value: "2.3%", note: "unitPrice 기준" },
+  { label: "납품 건수", value: "12건", note: "26년 4월 2주차 기준" },
+  { label: "납품 예정 건수", value: "5건", note: "26년 4월 2주차 기준" },
+  { label: "RMA 건수", value: "2.3%", note: "26년 4월 2주차 기준" },
 ] as const;
 
 const materialQuality = [
@@ -30,82 +28,41 @@ const recentDeliveredProducts = [
   {
     deliveryNo: "#DLV-429",
     deliveredAt: "2026-04-07",
-    productName: "복합센서 모듈 A-12",
+    productName: "SUPER MARKOS",
     amount: "₩ 473,850",
     status: "완료",
   },
   {
     deliveryNo: "#DLV-274",
     deliveredAt: "2026-04-06",
-    productName: "제어보드 C-21",
+    productName: "ICE1280",
     amount: "₩ 293,010",
     status: "완료",
   },
   {
     deliveryNo: "#DLV-600",
     deliveredAt: "2026-04-05",
-    productName: "하우징 프레임 F-7",
+    productName: "MARKOS",
     amount: "₩ 782,010",
     status: "대기",
   },
   {
     deliveryNo: "#DLV-447",
     deliveredAt: "2026-04-05",
-    productName: "전원부 킷 P-3",
+    productName: "MARKOS",
     amount: "₩ 202,870",
     status: "지연",
   },
   {
     deliveryNo: "#DLV-647",
     deliveredAt: "2026-04-04",
-    productName: "커넥터 세트 K-9",
+    productName: "MARKOS",
     amount: "₩ 490,510",
     status: "완료",
   },
 ] as const;
 
 export default function DashboardMaterial() {
-  const [period, setPeriod] = useState("last7days");
-  const periodOptions = [
-    { value: "yesterday", label: "어제" },
-    { value: "today", label: "오늘" },
-    { value: "last7days", label: "최근 7일" },
-    { value: "last30days", label: "최근 30일" },
-    { value: "last90days", label: "최근 90일" },
-  ];
-  const multiSeriesOptions: ApexOptions = {
-    chart: {
-      type: "bar",
-      toolbar: { show: false },
-      fontFamily: "Pretendard, sans-serif",
-      height: 220,
-      stacked: false,
-    },
-    colors: ["#465FFF", "#10B981"],
-    plotOptions: {
-      bar: {
-        columnWidth: "45%",
-        borderRadius: 5,
-      },
-    },
-    dataLabels: { enabled: false },
-    xaxis: {
-      categories: ["월", "화", "수", "목", "금", "토", "일"],
-      axisBorder: { show: false },
-      axisTicks: { show: false },
-    },
-    yaxis: {
-      labels: {
-        formatter: (v) => `${Math.round(v)}`,
-      },
-    },
-    legend: { position: "top", horizontalAlign: "left" },
-    grid: { borderColor: "#E5E7EB" },
-  };
-  const multiSeries = [
-    { name: "라인 품질 점수", data: [78, 75, 82, 80, 84, 86, 88] },
-    { name: "정합성 점수", data: [72, 74, 77, 79, 81, 82, 85] },
-  ];
   const activeUsersChartOptions: ApexOptions = {
     chart: {
       type: "area",
@@ -130,7 +87,7 @@ export default function DashboardMaterial() {
     tooltip: { enabled: true },
   };
   const activeUsersChartSeries = [
-    { name: "Active Users", data: [220, 198, 226, 164, 258, 220, 232, 258, 248, 232, 242, 180] },
+    { name: "26년 RMA 건수", data: [112, 108, 114, 96, 129, 112, 116, 129, 124, 116, 120, 90] },
   ];
 
   return (
@@ -202,7 +159,7 @@ export default function DashboardMaterial() {
               <div className="flex items-start justify-between">
                 <div>
                   <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">SUPSER MARKOS</h3>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">RMA 요청 건수 모니터링</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">26년 4월 2주차 Super MARKOS 통계</p>
                 </div>
                 <MoreDotIcon className="size-6 text-gray-400 hover:text-gray-700 dark:hover:text-white" />
               </div>
@@ -253,7 +210,7 @@ export default function DashboardMaterial() {
               <div className="flex items-start justify-between">
                 <div>
                   <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">ICE1280</h3>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">납품 수 추이</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">26년 4월 2주차 ICE1280 통계</p>
                 </div>
                 <MoreDotIcon className="size-6 text-gray-400 hover:text-gray-700 dark:hover:text-white" />
               </div>
@@ -407,11 +364,11 @@ export default function DashboardMaterial() {
                     </span>
                   </span>
                   <span className="text-title-sm font-semibold text-gray-800 dark:text-white/90">
-                    401
+                    112
                   </span>
                 </div>
                 <span className="mb-1 block text-theme-sm text-gray-500 dark:text-gray-400">
-                  Live visitors
+                  26년 RMA 건수
                 </span>
               </div>
 
@@ -427,10 +384,10 @@ export default function DashboardMaterial() {
               <div className="flex items-center justify-center gap-6">
                 <div>
                   <p className="text-center text-lg font-semibold text-gray-800 dark:text-white/90">
-                    224
+                    3.2
                   </p>
                   <p className="mt-0.5 text-center text-theme-xs text-gray-500 dark:text-gray-400">
-                    Avg, Daily
+                    일평균
                   </p>
                 </div>
 
@@ -438,10 +395,10 @@ export default function DashboardMaterial() {
 
                 <div>
                   <p className="text-center text-lg font-semibold text-gray-800 dark:text-white/90">
-                    1.4K
+                    7.1
                   </p>
                   <p className="mt-0.5 text-center text-theme-xs text-gray-500 dark:text-gray-400">
-                    Avg, Weekly
+                    주차별 평균
                   </p>
                 </div>
 
@@ -449,10 +406,10 @@ export default function DashboardMaterial() {
 
                 <div>
                   <p className="text-center text-lg font-semibold text-gray-800 dark:text-white/90">
-                    22.1K
+                    6.3
                   </p>
                   <p className="mt-0.5 text-center text-theme-xs text-gray-500 dark:text-gray-400">
-                    Avg, Monthly
+                    월 평균
                   </p>
                 </div>
               </div>

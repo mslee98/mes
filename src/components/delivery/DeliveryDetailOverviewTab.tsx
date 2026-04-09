@@ -87,9 +87,9 @@ export function DeliveryDetailOverviewTab({
           <div className="flex flex-col items-end gap-1">
             <Badge
               size="sm"
-              color={badgeColorFromKoStatusLabel(statusName(effectiveDeliveryStatus))}
+              color={badgeColorFromKoStatusLabel(statusName(effectiveDeliveryStatus ?? undefined))}
             >
-              {statusName(effectiveDeliveryStatus)}
+              {statusName(effectiveDeliveryStatus ?? undefined)}
             </Badge>
             {deliveryStatusSimCode?.trim() ? (
               <span className="text-theme-xs text-amber-700 dark:text-amber-300">
@@ -296,9 +296,9 @@ export function DeliveryDetailOverviewTab({
                   <span className="text-theme-xs text-gray-500 dark:text-gray-400">화면 반영</span>{" "}
                   <Badge
                     size="sm"
-                    color={badgeColorFromKoStatusLabel(statusName(effectiveDeliveryStatus))}
+                    color={badgeColorFromKoStatusLabel(statusName(effectiveDeliveryStatus ?? undefined))}
                   >
-                    {statusName(effectiveDeliveryStatus)}
+                    {statusName(effectiveDeliveryStatus ?? undefined)}
                   </Badge>
                 </div>
               ) : null}

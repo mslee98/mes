@@ -46,7 +46,18 @@ export function ItemDetailBasicTab({
           value={
             <span title={i.itemType || undefined}>
               {itemTypeCodes.length
-                ? labelForCommonCode(itemTypeCodes, i.itemType)
+                ? labelForCommonCode(
+                    itemTypeCodes.map((codeItem, index) => ({
+                      id: index + 1,
+                      groupCode: "ITEM_TYPE",
+                      code: codeItem.code,
+                      name: codeItem.name ?? codeItem.code,
+                      description: "",
+                      sortOrder: index,
+                      isActive: codeItem.isActive ?? true,
+                    })),
+                    i.itemType
+                  )
                 : ITEM_TYPE_OPTIONS_FALLBACK.find((o) => o.value === i.itemType)
                     ?.label ??
                   (i.itemType || "-")}

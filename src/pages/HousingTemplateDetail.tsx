@@ -521,7 +521,7 @@ export default function HousingTemplateDetail() {
   if (!Number.isFinite(tid)) {
     return (
       <>
-        <PageMeta title="하우징 템플릿" />
+        <PageMeta title="하우징 템플릿" description="하우징 템플릿 상세" />
         <PageBreadcrumb pageTitle="하우징 템플릿" />
         <p className="text-sm text-gray-500 dark:text-gray-400">
           잘못된 ID입니다.
@@ -533,7 +533,7 @@ export default function HousingTemplateDetail() {
   if (!canReadProducts) {
     return (
       <>
-        <PageMeta title="하우징 템플릿" />
+        <PageMeta title="하우징 템플릿" description="하우징 템플릿 상세" />
         <PageBreadcrumb pageTitle="하우징 템플릿" />
         <PageNotice variant="neutral">
           제품 조회 권한(<code>product.read</code>)이 없습니다.
@@ -545,7 +545,7 @@ export default function HousingTemplateDetail() {
   if (isAuthLoading || isLoading) {
     return (
       <>
-        <PageMeta title="하우징 템플릿" />
+        <PageMeta title="하우징 템플릿" description="하우징 템플릿 상세" />
         <PageBreadcrumb pageTitle="하우징 템플릿" />
         <div className="flex min-h-[320px] items-center justify-center">
           <LoadingLottie message="불러오는 중..." />
@@ -557,7 +557,7 @@ export default function HousingTemplateDetail() {
   if (error || !template) {
     return (
       <>
-        <PageMeta title="하우징 템플릿" />
+        <PageMeta title="하우징 템플릿" description="하우징 템플릿 상세" />
         <PageBreadcrumb pageTitle="하우징 템플릿" />
         <p className="text-sm text-red-600 dark:text-red-400">
           {error instanceof Error
