@@ -4,7 +4,7 @@ import toast from "react-hot-toast";
 import { Modal } from "../ui/modal";
 import Label from "./Label";
 import Input from "./input/InputField";
-import { useAuth } from "../../context/AuthContext";
+import { useAuth } from "../../hooks/useAuth";
 import {
   createPartner,
   type Partner,

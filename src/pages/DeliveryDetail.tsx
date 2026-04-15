@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router";
-import { useQuery, useQueries } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import LoadingLottie from "../components/common/LoadingLottie";
 import SegmentedControl from "../components/common/SegmentedControl";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../hooks/useAuth";
 import { useCommonCodesByGroup } from "../hooks/useCommonCodesByGroup";
 import {
   getDeliveryById,
@@ -27,8 +27,6 @@ import {
 } from "../api/commonCode";
 import { partnerSelectLabel } from "../lib/partnerDisplay";
 import { partnerCountryFlagUrl } from "../lib/partnerCountryOptions";
-import { getProductDefinition } from "../api/products";
-import { getHousingTemplate } from "../api/housingTemplates";
 import {
   DELIVERY_DETAIL_TAB_OPTIONS,
   type DeliveryDetailTab,
@@ -43,9 +41,6 @@ import {
   formatDeliveryDetailDateYmd,
   labelForSortedDeliveryStatus,
   pickOrderItemsFromDeliveryOrder,
-  productDefinitionIdFromOrderItem,
-  resolveOrderItemForDeliveryLine,
-  housingTemplateInfoFromOrderItem,
 } from "../lib/deliveryDetailHelpers";
 
 const COMMON_CODE_GROUP_UNIT = "UNIT";
@@ -199,50 +194,7 @@ export default function DeliveryDetail() {
     [order]
   );
 
-  const [expandedLineKey, setExpandedLineKey] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<DeliveryDetailTab>("overview");
-
-  useEffect(() => {
-    if (activeTab !== "lines") setExpandedLineKey(null);
-  }, [activeTab]);
-
-  const definitionIds = useMemo(() => {
-    if (!delivery) return [];
-    const s = new Set<number>();
-    for (const line of deliveryLinesFromDelivery(delivery)) {
-      const oi = resolveOrderItemForDeliveryLine(line, delivery.order);
-      const did = productDefinitionIdFromOrderItem(oi);
-      if (did > 0) s.add(did);
-    }
-    return [...s].sort((a, b) => a - b);
-  }, [delivery]);
-
-  const templateIds = useMemo(() => {
-    if (!delivery) return [];
-    const s = new Set<number>();
-    for (const line of deliveryLinesFromDelivery(delivery)) {
-      const oi = resolveOrderItemForDeliveryLine(line, delivery.order);
-      const ht = housingTemplateInfoFromOrderItem(oi);
-      if (ht) s.add(ht.id);
-    }
-    return [...s].sort((a, b) => a - b);
-  }, [delivery]);
-
-  const definitionQueries = useQueries({
-    queries: definitionIds.map((defId) => ({
-      queryKey: ["productDefinition", defId],
-      queryFn: () => getProductDefinition(defId, accessToken!),
-      enabled: !!accessToken && !isAuthLoading && defId > 0,
-    })),
-  });
-
-  const templateQueries = useQueries({
-    queries: templateIds.map((tid) => ({
-      queryKey: ["housingTemplate", tid],
-      queryFn: () => getHousingTemplate(tid, accessToken!),
-      enabled: !!accessToken && !isAuthLoading && tid > 0,
-    })),
-  });
 
   const loading = isAuthLoading || (idOk && deliveryLoading);
 
@@ -352,22 +304,6 @@ export default function DeliveryDetail() {
               <DeliveryDetailLinesTab
                 lines={lines}
                 order={order}
-                definitionIds={definitionIds}
-                templateIds={templateIds}
-                definitionQueries={definitionQueries.map((q) => ({
-                  data: q.data,
-                  isLoading: q.isLoading,
-                  isError: q.isError,
-                }))}
-                templateQueries={templateQueries.map((q) => ({
-                  data: q.data,
-                  isLoading: q.isLoading,
-                  isError: q.isError,
-                }))}
-                expandedLineKey={expandedLineKey}
-                onToggleLineKey={(lineKey) =>
-                  setExpandedLineKey((prev) => (prev === lineKey ? null : lineKey))
-                }
                 unitLabel={unitLabel}
                 orderCurrency={orderCurrency}
               />

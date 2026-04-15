@@ -11,7 +11,7 @@ const materialKpis = [
 ] as const;
 
 const materialQuality = [
-  { metric: "productDefinitionId 누락 라인", value: "3.2K" },
+  { metric: "발주 라인 식별 누락", value: "3.2K" },
   { metric: "라인 합계 vs 공급가액 편차", value: "2.6K" },
   { metric: "스냅샷(제품명/버전) 누락", value: "1.9K" },
   { metric: "금액 0 / 수량 0 이상치", value: "1.1K" },

@@ -8,7 +8,6 @@ import {
 } from "react";
 import {
   useQuery,
-  useQueries,
   useMutation,
   useQueryClient,
 } from "@tanstack/react-query";
@@ -23,7 +22,7 @@ import { OrderDetailDeliveriesCard } from "../components/order/OrderDetailDelive
 import ConfirmModal from "../components/common/ConfirmModal";
 import LoadingLottie from "../components/common/LoadingLottie";
 import { Modal } from "../components/ui/modal";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../hooks/useAuth";
 import { useCommonCodesByGroup } from "../hooks/useCommonCodesByGroup";
 import {
   getPurchaseOrder,
@@ -44,11 +43,6 @@ import {
   type DeliveryCreateLinePayload,
   type Partner,
 } from "../api/purchaseOrder";
-import {
-  getProductDefinitions,
-  productDefinitionSelectLabel,
-} from "../api/products";
-import { productDetailHrefForDeliveryReturn } from "../lib/orderReturnNavigation";
 import { rejectApprovalRequest } from "../api/approvalRequests";
 import { API_BASE } from "../api/apiBase";
 import {
@@ -206,10 +200,6 @@ export default function OrderDetail() {
   const [deliveryLineQtyInput, setDeliveryLineQtyInput] = useState<
     Record<number, string>
   >({});
-  /** 발주 라인에 정의가 없을 때 — 납품 시점에 선택한 product_definition id */
-  const [deliveryLineDefinitionSelect, setDeliveryLineDefinitionSelect] =
-    useState<Record<number, string>>({});
-
   const resetDeliveryModalForm = useCallback(() => {
     setDeliveryTitle("");
     setDeliveryDate("");
@@ -218,7 +208,6 @@ export default function OrderDetail() {
     setDeliveryManagerDeptSelectValue("");
     setDeliveryManagerUserSelectValue("");
     setDeliveryLineQtyInput({});
-    setDeliveryLineDefinitionSelect({});
   }, []);
 
   /** 결재 모달: 상신 | 승인 */
@@ -257,69 +246,6 @@ export default function OrderDetail() {
     () => aggregateDeliveredQtyByOrderItemId(deliveries as Delivery[]),
     [deliveries]
   );
-
-  /** 납품 모달: 정의 미지정 라인의 대표 제품별 정의 목록용 (중복 productId 제거) */
-  const productIdsForDeliveryDefs = useMemo(() => {
-    if (!order) return [];
-    const po = order as PurchaseOrderDetail;
-    const lines = (po.orderItems ?? po.items ?? []) as PurchaseOrderItem[];
-    const s = new Set<number>();
-    for (const line of lines) {
-      if ((line.productDefinitionId ?? 0) > 0) continue;
-      const pid = line.productId ?? 0;
-      if (pid > 0) s.add(pid);
-    }
-    return Array.from(s).sort((a, b) => a - b);
-  }, [order]);
-
-  const deliveryDefinitionQueries = useQueries({
-    queries: productIdsForDeliveryDefs.map((productId) => ({
-      queryKey: ["productDefinitions", productId],
-      queryFn: () => getProductDefinitions(productId, accessToken!),
-      enabled:
-        deliveryModalOpen &&
-        !!accessToken &&
-        productId > 0 &&
-        Number.isFinite(id),
-      staleTime: 60_000,
-    })),
-  });
-
-  const deliveryDefsByProductId = useMemo(() => {
-    const m = new Map<
-      number,
-      Awaited<ReturnType<typeof getProductDefinitions>>
-    >();
-    productIdsForDeliveryDefs.forEach((pid, idx) => {
-      const data = deliveryDefinitionQueries[idx]?.data;
-      if (data && Array.isArray(data)) m.set(pid, data);
-    });
-    return m;
-  }, [productIdsForDeliveryDefs, deliveryDefinitionQueries]);
-
-  /** 정의 후보가 1개뿐이면 사용자 선택 없이 자동 지정 (여러 개면 빈 값 → 수동 선택) */
-  useEffect(() => {
-    if (!deliveryModalOpen || !order) return;
-    const lines = ((order as PurchaseOrderDetail).orderItems ??
-      (order as PurchaseOrderDetail).items ??
-      []) as PurchaseOrderItem[];
-
-    setDeliveryLineDefinitionSelect((prev) => {
-      let next: Record<number, string> | null = null;
-      for (const line of lines) {
-        if ((line.productDefinitionId ?? 0) > 0) continue;
-        const pid = line.productId ?? 0;
-        if (pid <= 0) continue;
-        const defs = deliveryDefsByProductId.get(pid) ?? [];
-        if (defs.length !== 1) continue;
-        if ((prev[line.id] ?? "").trim() !== "") continue;
-        const only = String(defs[0]!.id);
-        if (next == null) next = { ...prev };
-        next[line.id] = only;
-      }
-      return next ?? prev;
-    });
-  }, [deliveryModalOpen, order, deliveryDefsByProductId]);
 
   const { data: purchaseOrderTypeCodes = [] } = useCommonCodesByGroup(
     COMMON_CODE_GROUP_PURCHASE_ORDER_TYPE,
@@ -624,15 +550,9 @@ export default function OrderDetail() {
         `공급가액(부가세별도): ${formatCurrency(Number(p.supplyAmount), currency)}`
       );
     }
-    if (
-      p.totalAmountVatIncluded != null &&
-      Number.isFinite(Number(p.totalAmountVatIncluded))
-    ) {
+    if (p.totalAmount != null && Number.isFinite(Number(p.totalAmount))) {
       bodySummary.push(
-        `합계(부가세포함): ${formatCurrency(
-          Number(p.totalAmountVatIncluded),
-          currency
-        )}`
+        `합계: ${formatCurrency(Number(p.totalAmount), currency)}`
       );
     }
     bodySummary.push(`품목 ${linesItems.length}건`);
@@ -832,13 +752,10 @@ export default function OrderDetail() {
 
   const openDeliveryRegistrationModal = () => {
     const init: Record<number, string> = {};
-    const defSel: Record<number, string> = {};
     for (const line of orderLines) {
       init[line.id] = "";
-      defSel[line.id] = "";
     }
     setDeliveryLineQtyInput(init);
-    setDeliveryLineDefinitionSelect(defSel);
     const phase = (deliveries as Delivery[]).length + 1;
     const orderTitle = (po.title ?? "").trim() || po.orderNo || "발주";
     setDeliveryTitle(`${orderTitle} ${phase}차 납품`);
@@ -1083,9 +1000,9 @@ export default function OrderDetail() {
                   </th>
                   <td className={orderSummaryTd}>{orderTypeDisplayName}</td>
                   <th scope="row" className={orderSummaryTh}>
-                    우선순위
+                    통화
                   </th>
-                  <td className={orderSummaryTd}>{po.priority ?? "-"}</td>
+                  <td className={orderSummaryTd}>{headerCurrency}</td>
                 </tr>
                 <tr>
                   <th scope="row" className={orderSummaryTh}>
@@ -1159,9 +1076,9 @@ export default function OrderDetail() {
                     className={`${orderSummaryTd} font-medium tabular-nums`}
                     colSpan={3}
                   >
-                    {po.totalAmountVatIncluded != null ? (
+                    {po.totalAmount != null ? (
                       <>
-                        {formatCurrency(po.totalAmountVatIncluded, headerCurrency)}
+                        {formatCurrency(po.totalAmount, headerCurrency)}
                         <span className="ml-1.5 text-theme-xs font-normal text-gray-500 dark:text-gray-400">
                           ({headerCurrency})
                         </span>
@@ -1550,29 +1467,8 @@ export default function OrderDetail() {
       >
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white">납품 등록</h3>
         <p className="mt-1 text-theme-sm text-gray-500 dark:text-gray-400">
-          품목별로 이번 납품 수량을 입력합니다. 발주 시 제품 정의를 넣지 않은 행은{" "}
-          <strong className="font-medium text-gray-700 dark:text-gray-300">
-            대표 제품 기준 정의 목록
-          </strong>
-          에서 선택합니다. 해당 제품에 정의가{" "}
-          <strong className="font-medium text-gray-700 dark:text-gray-300">
-            하나뿐
-          </strong>
-          이면 자동으로 골라 두고,{" "}
-          <strong className="font-medium text-gray-700 dark:text-gray-300">
-            여러 개
-          </strong>
-          면 직접 선택해야 합니다. 정의가 아직 없는 행은 아래{" "}
-          <strong className="font-medium text-gray-700 dark:text-gray-300">
-            제품 화면에서 정의 등록
-          </strong>
-          링크를 쓰면{" "}
-          <strong className="font-medium text-gray-700 dark:text-gray-300">
-            새 탭
-          </strong>
-          으로 열려 이 창의 납품 입력은 유지됩니다. 수량을 입력한 행은 정의가
-          확정되어 있어야 합니다. 이미 발주에 정의가 박힌 행은 표시만 됩니다. 누적
-          납품은 서버에서 검증합니다.
+          품목별로 이번 납품 수량을 입력합니다. 잔여 수량을 넘지 않도록 입력하세요.
+          누적 납품은 서버에서 검증합니다.
         </p>
         <div className="mt-4 space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
@@ -1681,9 +1577,6 @@ export default function OrderDetail() {
                       <th className="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400">
                         품목
                       </th>
-                      <th className="min-w-[12rem] px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400">
-                        제품 정의
-                      </th>
                       <th className="w-24 px-2 py-2 text-right font-medium text-gray-600 dark:text-gray-400">
                         발주
                       </th>
@@ -1706,103 +1599,13 @@ export default function OrderDetail() {
                         line.itemName?.trim() ||
                         line.productNameSnapshot?.trim() ||
                         line.definitionNameSnapshot?.trim() ||
-                        line.item?.name ||
-                        (line.productDefinitionId > 0
-                          ? `정의 #${line.productDefinitionId}`
-                          : line.itemId != null && line.itemId > 0
-                            ? `품목 #${line.itemId}`
-                            : "품목");
-                      const hasServerDef = (line.productDefinitionId ?? 0) > 0;
-                      const lineProductId = line.productId ?? 0;
-                      const legacyNoProduct =
-                        !hasServerDef && lineProductId <= 0;
-                      const defListIdx =
-                        lineProductId > 0
-                          ? productIdsForDeliveryDefs.indexOf(lineProductId)
-                          : -1;
-                      const defQuery =
-                        defListIdx >= 0
-                          ? deliveryDefinitionQueries[defListIdx]
-                          : undefined;
-                      const defsForLine =
-                        deliveryDefsByProductId.get(lineProductId) ?? [];
-                      const noDefinitionsAvailable =
-                        !hasServerDef &&
-                        lineProductId > 0 &&
-                        !defQuery?.isLoading &&
-                        !defQuery?.isError &&
-                        defsForLine.length === 0;
-                      const blockLineQty =
-                        legacyNoProduct || noDefinitionsAvailable;
+                        (line.productId != null && line.productId > 0
+                          ? `제품 #${line.productId}`
+                          : `라인 #${line.id}`);
                       return (
                         <tr key={line.id}>
                           <td className="px-3 py-2 text-gray-900 dark:text-gray-100">
                             {label}
-                          </td>
-                          <td className="max-w-[16rem] px-3 py-2 align-middle">
-                            {hasServerDef ? (
-                              <span className="text-theme-sm text-gray-800 dark:text-gray-200">
-                                {(
-                                  line.productDefinition?.name ??
-                                  line.definitionNameSnapshot ??
-                                  ""
-                                ).trim() ||
-                                  `정의 #${line.productDefinitionId}`}
-                              </span>
-                            ) : legacyNoProduct ? (
-                              <span className="text-theme-xs text-amber-700 dark:text-amber-400">
-                                대표 제품 없음. 발주 라인에 productId를 보완한 뒤
-                                납품하세요.
-                              </span>
-                            ) : defQuery?.isLoading ? (
-                              <span className="text-theme-xs text-gray-500 dark:text-gray-400">
-                                정의 목록 불러오는 중…
-                              </span>
-                            ) : defQuery?.isError ? (
-                              <span className="text-theme-xs text-red-600 dark:text-red-400">
-                                정의 목록을 불러오지 못했습니다.
-                              </span>
-                            ) : noDefinitionsAvailable ? (
-                              <div className="space-y-2">
-                                <p className="text-theme-xs text-amber-800 dark:text-amber-300">
-                                  이 제품에 등록된 정의가 없습니다. 먼저 정의를
-                                  만든 뒤 이 모달에서 수량을 입력하세요.
-                                </p>
-                                <a
-                                  href={productDetailHrefForDeliveryReturn(
-                                    lineProductId,
-                                    id
-                                  )}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="inline-flex w-full max-w-full items-center justify-center rounded-md border border-brand-500 bg-brand-50 px-2.5 py-1.5 text-center text-theme-xs font-medium text-brand-700 hover:bg-brand-100 dark:border-brand-400 dark:bg-brand-500/15 dark:text-brand-300 dark:hover:bg-brand-500/25"
-                                >
-                                  제품 화면에서 정의 등록 (새 탭)
-                                </a>
-                              </div>
-                            ) : (
-                              <select
-                                id={`delivery-def-${line.id}`}
-                                aria-label={`${label} 제품 정의`}
-                                value={
-                                  deliveryLineDefinitionSelect[line.id] ?? ""
-                                }
-                                onChange={(e) =>
-                                  setDeliveryLineDefinitionSelect((p) => ({
-                                    ...p,
-                                    [line.id]: e.target.value,
-                                  }))
-                                }
-                                className="w-full max-w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-left text-theme-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-                              >
-                                <option value="">선택 (필수)</option>
-                                {defsForLine.map((d) => (
-                                  <option key={d.id} value={String(d.id)}>
-                                    {productDefinitionSelectLabel(d)}
-                                  </option>
-                                ))}
-                              </select>
-                            )}
                           </td>
                           <td className="px-2 py-2 text-right tabular-nums text-gray-700 dark:text-gray-300">
                             {line.qty}
@@ -1818,14 +1621,6 @@ export default function OrderDetail() {
                               type="text"
                               inputMode="decimal"
                               placeholder="0"
-                              disabled={blockLineQty}
-                              title={
-                                legacyNoProduct
-                                  ? "대표 제품이 없어 납품 수량을 입력할 수 없습니다."
-                                  : noDefinitionsAvailable
-                                    ? "납품할 제품 정의가 없습니다."
-                                    : undefined
-                              }
                               value={deliveryLineQtyInput[line.id] ?? ""}
                               onChange={(e) =>
                                 setDeliveryLineQtyInput((prev) => ({
@@ -1885,50 +1680,10 @@ export default function OrderDetail() {
                   );
                   return;
                 }
-                const lineLabel =
-                  line.itemName?.trim() ||
-                  line.productNameSnapshot?.trim() ||
-                  line.definitionNameSnapshot?.trim() ||
-                  line.item?.name ||
-                  "품목";
-                const hasServerDef = (line.productDefinitionId ?? 0) > 0;
-                const lineProductId = line.productId ?? 0;
-                if (!hasServerDef) {
-                  if (lineProductId <= 0) {
-                    toast.error(
-                      `대표 제품이 없는 행은 납품할 수 없습니다. (${lineLabel})`
-                    );
-                    return;
-                  }
-                  const defsCheck =
-                    deliveryDefsByProductId.get(lineProductId) ?? [];
-                  if (defsCheck.length === 0) {
-                    toast.error(
-                      `제품 정의가 없어 납품할 수 없습니다. (${lineLabel})`
-                    );
-                    return;
-                  }
-                  const sel = (
-                    deliveryLineDefinitionSelect[line.id] ?? ""
-                  ).trim();
-                  const defId = Number(sel);
-                  if (!Number.isFinite(defId) || defId <= 0) {
-                    toast.error(
-                      `제품 정의를 선택하세요. (${lineLabel})`
-                    );
-                    return;
-                  }
-                  linesPayload.push({
-                    orderItemId: line.id,
-                    quantity: n,
-                    productDefinitionId: defId,
-                  });
-                } else {
-                  linesPayload.push({
-                    orderItemId: line.id,
-                    quantity: n,
-                  });
-                }
+                linesPayload.push({
+                  orderItemId: line.id,
+                  quantity: n,
+                });
               }
               if (linesPayload.length === 0) {
                 toast.error("이번 납품 수량을 1건 이상 입력하세요.");

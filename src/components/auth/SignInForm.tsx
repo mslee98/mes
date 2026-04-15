@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import toast from "react-hot-toast";
 import { ChevronLeftIcon, EyeCloseIcon, EyeIcon } from "../../icons";
@@ -6,7 +6,8 @@ import Label from "../form/Label";
 import Input from "../form/input/InputField";
 import Checkbox from "../form/input/Checkbox";
 import Button from "../ui/button/Button";
-import { useAuth } from "../../context/AuthContext";
+import { useAuth } from "../../hooks/useAuth";
+import { useKeycloakAuth } from "../../context/KeycloakProvider";
 
 export default function SignInForm() {
   const [showPassword, setShowPassword] = useState(false);
@@ -16,7 +17,35 @@ export default function SignInForm() {
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { login } = useAuth();
+  const {
+    enabled: isKeycloakEnabled,
+    initialized: isKeycloakInitialized,
+    isAuthenticated: isKeycloakAuthenticated,
+    login: keycloakLogin,
+  } = useKeycloakAuth();
   const navigate = useNavigate();
+  const keycloakRedirectStarted = useRef(false);
+
+  const redirectToKeycloak = useCallback(async () => {
+    setError("");
+    setIsSubmitting(true);
+    try {
+      await keycloakLogin();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "로그인에 실패했습니다.");
+      keycloakRedirectStarted.current = false;
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [login]);
+
+  useEffect(() => {
+    if (!isKeycloakEnabled) return;
+    if (!isKeycloakInitialized || isKeycloakAuthenticated) return;
+    if (keycloakRedirectStarted.current) return;
+    keycloakRedirectStarted.current = true;
+    void redirectToKeycloak();
+  }, [isKeycloakAuthenticated, isKeycloakEnabled, isKeycloakInitialized, redirectToKeycloak]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,6 +70,62 @@ export default function SignInForm() {
       setIsSubmitting(false);
     }
   };
+
+  if (isKeycloakEnabled) {
+    const showSpinner = !isKeycloakInitialized || isSubmitting;
+    return (
+      <div className="flex flex-col flex-1">
+        <div className="w-full max-w-md pt-10 mx-auto">
+          <Link
+            to="/"
+            className="inline-flex items-center text-sm text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+          >
+            <ChevronLeftIcon className="size-5" />
+            홈으로 돌아가기
+          </Link>
+        </div>
+        <div className="flex flex-col justify-center flex-1 w-full max-w-md mx-auto">
+          <div>
+            <div className="mb-5 sm:mb-8">
+              <h1 className="mb-2 font-semibold text-gray-800 text-title-sm dark:text-white/90 sm:text-title-md">
+                로그인
+              </h1>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Keycloak 로그인 페이지로 이동합니다.
+              </p>
+            </div>
+            {error && (
+              <div className="p-3 mb-4 text-sm text-red-600 bg-red-50 rounded-lg dark:bg-red-900/20 dark:text-red-400">
+                {error}
+              </div>
+            )}
+            {showSpinner && !error && (
+              <div className="flex flex-col items-center gap-4 py-8">
+                <div className="h-10 w-10 animate-spin rounded-full border-4 border-gray-200 border-t-brand-500 dark:border-gray-700 dark:border-t-brand-400" />
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  {!isKeycloakInitialized ? "인증 설정을 확인하는 중..." : "Keycloak으로 연결하는 중..."}
+                </p>
+              </div>
+            )}
+            {error && (
+              <Button
+                type="button"
+                className="w-full"
+                size="sm"
+                disabled={isSubmitting}
+                onClick={() => {
+                  keycloakRedirectStarted.current = false;
+                  void redirectToKeycloak();
+                }}
+              >
+                {isSubmitting ? "다시 연결 중..." : "다시 시도"}
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col flex-1">

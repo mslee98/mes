@@ -19,7 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from "../components/ui/table";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../hooks/useAuth";
 
 const EMPTY_GROUPS: CommonCodeGroup[] = [];
 const EMPTY_CODES: CommonCodeItem[] = [];

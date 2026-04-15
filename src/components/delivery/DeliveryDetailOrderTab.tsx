@@ -110,22 +110,16 @@ export function DeliveryDetailOrderTab({
             </div>
             <div>
               <dt className="text-theme-xs text-gray-500 dark:text-gray-400">
-                공급가액 / 합계(부가세포함)
+                공급가액 / 합계
               </dt>
               <dd className="mt-0.5 text-gray-800 dark:text-gray-100">
                 {formatCurrency(order.supplyAmount ?? null, orderCurrency || "KRW")}
                 <span className="text-gray-500 dark:text-gray-400">
                   {" "}
-                  / {formatCurrency(order.totalAmountVatIncluded ?? null, orderCurrency || "KRW")}
+                  / {formatCurrency(order.totalAmount ?? null, orderCurrency || "KRW")}
                 </span>
               </dd>
             </div>
-            {order.priority?.trim() ? (
-              <div>
-                <dt className="text-theme-xs text-gray-500 dark:text-gray-400">우선순위</dt>
-                <dd className="mt-0.5 text-gray-800 dark:text-gray-100">{order.priority.trim()}</dd>
-              </div>
-            ) : null}
             {order.vendorOrderNo?.trim() ? (
               <div>
                 <dt className="text-theme-xs text-gray-500 dark:text-gray-400">협력사 주문번호</dt>

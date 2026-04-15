@@ -70,8 +70,6 @@ export const USE_STATUS_FALLBACK_SELECT_OPTIONS: {
 ];
 /** 발주 목록 등 승인 상태 필터 — `GET /api/common-codes/groups/APPROVAL_STATUS/codes` */
 export const COMMON_CODE_GROUP_APPROVAL_STATUS = "APPROVAL_STATUS";
-/** 품목 마스터 유형 — `GET /api/common-codes/groups/ITEM_TYPE/codes` */
-export const COMMON_CODE_GROUP_ITEM_TYPE = "ITEM_TYPE";
 /** 조직 유형 표시 — `GET /api/common-codes/groups/ORG_TYPE/codes` */
 export const COMMON_CODE_GROUP_ORG_TYPE = "ORG_TYPE";
 /** 거래처 유형 — `GET /api/common-codes/groups/PARTNER_TYPE/codes` */
@@ -81,12 +79,6 @@ export const COMMON_CODE_GROUP_PARTNER_DEFENSE_MARKET =
   "PARTNER_DEFENSE_MARKET";
 /** 국가 — `GET /api/common-codes/groups/COUNTRY/codes` */
 export const COMMON_CODE_GROUP_COUNTRY = "COUNTRY";
-/**
- * 품목 리비전 상태(선택). 시드에 없으면 API가 빈 배열·404일 수 있음 — 화면에서 폴백 처리 권장.
- * `GET /api/common-codes/groups/ITEM_REVISION_STATUS/codes`
- */
-export const COMMON_CODE_GROUP_ITEM_REVISION_STATUS = "ITEM_REVISION_STATUS";
-
 /** 활성 항목만, value=code·label=name (목록은 API에서 sortOrder·id 순 정렬됨) */
 export function commonCodesToSelectOptions(
   items: CommonCodeItem[]

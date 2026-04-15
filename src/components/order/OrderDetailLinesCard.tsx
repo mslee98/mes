@@ -35,7 +35,7 @@ export function OrderDetailLinesCard({
                   isHeader
                   className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[22%]"
                 >
-                  제품 정의·표시명
+                  표시명
                 </TableCell>
                 <TableCell
                   isHeader
@@ -97,12 +97,9 @@ export function OrderDetailLinesCard({
                         {item.itemName?.trim() ||
                           item.productNameSnapshot?.trim() ||
                           item.definitionNameSnapshot?.trim() ||
-                          item.item?.name ||
-                          (item.productDefinitionId > 0
-                            ? `정의 #${item.productDefinitionId}`
-                            : item.itemId != null && item.itemId > 0
-                              ? `품목 #${item.itemId}`
-                              : "-")}
+                          (item.productId != null && item.productId > 0
+                            ? `제품 #${item.productId}`
+                            : "-")}
                       </TableCell>
                       <TableCell className="px-3 py-3 text-center align-middle tabular-nums text-gray-800 dark:text-gray-200">
                         <span>{item.unit ?? "-"}</span>

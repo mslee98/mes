@@ -56,24 +56,9 @@ export interface PartnerCreatePayload {
   address?: string | null;
 }
 
-export interface Item {
-  id: number;
-  code: string;
-  name: string;
-  spec?: string;
-  unit?: string;
-  type?: string;
-  isActive?: boolean;
-}
-
 export interface PurchaseOrderItemPayload {
-  /**
-   * 제품 정의 FK. `null`이면 정의 없이 저장(백엔드 계약).
-   * `definitionId` 별칭은 직렬화 시 서버 호환용으로만 보조 전송 가능.
-   */
-  productDefinitionId?: number | null;
-  /** 정의가 null일 때 대표 제품 연결 */
-  productId?: number | null;
+  /** 대표 제품 id (필수) */
+  productId: number;
   qty: number;
   unitPrice: number;
   /** 공통코드 UNIT (예: EA, BOX) */
@@ -87,8 +72,6 @@ export interface PurchaseOrderItemPayload {
 }
 
 export interface PurchaseOrderLinePatchPayload {
-  productDefinitionId?: number | null;
-  definitionId?: number;
   productId?: number | null;
   qty?: number;
   quantity?: number;
@@ -118,15 +101,11 @@ export interface PurchaseOrderCreatePayload {
   specialNote?: string | null;
   /** 예: GENERAL */
   orderType?: string | null;
-  /** 예: NORMAL */
-  priority?: string | null;
   memo?: string | null;
   /** 미입력 시 서버 기본값(예: RECEIVED)과 맞출 때 명시 */
   status?: string | null;
   /** 공급가액(부가세 제외) — 프론트 계산·선택 */
   supplyAmount?: number | null;
-  /** 부가세 포함 총액 — 프론트 계산·선택 */
-  totalAmountVatIncluded?: number | null;
   items: PurchaseOrderItemPayload[];
 }
 
@@ -148,7 +127,6 @@ export interface PurchaseOrderUpdatePayload {
   /** 상태 변경 시 이력 코멘트 */
   statusChangeComment?: string | null;
   supplyAmount?: number | null;
-  totalAmountVatIncluded?: number | null;
   /** 수정 시 품목 라인 전체 갱신 */
   items?: PurchaseOrderItemPayload[];
 }
@@ -166,35 +144,20 @@ export interface PurchaseOrderListItem {
   approvalStatus?: string;
   progressStatus?: string;
   totalQty?: number;
-  totalAmount?: number;
+  /** 조회 전용 합계 등 — API에 없으면 null */
+  totalAmount?: number | null;
   createdAt?: string;
-}
-
-/** order_items 응답의 productDefinition 관계 요약 */
-export interface ProductDefinitionSummary {
-  id: number;
-  productId?: number;
-  name?: string;
-  code?: string;
-  version?: string | null;
-  product?: { id: number; code?: string; name?: string };
 }
 
 export interface PurchaseOrderItem {
   id: number;
-  /** 제품 정의 FK. 없으면 0 */
-  productDefinitionId: number;
-  /** 정의 없이 라인만 있을 때 대표 제품 id (응답에 올 수 있음) */
-  productId?: number;
-  productDefinition?: ProductDefinitionSummary;
+  /** 대표 제품 id */
+  productId: number;
   /** 발주 시점 스냅샷 */
   productNameSnapshot?: string | null;
   definitionNameSnapshot?: string | null;
   versionSnapshot?: string | null;
   orderTypeSnapshot?: string | null;
-  /** @deprecated 레거시 응답 호환 */
-  itemId?: number;
-  item?: Item;
   itemName?: string;
   spec?: string;
   unit?: string;
@@ -234,7 +197,6 @@ export interface PurchaseOrderDetail extends PurchaseOrderListItem {
     email?: string;
   };
   orderType?: string | null;
-  priority?: string | null;
   memo?: string | null;
   /** API 원본 status (목록의 orderStatus와 동일 의미로 매핑됨) */
   status?: string | null;
@@ -246,8 +208,8 @@ export interface PurchaseOrderDetail extends PurchaseOrderListItem {
   items?: PurchaseOrderItem[];
   /** 제품 공급가액(부가세 제외) */
   supplyAmount?: number | null;
-  /** 부가세 포함 합계 */
-  totalAmountVatIncluded?: number | null;
+  /** 조회 전용: 라인 Σ (수량×단가) 등 */
+  totalAmount?: number | null;
   /**
    * 해당 발주에 연결된 최신 결재 요청 1건 (헤더의 firstApprover·approvalApprovedAt 등은 제거됨).
    */
@@ -275,8 +237,6 @@ export interface PurchaseOrderFile {
 export interface DeliveryCreateLinePayload {
   orderItemId: number;
   quantity: number;
-  /** 발주 라인에 정의가 없을 때 납품 시점에 확정(대표 제품 기준 검증은 서버) */
-  productDefinitionId?: number | null;
 }
 
 /** POST /purchase-orders/:id/deliveries */
@@ -352,9 +312,8 @@ export interface DeliveryOrderDetailFields {
   vendorRequest?: string | null;
   specialNote?: string | null;
   supplyAmount?: number | null;
-  totalAmountVatIncluded?: number | null;
+  totalAmount?: number | null;
   status?: string | null;
-  priority?: string | null;
   memo?: string | null;
   /** 발주 전체 품목(납품과 무관하게 전 라인) */
   orderItems?: unknown[];
@@ -471,7 +430,8 @@ type ApiOrderDetailRaw = PurchaseOrderDetail & {
   statusHistories?: unknown[];
   status_histories?: unknown[];
   supply_amount?: unknown;
-  total_amount_vat_included?: unknown;
+  /** 스네이크 케이스 응답 호환 */
+  total_amount?: unknown;
 };
 
 function parseDecimalLike(v: unknown): number {
@@ -487,36 +447,6 @@ function parseDecimalLikeOptional(v: unknown): number | null {
   if (v == null || v === "") return null;
   const n = parseDecimalLike(v);
   return Number.isFinite(n) ? n : null;
-}
-
-/** 중첩 item: itemCode/itemName 등 API 필드 → Item */
-function mapApiNestedItemToItem(raw: unknown): Item | undefined {
-  if (!raw || typeof raw !== "object") return undefined;
-  const x = raw as Record<string, unknown>;
-  const id = typeof x.id === "number" ? x.id : Number(x.id);
-  if (!Number.isFinite(id)) return undefined;
-  const code =
-    (typeof x.itemCode === "string" && x.itemCode) ||
-    (typeof x.code === "string" && x.code) ||
-    String(id);
-  const name =
-    (typeof x.itemName === "string" && x.itemName) ||
-    (typeof x.name === "string" && x.name) ||
-    "-";
-  return {
-    id,
-    code,
-    name,
-    spec: typeof x.spec === "string" ? x.spec : undefined,
-    unit: typeof x.unit === "string" ? x.unit : undefined,
-    type:
-      typeof x.itemType === "string"
-        ? x.itemType
-        : typeof x.type === "string"
-          ? x.type
-          : undefined,
-    isActive: typeof x.isActive === "boolean" ? x.isActive : undefined,
-  };
 }
 
 function parseUserRefId(v: unknown): number | undefined {
@@ -545,43 +475,7 @@ function sanitizeOrderUserRef(
   };
 }
 
-function mapApiNestedProductDefinition(
-  raw: unknown
-): ProductDefinitionSummary | undefined {
-  if (!raw || typeof raw !== "object") return undefined;
-  const x = raw as Record<string, unknown>;
-  const id = typeof x.id === "number" ? x.id : Number(x.id);
-  if (!Number.isFinite(id)) return undefined;
-  const productRaw = x.product;
-  const product =
-    productRaw && typeof productRaw === "object"
-      ? mapApiNestedItemToItem(productRaw)
-      : undefined;
-  const pidRaw = x.productId ?? product?.id;
-  const productId =
-    typeof pidRaw === "number"
-      ? pidRaw
-      : pidRaw != null
-        ? Number(pidRaw)
-        : undefined;
-  return {
-    id,
-    productId: Number.isFinite(productId) ? productId : undefined,
-    name:
-      typeof x.name === "string"
-        ? x.name
-        : typeof x.definitionName === "string"
-          ? x.definitionName
-          : undefined,
-    code: typeof x.code === "string" ? x.code : undefined,
-    version: x.version != null ? String(x.version) : null,
-    product: product
-      ? { id: product.id, code: product.code, name: product.name }
-      : undefined,
-  };
-}
-
-/** 품목 라인: productDefinition·스냅샷·레거시 item 동시 지원 */
+/** 발주 라인: `product_id` 중심 (대표 제품) */
 function mapApiOrderLineToPurchaseOrderItem(
   raw: unknown
 ): PurchaseOrderItem | null {
@@ -590,16 +484,7 @@ function mapApiOrderLineToPurchaseOrderItem(
   const id = typeof x.id === "number" ? x.id : Number(x.id);
   if (!Number.isFinite(id)) return null;
 
-  const nestedDef = mapApiNestedProductDefinition(x.productDefinition);
-  const defRaw =
-    x.productDefinitionId ?? x.definitionId ?? nestedDef?.id;
-  const defId =
-    typeof defRaw === "number" ? defRaw : defRaw != null ? Number(defRaw) : NaN;
-  const productDefinitionId =
-    Number.isFinite(defId) && defId > 0 ? defId : 0;
-
-  const lineProductRaw =
-    x.productId ?? nestedDef?.productId ?? nestedDef?.product?.id;
+  const lineProductRaw = x.productId;
   const lineProductNum =
     typeof lineProductRaw === "number"
       ? lineProductRaw
@@ -608,20 +493,7 @@ function mapApiOrderLineToPurchaseOrderItem(
         : NaN;
   const lineProductId = Number.isFinite(lineProductNum) ? lineProductNum : 0;
 
-  const itemIdRaw = x.itemId;
-  const itemIdNum =
-    typeof itemIdRaw === "number"
-      ? itemIdRaw
-      : itemIdRaw != null
-        ? Number(itemIdRaw)
-        : NaN;
-  const legacyItemId = Number.isFinite(itemIdNum) ? itemIdNum : 0;
-
-  if (
-    productDefinitionId <= 0 &&
-    legacyItemId <= 0 &&
-    lineProductId <= 0
-  ) {
+  if (lineProductId <= 0) {
     return null;
   }
 
@@ -643,7 +515,6 @@ function mapApiOrderLineToPurchaseOrderItem(
     (typeof x.note === "string" ? x.note : null) ??
     (typeof x.remark === "string" ? x.remark : null);
 
-  const nestedItem = mapApiNestedItemToItem(x.item);
   const productNameSnapshot =
     typeof x.productNameSnapshot === "string" ? x.productNameSnapshot : null;
   const definitionNameSnapshot =
@@ -658,9 +529,6 @@ function mapApiOrderLineToPurchaseOrderItem(
   const itemName =
     (productNameSnapshot?.trim() ? productNameSnapshot : undefined) ??
     (definitionNameSnapshot?.trim() ? definitionNameSnapshot : undefined) ??
-    nestedDef?.name ??
-    nestedDef?.product?.name ??
-    nestedItem?.name ??
     (typeof x.itemName === "string" ? x.itemName : undefined);
 
   const currencyCode =
@@ -680,15 +548,11 @@ function mapApiOrderLineToPurchaseOrderItem(
 
   return {
     id,
-    productDefinitionId,
-    ...(lineProductId > 0 ? { productId: lineProductId } : {}),
-    ...(nestedDef ? { productDefinition: nestedDef } : {}),
+    productId: lineProductId,
     ...(productNameSnapshot != null ? { productNameSnapshot } : {}),
     ...(definitionNameSnapshot != null ? { definitionNameSnapshot } : {}),
     ...(versionSnapshot != null ? { versionSnapshot } : {}),
     ...(orderTypeSnapshot != null ? { orderTypeSnapshot } : {}),
-    ...(legacyItemId > 0 ? { itemId: legacyItemId } : {}),
-    ...(nestedItem ? { item: nestedItem } : {}),
     ...(itemName ? { itemName } : {}),
     spec: typeof x.spec === "string" ? x.spec : undefined,
     unit,
@@ -885,8 +749,8 @@ function mapPurchaseOrderDetail(raw: unknown): PurchaseOrderDetail {
     supplyAmount: parseDecimalLikeOptional(
       data.supplyAmount ?? data.supply_amount
     ),
-    totalAmountVatIncluded: parseDecimalLikeOptional(
-      data.totalAmountVatIncluded ?? data.total_amount_vat_included
+    totalAmount: parseDecimalLikeOptional(
+      data.totalAmount ?? data.total_amount
     ),
     ...(currentApprovalRequest
       ? { currentApprovalRequest }

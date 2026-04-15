@@ -1,30 +1,27 @@
 "use client";
 
+/* eslint-disable react-refresh/only-export-components -- 레거시 AuthContext·Provider 동일 파일 유지 */
+
 import type React from "react";
 import {
   createContext,
   useState,
-  useContext,
   useEffect,
   useCallback,
+  useMemo
 } from "react";
 import {
   login as apiLogin,
   logout as apiLogout,
-  type LoginResponse,
+  type LoginResponse
 } from "../api/auth";
 import { setAuthAccessToken, subscribeAuthAccessToken } from "../lib/authAccessStore";
 import {
   refreshAccessTokenSingle,
   onRefreshUserPayload,
-  type RefreshedUser,
+  type RefreshedUser
 } from "../lib/authRefreshCoordinator";
-
-type AuthUser = {
-  employeeNo: number;
-  name?: string;
-  [key: string]: unknown;
-};
+import type { AuthUser } from "../types/authUser";
 
 type AuthState = {
   user: AuthUser | null;
@@ -33,7 +30,7 @@ type AuthState = {
   isLoading: boolean;
 };
 
-type AuthContextType = AuthState & {
+export type AuthContextType = AuthState & {
   login: (
     employeeNo: number,
     password: string,
@@ -42,7 +39,7 @@ type AuthContextType = AuthState & {
   logout: () => void;
 };
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const AUTH_USER_KEY = "auth_user";
 
@@ -62,7 +59,7 @@ function setStoredUser(u: AuthUser | null) {
 }
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
-  children,
+  children
 }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
@@ -83,7 +80,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     });
   }, []);
 
-  // 앱 시작 시: refresh_token(HttpOnly 쿠키)로 access 재발급 — credentials: include
   useEffect(() => {
     let cancelled = false;
 
@@ -113,7 +109,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   }, []);
 
   const login = useCallback(
-    async (employeeNo: number, password: string, _remember = true) => {
+    async (employeeNo: number, password: string, remember = true) => {
+      void remember;
       const res = (await apiLogin({ employeeNo, password })) as LoginResponse;
       const access =
         res.accessToken ??
@@ -125,15 +122,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       const u = userData as AuthUser;
       setUser(u);
       setAuthAccessToken(access);
-      setStoredUser(u); // 새로고침 후 refresh 응답에 user가 없어도 이름 표시 유지용
-      // refresh_token은 백엔드가 Set-Cookie로 설정함 (credentials: 'include' 사용 중)
+      setStoredUser(u);
     },
     []
   );
 
   const logout = useCallback(async () => {
     try {
-      await apiLogout(); // 서버에서 refresh_token 쿠키 삭제
+      await apiLogout();
     } finally {
       setUser(null);
       setAuthAccessToken(null);
@@ -141,26 +137,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   }, []);
 
-  return (
-    <AuthContext.Provider
-      value={{
-        user,
-        accessToken,
-        isLoggedIn: !!accessToken,
-        isLoading,
-        login,
-        logout,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
+  const value = useMemo<AuthContextType>(
+    () => ({
+      user,
+      accessToken,
+      isLoggedIn: !!accessToken,
+      isLoading,
+      login,
+      logout
+    }),
+    [accessToken, isLoading, login, logout, user]
   );
-};
 
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error("useAuth must be used within an AuthProvider");
-  }
-  return context;
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

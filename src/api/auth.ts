@@ -4,6 +4,7 @@
  * @see docs/FRONTEND_API.md §2
  */
 import { API_BASE } from "./apiBase";
+import { keycloakUserInfoEndpoint } from "../config/keycloakEnv";
 
 export interface LoginRequest {
   employeeNo: number;
@@ -29,6 +30,8 @@ export interface RefreshResponse {
   user?: { employeeNo: number; name?: string; [key: string]: unknown };
   [key: string]: unknown;
 }
+
+export type AuthInfoResponse = Record<string, unknown>;
 
 export async function login(body: LoginRequest): Promise<LoginResponse> {
   const res = await fetch(`${API_BASE}/auth/login`, {
@@ -78,4 +81,26 @@ export async function logout(): Promise<void> {
     method: "POST",
     credentials: "include",
   });
+}
+
+/**
+ * 로그인 사용자 정보 조회 (Bearer access token 필요)
+ */
+export async function getAuthInfo(accessToken: string): Promise<AuthInfoResponse> {
+  const res = await fetch(keycloakUserInfoEndpoint(), {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+    credentials: "include",
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(
+      (err as { message?: string }).message ?? "사용자 정보 조회에 실패했습니다."
+    );
+  }
+
+  return res.json();
 }

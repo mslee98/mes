@@ -386,8 +386,8 @@ export default function ApprovalDetailContent({
 
   const backControl =
     variant === "page" ? (
-      <Link to="/approval" className={OUTLINE_SM_CONTROL_CLASS}>
-        ← 목록
+      <Link to="/order" className={OUTLINE_SM_CONTROL_CLASS}>
+        ← 발주 목록
       </Link>
     ) : isPoSubmitModal ? null : (
       <Button
@@ -603,16 +603,7 @@ export default function ApprovalDetailContent({
                   본 화면 기준으로 ERD·상태 전이(임시저장 → 상신 → 결재중 → 완료/반려) 정의
                 </li>
                 <li>결재선 템플릿·직무대리·전결 규칙은 별도 마스터로 분리 검토</li>
-                <li>
-                  공통 헤더 필드는{" "}
-                  <Link
-                    to="/approval-document/sample"
-                    className="text-brand-600 dark:text-brand-400"
-                  >
-                    샘플 페이지
-                  </Link>
-                  와 맞춤
-                </li>
+                <li>공통 헤더 필드는 발주 결재 API 응답 스키마와 맞춤</li>
               </ol>
             </ComponentCard>
           </div>

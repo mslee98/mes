@@ -31,7 +31,7 @@ import {
   TablePagination,
 } from "../components/list";
 import ListPageLoading from "../components/common/ListPageLoading";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../hooks/useAuth";
 import {
   getPurchaseOrders,
   type PurchaseOrderListItem,

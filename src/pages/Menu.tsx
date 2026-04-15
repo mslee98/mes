@@ -22,7 +22,7 @@ import MenuDetailPanel, {
 } from "../components/menu/MenuDetailPanel";
 import MenuTree from "../components/menu/MenuTree";
 import RoleMenuCard from "../components/menu/RoleMenuCard";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../hooks/useAuth";
 import {
   findMenuItem,
   flattenMenuTree,

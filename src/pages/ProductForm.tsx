@@ -10,7 +10,7 @@ import Label from "../components/form/Label";
 import Input from "../components/form/input/InputField";
 import TextArea from "../components/form/input/TextArea";
 import Select from "../components/form/Select";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../hooks/useAuth";
 import { useCommonCodesByGroup } from "../hooks/useCommonCodesByGroup";
 import {
   COMMON_CODE_GROUP_PRODUCT_CATEGORY,

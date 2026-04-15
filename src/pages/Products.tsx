@@ -26,12 +26,9 @@ import {
   TableHeader,
   TableRow,
 } from "../components/ui/table";
-import { useAuth } from "../context/AuthContext";
-import { useProductPermissions } from "../hooks/useProductPermissions";
+import { useAuth } from "../hooks/useAuth";
 import { useServerListPagination } from "../hooks/useServerListPagination";
 import { useCommonCodesByGroup } from "../hooks/useCommonCodesByGroup";
-import ConfirmModal from "../components/common/ConfirmModal";
-import ProductDefinitionCreateModal from "../components/products/ProductDefinitionCreateModal";
 import {
   COMMON_CODE_GROUP_PRODUCT_CATEGORY,
   commonCodesToSelectOptions,
@@ -57,7 +54,6 @@ export default function Products() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { accessToken, isLoading: isAuthLoading } = useAuth();
-  const { canManageProducts } = useProductPermissions();
   const [searchKeyword, setSearchKeyword] = useState("");
   const [searchOptionsOpen, setSearchOptionsOpen] = useState(false);
   const [categoryCode, setCategoryCode] = useState("");
@@ -66,11 +62,6 @@ export default function Products() {
   const [listPageSize, setListPageSize] = useState(20);
 
   const [createOpen, setCreateOpen] = useState(false);
-  const [definePromptOpen, setDefinePromptOpen] = useState(false);
-  const [definitionModalOpen, setDefinitionModalOpen] = useState(false);
-  const [pendingProductId, setPendingProductId] = useState<number | null>(
-    null
-  );
   const [npCode, setNpCode] = useState("");
   const [npName, setNpName] = useState("");
   const [npCategory, setNpCategory] = useState(CREATE_CATEGORY_NONE);
@@ -129,12 +120,7 @@ export default function Products() {
       toast.success("제품을 등록했습니다.");
       resetCreateForm();
       setCreateOpen(false);
-      if (canManageProducts && accessToken) {
-        setPendingProductId(p.id);
-        setDefinePromptOpen(true);
-      } else {
-        navigate(`/products/${p.id}`);
-      }
+      navigate(`/products/${p.id}`);
     },
     onError: (e: Error) =>
       toast.error(e.message || "등록에 실패했습니다."),
@@ -279,10 +265,7 @@ export default function Products() {
         </form>
       </Modal>
 
-      <PageMeta
-        title="제품 목록"
-        description="대표 제품(발주·정의 연동 기준) 목록"
-      />
+      <PageMeta title="제품 목록" description="대표 제품 목록" />
       <PageBreadcrumb pageTitle="제품 목록" />
       {/* <p className="mb-3 text-sm text-gray-500 dark:text-gray-400">
         SKU·단가 단위 마스터는{" "}
@@ -412,18 +395,6 @@ export default function Products() {
                   isHeader
                   className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400"
                 >
-                  정의 수
-                </TableCell>
-                <TableCell
-                  isHeader
-                  className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400"
-                >
-                  기본 정의
-                </TableCell>
-                <TableCell
-                  isHeader
-                  className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400"
-                >
                   설명
                 </TableCell>
                 <TableCell
@@ -468,16 +439,6 @@ export default function Products() {
                       "-"
                     )}
                   </TableCell>
-                  <TableCell className="px-5 py-4 text-sm text-gray-600 dark:text-gray-300">
-                    {p.definitionCount ?? 0}
-                  </TableCell>
-                  <TableCell className="px-5 py-4 text-sm text-gray-500 dark:text-gray-400">
-                    {p.defaultDefinitionId != null ? (
-                      <code>{p.defaultDefinitionId}</code>
-                    ) : (
-                      "—"
-                    )}
-                  </TableCell>
                   <TableCell className="max-w-[14rem] px-5 py-4 text-sm text-gray-500 dark:text-gray-400">
                     <span
                       className="block truncate"
@@ -502,52 +463,6 @@ export default function Products() {
           </Table>
         )}
       </ListPageLayout>
-
-      {canManageProducts && accessToken ? (
-        <>
-          <ConfirmModal
-            isOpen={definePromptOpen}
-            illustration="check-circle"
-            title="제품 정의를 등록할까요?"
-            message="제품 등록이 완료되었습니다. 제품 정의를 추가하면 발주 유형·하우징 템플릿 등을 연결할 수 있습니다. 지금 등록 화면을 열까요?"
-            confirmText="정의 등록하기"
-            cancelText="나중에"
-            confirmVariant="primary"
-            onClose={() => {
-              setDefinePromptOpen(false);
-              setPendingProductId(null);
-            }}
-            onCancel={() => {
-              const pid = pendingProductId;
-              setDefinePromptOpen(false);
-              setPendingProductId(null);
-              if (pid != null) navigate(`/products/${pid}`);
-            }}
-            onConfirm={() => {
-              setDefinePromptOpen(false);
-              setDefinitionModalOpen(true);
-            }}
-          />
-          {pendingProductId != null ? (
-            <ProductDefinitionCreateModal
-              isOpen={definitionModalOpen}
-              onClose={() => {
-                setDefinitionModalOpen(false);
-                setPendingProductId(null);
-              }}
-              productId={pendingProductId}
-              accessToken={accessToken}
-              onCreated={(definitionId) => {
-                navigate(
-                  `/products/${pendingProductId}/definitions/${definitionId}`
-                );
-                setDefinitionModalOpen(false);
-                setPendingProductId(null);
-              }}
-            />
-          ) : null}
-        </>
-      ) : null}
     </>
   );
 }

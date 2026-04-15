@@ -3,7 +3,8 @@ import toast from "react-hot-toast";
 import { DropdownItem } from "../ui/dropdown/DropdownItem";
 import { Dropdown } from "../ui/dropdown/Dropdown";
 import { useNavigate } from "react-router";
-import { useAuth } from "../../context/AuthContext";
+import { useAuth } from "../../hooks/useAuth";
+import { useKeycloakAuth } from "../../context/KeycloakProvider";
 import { UserSolidIcon } from "../../icons";
 
 
@@ -13,11 +14,75 @@ function getProfilePhotoUrl(user: Record<string, unknown> | null): string | null
   return typeof url === "string" ? url : null;
 }
 
+function groupsDisplayLines(user: Record<string, unknown> | null | undefined): string[] {
+  const raw = user?.groupsDisplay;
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((x): x is string => typeof x === "string" && x.trim().length > 0);
+}
+
+function firstNonEmptyString(source: Record<string, unknown> | null, keys: string[]): string {
+  if (!source) return "";
+  for (const key of keys) {
+    const value = source[key];
+    if (typeof value === "string" && value.trim().length > 0) {
+      return value.trim();
+    }
+  }
+  return "";
+}
+
+function getUserPayload(user: Record<string, unknown> | null): Record<string, unknown> | null {
+  if (!user) return null;
+  const payload = user.accessTokenPayload;
+  return payload && typeof payload === "object" ? (payload as Record<string, unknown>) : null;
+}
+
+function displayNameCompact(user: Record<string, unknown> | null): string {
+  const payload = getUserPayload(user);
+  const familyName = firstNonEmptyString(payload, ["family_name"]);
+  const givenName = firstNonEmptyString(payload, ["given_name"]);
+  if (familyName || givenName) {
+    return `${familyName}${givenName}`.trim();
+  }
+  const koreanFullName = firstNonEmptyString(payload, ["user_full_name_ko"]);
+  if (koreanFullName) {
+    return koreanFullName.replace(/\s+/g, "");
+  }
+  const fromUser = firstNonEmptyString(user, ["name"]);
+  return fromUser.replace(/\s+/g, "");
+}
+
+function displayJobTitle(user: Record<string, unknown> | null): string {
+  const payload = getUserPayload(user);
+  return (
+    firstNonEmptyString(payload, [
+      "user_position",
+      "jobTitle",
+      "position_title",
+      "positionTitle",
+      "rank",
+      "직급",
+    ]) ||
+    firstNonEmptyString(user, ["jobTitle", "rank", "positionTitle"])
+  );
+}
+
 export default function UserDropdown() {
   const [isOpen, setIsOpen] = useState(false);
   const { user, logout } = useAuth();
+  const { enabled: keycloakAuth } = useKeycloakAuth();
   const navigate = useNavigate();
   const profilePhotoUrl = getProfilePhotoUrl(user);
+  const userRecord = user as Record<string, unknown> | null;
+  const groupLines = groupsDisplayLines(userRecord);
+  const compactName = displayNameCompact(userRecord);
+  const jobTitle = displayJobTitle(userRecord);
+  const employeeNoText =
+    user?.employeeNo != null && String(user.employeeNo).trim() !== ""
+      ? String(user.employeeNo)
+      : "-";
+  const headerDisplayText = [compactName || employeeNoText, jobTitle].filter(Boolean).join(" ");
+  const dropdownMetaText = `${compactName || "-"} | ${employeeNoText} | ${jobTitle || "-"}`;
 
   function toggleDropdown() {
     setIsOpen(!isOpen);
@@ -45,7 +110,7 @@ export default function UserDropdown() {
         </span>
 
         <span className="block mr-1 font-medium text-theme-sm">
-          {user?.name ?? `사번 ${user?.employeeNo ?? ""}`}
+          {headerDisplayText}
         </span>
         <svg
           className={`stroke-gray-500 dark:stroke-gray-400 transition-transform duration-200 ${
@@ -70,15 +135,17 @@ export default function UserDropdown() {
       <Dropdown
         isOpen={isOpen}
         onClose={closeDropdown}
-        className="absolute right-0 mt-[17px] flex w-[260px] flex-col rounded-2xl border border-gray-200 bg-white p-3 shadow-theme-lg dark:border-gray-800 dark:bg-gray-dark"
+        className="absolute right-0 mt-[17px] flex w-[288px] flex-col rounded-2xl border border-gray-200 bg-white p-3 shadow-theme-lg dark:border-gray-800 dark:bg-gray-dark"
       >
         <div>
           <span className="block font-medium text-gray-700 text-theme-sm dark:text-gray-400">
-            {user?.name ?? `사번 ${user?.employeeNo ?? ""}`}
+            {dropdownMetaText}
           </span>
-          <span className="mt-0.5 block text-theme-xs text-gray-500 dark:text-gray-400">
-            {user?.employeeNo}
-          </span>
+          {groupLines.length > 0 && (
+            <span className="mt-1.5 block text-theme-xs leading-snug text-gray-500 dark:text-gray-400 whitespace-pre-line">
+              {groupLines.join("\n")}
+            </span>
+          )}
         </div>
 
         <ul className="flex flex-col gap-1 pt-4 pb-3 border-b border-gray-200 dark:border-gray-800">
@@ -164,7 +231,9 @@ export default function UserDropdown() {
             closeDropdown();
             await logout();
             toast.success("로그아웃 성공");
-            navigate("/signin", { replace: true });
+            if (!keycloakAuth) {
+              navigate("/signin", { replace: true });
+            }
           }}
           className="flex items-center w-full gap-3 px-3 py-2 mt-3 font-medium text-gray-700 rounded-lg group text-theme-sm hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
         >

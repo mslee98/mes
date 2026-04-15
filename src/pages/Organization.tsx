@@ -7,7 +7,7 @@ import ComponentCard from "../components/common/ComponentCard";
 import ListPageLoading from "../components/common/ListPageLoading";
 import { getOrganizationTree, type OrganizationUnitNode } from "../api/organization";
 import OrganizationTreeNode from "../components/organization/OrganizationTreeNode";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../hooks/useAuth";
 import { COMMON_CODE_GROUP_ORG_TYPE } from "../api/commonCode";
 
 export default function Organization() {

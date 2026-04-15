@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../hooks/useAuth";
 import { getUsers, type UserItem } from "../api/user";
 import { getUserRoles } from "../api/userRole";
 import PageMeta from "../components/common/PageMeta";

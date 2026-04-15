@@ -17,8 +17,8 @@ import {
   WrenchScrewdriverIcon,
   TruckIcon,
 } from "../icons";
-import { getMyMenus, type MenuItem } from "../api/menu";
-import { useAuth } from "../context/AuthContext";
+import { getMenus, type MenuItem } from "../api/menu";
+import { useAuth } from "../hooks/useAuth";
 import { useSidebar } from "../context/SidebarContext";
 
 type NavItem = {
@@ -88,8 +88,8 @@ const AppSidebar: React.FC = () => {
   const { accessToken, isLoading: isAuthLoading } = useAuth();
   const location = useLocation();
   const { data: menuTree, isLoading: isMenuLoading } = useQuery({
-    queryKey: ["myMenus"],
-    queryFn: () => getMyMenus(accessToken as string),
+    queryKey: ["menus"],
+    queryFn: () => getMenus(accessToken as string),
     enabled: !!accessToken && !isAuthLoading,
   });
 

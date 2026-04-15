@@ -40,7 +40,7 @@ import {
 } from "../icons";
 import { ReactComponent as ArrowDownOnSquareIcon } from "../icons/arrow-down-on-square.svg?react";
 import { ReactComponent as XCircleSolidIcon } from "../icons/x-circle.svg?react";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../hooks/useAuth";
 import { useCommonCodesByGroup } from "../hooks/useCommonCodesByGroup";
 import { getCurrencySymbol } from "../lib/formatCurrency";
 import {
@@ -103,8 +103,6 @@ type ItemRow = {
   lineId?: number;
   /** 대표 제품 — UI (GET /products) */
   productId: number;
-  /** 기존 라인에 정의 id가 있을 때만. 저장 요청은 항상 정의 null + productId */
-  productDefinitionId?: number | null;
   /** 공통코드 UNIT 코드 */
   unitCode: string;
   qty: number;
@@ -142,16 +140,10 @@ function formatLineUnitPriceDisplay(value: unknown): string {
   return decDigits ? `${formattedInt}.${decDigits}` : formattedInt;
 }
 
-/** 
- * 헤더 통화 기준 라인 공급가액·부가세 포함 총액 (백엔드 supplyAmount / totalAmountVatIncluded)
- * @param rows - 행 데이터
- * @param headerCurrency - 헤더 통화 코드
- * @returns 공급가액과 부가세 포함 총액
+/**
+ * 헤더 통화 기준 라인 공급가액 (백엔드 `supplyAmount`)
  */
-function computeHeaderSupplyAndTotalVatIncluded(
-  rows: ItemRow[],
-  headerCurrency: string
-): { supplyAmount: number; totalAmountVatIncluded: number } {
+function computeHeaderSupplyAmount(rows: ItemRow[], headerCurrency: string): number {
   const cc = headerCurrency.trim().toUpperCase() || "KRW";
   let subtotal = 0;
   for (const row of rows) {
@@ -160,18 +152,8 @@ function computeHeaderSupplyAndTotalVatIncluded(
     if (row.qty <= 0) continue;
     subtotal += row.qty * parseLineUnitPrice(row.unitPrice);
   }
-  const vat = Math.round(subtotal * ORDER_LINE_VAT_RATE * 100) / 100;
-  return {
-    supplyAmount: subtotal,
-    totalAmountVatIncluded: Math.round((subtotal + vat) * 100) / 100,
-  };
+  return subtotal;
 }
-
-/** 
- * POST /purchase-orders 생성 시 우선순위 기본값
- * @returns 우선순위 기본값
- */
-const PO_CREATE_PRIORITY = "NORMAL";
 
 /**
  * 
@@ -180,7 +162,6 @@ const PO_CREATE_PRIORITY = "NORMAL";
 const emptyItemRow = (): ItemRow => ({
   lineId: undefined,
   productId: 0,
-  productDefinitionId: null,
   unitCode: "",
   qty: 0,
   unitPrice: "",
@@ -817,15 +798,7 @@ export default function OrderForm() {
           if (!row) return prev;
           next[index] = {
             lineId: created.id,
-            productDefinitionId:
-              (created.productDefinitionId ?? 0) > 0
-                ? created.productDefinitionId
-                : null,
-            productId:
-              created.productId ??
-              created.productDefinition?.product?.id ??
-              created.productDefinition?.productId ??
-              row.productId,
+            productId: created.productId ?? row.productId,
             unitCode: String(created.unit ?? firstUnitValue ?? "").trim(),
             qty: Number(created.qty ?? 0),
             unitPrice: formatLineUnitPriceDisplay(created.unitPrice),
@@ -918,7 +891,7 @@ export default function OrderForm() {
       const next = [...prev];
       const row = next[index];
       if (!row) return prev;
-      next[index] = { ...row, productId, productDefinitionId: null };
+      next[index] = { ...row, productId };
       return next;
     });
   };
@@ -1023,15 +996,7 @@ export default function OrderForm() {
         if (!cur) return prev;
         next[index] = {
           ...cur,
-          productDefinitionId:
-            (source.productDefinitionId ?? 0) > 0
-              ? source.productDefinitionId
-              : null,
-          productId:
-            source.productDefinition?.product?.id ??
-            source.productDefinition?.productId ??
-            source.productId ??
-            0,
+          productId: source.productId ?? 0,
           unitCode: String(source.unit ?? firstUnitValue ?? "").trim(),
           qty: Number(source.qty ?? 0),
           unitPrice: formatLineUnitPriceDisplay(source.unitPrice),
@@ -1088,8 +1053,7 @@ export default function OrderForm() {
         orderCurrencyCode ||
         order?.currencyCode ||
         "KRW";
-      const { supplyAmount, totalAmountVatIncluded } =
-        computeHeaderSupplyAndTotalVatIncluded(validItems, headerCurrency);
+      const supplyAmount = computeHeaderSupplyAmount(validItems, headerCurrency);
       const payload: PurchaseOrderCreatePayload = {
         title: title.trim(),
         partnerId: Number(partnerId),
@@ -1111,11 +1075,9 @@ export default function OrderForm() {
         vendorRequest: vendorRequest.trim() || null,
         specialNote: specialNote.trim() || null,
         orderType: effectiveOrderTypeCode.trim() || null,
-        priority: PO_CREATE_PRIORITY,
         memo: null,
         status: effectiveOrderStatusCode.trim() || null,
         supplyAmount,
-        totalAmountVatIncluded,
         items: validItems.map(
           (row): PurchaseOrderItemPayload => ({
             productId: row.productId,
@@ -1134,8 +1096,7 @@ export default function OrderForm() {
 
     const headerCurrency =
       orderCurrencyCode || order?.currencyCode || "KRW";
-    const { supplyAmount, totalAmountVatIncluded } =
-      computeHeaderSupplyAndTotalVatIncluded(items, headerCurrency);
+    const supplyAmount = computeHeaderSupplyAmount(items, headerCurrency);
 
     if (
       purchaseOrderTypeCodes.length > 0 &&
@@ -1168,7 +1129,6 @@ export default function OrderForm() {
       orderType: effectiveOrderTypeCode.trim() || null,
       status: effectiveOrderStatusCode.trim() || null,
       supplyAmount,
-      totalAmountVatIncluded,
     };
     updateMutation.mutate(payload);
   };
@@ -1189,15 +1149,7 @@ export default function OrderForm() {
         ? [{ ...emptyItemRow(), unitCode: firstUnitValue }]
         : lines.map((line) => ({
             lineId: Number(line.id ?? 0) || undefined,
-            productId:
-              line.productId ??
-              line.productDefinition?.product?.id ??
-              line.productDefinition?.productId ??
-              0,
-            productDefinitionId:
-              (line.productDefinitionId ?? 0) > 0
-                ? line.productDefinitionId
-                : null,
+            productId: line.productId ?? 0,
             unitCode: String(line.unit ?? firstUnitValue ?? "").trim(),
             qty: Number(line.qty ?? 0),
             unitPrice: formatLineUnitPriceDisplay(line.unitPrice),

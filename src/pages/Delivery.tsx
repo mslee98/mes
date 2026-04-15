@@ -26,7 +26,7 @@ import {
   TablePagination,
 } from "../components/list";
 import ListPageLoading from "../components/common/ListPageLoading";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../hooks/useAuth";
 import { getDeliveriesList, type Delivery, type Partner } from "../api/purchaseOrder";
 import {
   COMMON_CODE_GROUP_DELIVERY_STATUS,

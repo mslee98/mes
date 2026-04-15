@@ -3,9 +3,7 @@ import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation } from "rea
 import AppLayout from "./layout/AppLayout";
 import Home from "./pages/Home";
 import { ScrollToTop } from "./components/common/ScrollToTop";
-
-import SignIn from "./pages/AutpPages/SignIn";
-import SignUp from "./pages/AutpPages/SIgnUp";
+import AuthEntry from "./pages/AuthEntry";
 import Order from "./pages/Order";
 import OrderDetail from "./pages/OrderDetail";
 import OrderForm from "./pages/OrderForm";
@@ -18,22 +16,13 @@ import UserDetail from "./pages/UserDetail";
 import UserProfiles from "./pages/UserProfiles";
 import CommonCode from "./pages/CommonCode";
 
-import ItemCategories from "./pages/ItemCategories";
-import ItemTypes from "./pages/ItemTypes";
-import Items from "./pages/Items";
-import ItemDetail from "./pages/ItemDetail";
-import ItemForm from "./pages/ItemForm";
 import Products from "./pages/Products";
 import ProductForm from "./pages/ProductForm";
 import ProductDetail from "./pages/ProductDetail";
-import ProductDefinitionDetail from "./pages/ProductDefinitionDetail";
-import HousingTemplates from "./pages/HousingTemplates";
-import HousingTemplateDetail from "./pages/HousingTemplateDetail";
-import ApprovalDocumentSample from "./pages/ApprovalDocumentSample";
-import ApprovalList from "./pages/ApprovalList";
-import ApprovalDetailPublish from "./pages/ApprovalDetailPublish";
+import Rma from "./pages/Rma";
 import ApiFeedbackProvider from "./context/ApiFeedbackContext";
-import { useAuth } from "./context/AuthContext";
+import { useAuth } from "./hooks/useAuth";
+import { useKeycloakAuth } from "./context/KeycloakProvider";
 import NotFound from "./pages/NotFound";
 import Delivery from "./pages/Delivery";
 import DeliveryDetail from "./pages/DeliveryDetail";
@@ -43,9 +32,12 @@ import DashboardTeamLead from "./pages/DashboardTeamLead";
 
 function RequireAuth() {
   const { isLoggedIn, isLoading } = useAuth();
+  const { enabled, initialized, isAuthenticated } = useKeycloakAuth();
   const location = useLocation();
+  const isAuthLoading = enabled ? !initialized : isLoading;
+  const canAccess = enabled ? isAuthenticated : isLoggedIn;
 
-  if (isLoading) {
+  if (isAuthLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-white dark:bg-gray-900">
         <div className="text-center">
@@ -58,31 +50,8 @@ function RequireAuth() {
     );
   }
 
-  if (!isLoggedIn) {
+  if (!canAccess) {
     return <Navigate to="/signin" replace state={{ from: location }} />;
-  }
-
-  return <Outlet />;
-}
-
-function RedirectIfAuthenticated() {
-  const { isLoggedIn, isLoading } = useAuth();
-
-  if (isLoading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-white dark:bg-gray-900">
-        <div className="text-center">
-          <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-gray-200 border-t-brand-500 dark:border-gray-700 dark:border-t-brand-400" />
-          <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">
-            인증 정보를 확인하는 중...
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  if (isLoggedIn) {
-    return <Navigate to="/" replace />;
   }
 
   return <Outlet />;
@@ -97,88 +66,43 @@ function App() {
           <Route element={<RequireAuth />}>
             <Route path="/" element={<AppLayout />}>
               <Route index element={<Home />} />
-              <Route path="dashboard" element={<Navigate to="/dashboard/material" replace />} />
-              <Route path="dashboard/material" element={<DashboardMaterial />} />
+              <Route path="dashboard" element={<Home />} />
+              {/* <Route path="dashboard/material" element={<DashboardMaterial />} />
               <Route path="dashboard/executive" element={<DashboardExecutive />} />
-              <Route path="dashboard/team-lead" element={<DashboardTeamLead />} />
+              <Route path="dashboard/team-lead" element={<DashboardTeamLead />} /> */}
 
-
-              {/* 품목 마스터(item) */}
-              <Route path="item-categories" element={<ItemCategories />} />
-              <Route path="item-types" element={<ItemTypes />} />
-
-
-              
-              <Route path="items/new" element={<ItemForm />} />
-              <Route path="items/:itemId/edit" element={<ItemForm />} />
-              <Route path="items/:itemId" element={<ItemDetail />} />
-              <Route path="items" element={<Items />} />
-
-              {/* 제품 관리 */}
               <Route
                 path="products/:productId/edit"
                 element={<ProductForm />}
               />
-              <Route
-                path="products/:productId/definitions/:definitionId"
-                element={<ProductDefinitionDetail />}
-              />
               <Route path="products/:productId" element={<ProductDetail />} />
               <Route path="products" element={<Products />} />
 
-              <Route
-                path="housing-templates/new"
-                element={<Navigate to="/housing-templates" replace />}
-              />
-              <Route
-                path="housing-templates/:templateId"
-                element={<HousingTemplateDetail />}
-              />
-              <Route path="housing-templates" element={<HousingTemplates />} />
-
-              {/* 발주 관리 */}
               <Route path="order" element={<Order />} />
               <Route path="order/new" element={<OrderForm />} />
               <Route path="order/:orderId" element={<OrderDetail />} />
               <Route path="order/:orderId/edit" element={<OrderForm />} />
 
-              {/* 납품 관리 */}
               <Route path="delivery" element={<Delivery />} />
               <Route path="delivery/:deliveryId" element={<DeliveryDetail />} />
 
-              {/* 전자결재 퍼블리싱 (더존식 함·상세 → 이후 ERD/API) */}
-              <Route path="approval" element={<ApprovalList />} />
-              <Route path="approval/:documentId" element={<ApprovalDetailPublish />} />
+              <Route path="rma" element={<Rma />} />
 
-              {/* 전자결재 공통 헤더 UI 샘플 (approval_document 메타 구조 참고) */}
-              <Route path="approval-document/sample" element={<ApprovalDocumentSample />} />
-
-              {/* 시스템 관리 */}
               <Route path="organization" element={<Organization />} />
               <Route path="role" element={<Role />} />
               <Route path="permission" element={<Permission />} />
               <Route path="common-code" element={<CommonCode />} />
               <Route path="menu" element={<Menu />} />
 
-              {/* 사용자 관리 */}
               <Route path="user" element={<User />} />
               <Route path="user/:userId" element={<UserDetail />} />
               <Route path="profile" element={<UserProfiles />} />
-
-              {/* 결재 관리 */}
-              <Route path="approval-request" element={<ApprovalList />} />
-              <Route path="approval-request/:approvalRequestId" element={<ApprovalDetailPublish />} />
-              <Route path="approval-request/:approvalRequestId/edit" element={<ApprovalDocumentSample />} />
             </Route>
           </Route>
 
-          <Route element={<RedirectIfAuthenticated />}>
-            {/* 로그인 관리 */}
-            <Route path="/signin" element={<SignIn />} />
-            <Route path="/signup" element={<SignUp />} />
-          </Route>
+          <Route path="/signin" element={<AuthEntry />} />
+          <Route path="/signup" element={<Navigate to="/signin" replace />} />
 
-          {/* 404 오류 페이지 */}
           <Route path="*" element={<NotFound />} />
         </Routes>
       </ApiFeedbackProvider>

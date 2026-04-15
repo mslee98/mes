@@ -13,7 +13,7 @@ import LoadingLottie from "../components/common/LoadingLottie";
 import Badge from "../components/ui/badge/Badge";
 import DatePicker from "../components/form/date-picker";
 import Select from "../components/form/Select";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../hooks/useAuth";
 import { UserSolidIcon } from "../icons";
 import { getUsers, getOrganizationPath, type UserItem } from "../api/user";
 import { getRoles } from "../api/role";

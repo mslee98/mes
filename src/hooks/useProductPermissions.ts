@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "./useAuth";
 
 /**
  * JWT `permissions` 기준. 없으면 조회·관리 모두 허용으로 간주.
