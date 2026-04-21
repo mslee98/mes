@@ -2,5 +2,7 @@
 export type AuthUser = {
   employeeNo: number;
   name?: string;
+  jobCategory?: string;
+  jobPosition?: string;
   [key: string]: unknown;
 };

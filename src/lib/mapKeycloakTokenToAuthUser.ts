@@ -13,14 +13,23 @@ function nonEmptyString(value: unknown): string | undefined {
   return t.length > 0 ? t : undefined;
 }
 
+function displayLabelFromCodePair(value: unknown): string | undefined {
+  const text = nonEmptyString(value);
+  if (!text) return undefined;
+  return text.split("_")[0]?.trim() || undefined;
+}
+
 function uniqueKeys(...keys: (string | undefined)[]): string[] {
   return [...new Set(keys.filter((k): k is string => !!k && k.trim().length > 0))];
 }
 
 /**
- * 표시용 이름: 성·이름이 있으면 `성 이름`(예: 이 민성), 없으면 `name` 등 폴백.
+ * 표시용 이름: realm에서 제공한 `name` 우선, 없으면 성/이름 조합 등으로 폴백.
  */
 function displayNameFromPayload(payload: JwtPayload): string | undefined {
+  const realmName = nonEmptyString(payload.name);
+  if (realmName) return realmName;
+
   const fam = nonEmptyString(payload.family_name);
   const given = nonEmptyString(payload.given_name);
   if (fam && given) return `${fam} ${given}`;
@@ -28,7 +37,6 @@ function displayNameFromPayload(payload: JwtPayload): string | undefined {
   if (given) return given;
   return (
     nonEmptyString(payload.user_full_name_ko) ??
-    nonEmptyString(payload.name) ??
     nonEmptyString(payload.preferred_username) ??
     nonEmptyString(payload.email)
   );
@@ -101,6 +109,8 @@ export function mapKeycloakTokenToAuthUser(
   return {
     employeeNo: employeeNoFromPayload(p, employeeNoClaim),
     name: displayNameFromPayload(p),
+    jobCategory: displayLabelFromCodePair(p.job_categories),
+    jobPosition: displayLabelFromCodePair(p.job_positions),
     sub: typeof parsed.sub === "string" ? parsed.sub : undefined,
     email: nonEmptyString(parsed.email),
     preferredUsername: preferred,

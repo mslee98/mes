@@ -15,10 +15,15 @@ export default function AuthLayout({
           <div className="relative flex items-center justify-center z-1">
             {/* <!-- ===== Common Grid Shape Start ===== --> */}
             <GridShape />
-            <div className="flex flex-col items-center max-w-xs">
-              {/* <Logo variant="auth" className="mb-4" />  로고 해야함*/}
-              <img src="/images/logo/i3-l-logo-light.png" alt="logo" width={200} height={40} />
-              <p className="text-center text-gray-400 dark:text-white/60">
+            <div className="flex flex-col items-center gap-4 px-6 w-full max-w-xl">
+              <img
+                src="/images/logo/i3-l-logo-light.png"
+                alt="i3systems"
+                className="h-auto w-[min(22rem,88vw)] sm:w-[min(26rem,85vw)] lg:w-[min(30rem,80%)] object-contain"
+                width={480}
+                height={96}
+              />
+              <p className="text-center text-sm text-gray-400 sm:text-base dark:text-white/60">
                 Intelligent Image & Information System
               </p>
             </div>

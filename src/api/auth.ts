@@ -4,7 +4,6 @@
  * @see docs/FRONTEND_API.md §2
  */
 import { API_BASE } from "./apiBase";
-import { keycloakUserInfoEndpoint } from "../config/keycloakEnv";
 
 export interface LoginRequest {
   employeeNo: number;
@@ -31,7 +30,13 @@ export interface RefreshResponse {
   [key: string]: unknown;
 }
 
-export type AuthInfoResponse = Record<string, unknown>;
+export type AuthMeResponse = {
+  user?: { employeeNo: number; name?: string; [key: string]: unknown };
+  roles?: string[];
+  permissions?: string[];
+  isNewUser?: boolean;
+  [key: string]: unknown;
+};
 
 export async function login(body: LoginRequest): Promise<LoginResponse> {
   const res = await fetch(`${API_BASE}/auth/login`, {
@@ -85,9 +90,10 @@ export async function logout(): Promise<void> {
 
 /**
  * 로그인 사용자 정보 조회 (Bearer access token 필요)
+ * - 백엔드가 토큰 검증 + 로컬 사용자 조회/JIT 생성 + 권한 계산을 수행한다.
  */
-export async function getAuthInfo(accessToken: string): Promise<AuthInfoResponse> {
-  const res = await fetch(keycloakUserInfoEndpoint(), {
+export async function getAuthMe(accessToken: string): Promise<AuthMeResponse> {
+  const res = await fetch(`${API_BASE}/auth/me`, {
     method: "GET",
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -102,5 +108,5 @@ export async function getAuthInfo(accessToken: string): Promise<AuthInfoResponse
     );
   }
 
-  return res.json();
+  return res.json() as Promise<AuthMeResponse>;
 }

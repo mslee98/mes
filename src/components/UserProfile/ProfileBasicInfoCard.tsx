@@ -6,8 +6,13 @@ import Badge from "../ui/badge/Badge";
 
 interface ProfileBasicInfoCardProps {
   user: UserItem | null;
-  /** API에서 사용자 조회 실패 시 auth만 있을 때 (사번, 이름만) */
-  fallback?: { employeeNo: number; name?: string };
+  /** API에서 사용자 조회 실패 시 auth만 있을 때 (사번, 이름, 직군, 직급) */
+  fallback?: {
+    employeeNo: number;
+    name?: string;
+    jobCategory?: string;
+    jobPosition?: string;
+  };
 }
 
 export default function ProfileBasicInfoCard({
@@ -16,6 +21,8 @@ export default function ProfileBasicInfoCard({
 }: ProfileBasicInfoCardProps) {
   const displayName = user?.name ?? fallback?.name ?? "-";
   const displayEmployeeNo = user?.employeeNo ?? fallback?.employeeNo ?? "-";
+  const displayJobCategory = fallback?.jobCategory ?? "-";
+  const displayJobPosition = fallback?.jobPosition ?? "-";
 
   const activeOrgs = (user?.userOrganizations ?? []).filter(
     (uo) => uo.isActive !== false
@@ -43,6 +50,22 @@ export default function ProfileBasicInfoCard({
               {displayName}
             </p>
           </div>
+          {user == null && (
+            <>
+              <div>
+                <p className="mb-1 text-xs text-gray-500 dark:text-gray-400">직군</p>
+                <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+                  {displayJobCategory}
+                </p>
+              </div>
+              <div>
+                <p className="mb-1 text-xs text-gray-500 dark:text-gray-400">직급</p>
+                <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+                  {displayJobPosition}
+                </p>
+              </div>
+            </>
+          )}
           {user?.email != null && (
             <div className="sm:col-span-2">
               <p className="mb-1 text-xs text-gray-500 dark:text-gray-400">이메일</p>

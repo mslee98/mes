@@ -19,7 +19,7 @@ export function useAuth(): AuthContextType {
     if (keycloak.enabled) {
       return {
         user: keycloak.user,
-        accessToken: keycloak.accessToken,
+        accessToken: keycloak.accessToken, // 
         isLoggedIn: keycloak.isAuthenticated,
         isLoading: !keycloak.initialized,
         login: async (_employeeNo: number, _password: string, _remember?: boolean) => {

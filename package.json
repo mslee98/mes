@@ -4,8 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
+    "dev": "vite --mode development",
+    "build": "node scripts/print-build-env.mjs production && tsc -b && vite build --mode production",
     "lint": "eslint .",
     "preview": "vite preview",
     "dist:add-txt": "node scripts/toggle-txt-extension.js add",

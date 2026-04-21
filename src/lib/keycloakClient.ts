@@ -7,16 +7,27 @@ let cached: Keycloak | null = null;
 export function getOrCreateKeycloakClient(): Keycloak {
   if (cached) return cached;
   const { url, realm, clientId } = readKeycloakEnv();
+  console.groupCollapsed("[Keycloak] client config");
+  console.log("url:", url);
+  console.log("realm:", realm);
+  console.log("clientId:", clientId);
+  console.groupEnd();
   cached = new Keycloak({ url, realm, clientId });
   return cached;
 }
 
 export function buildKeycloakInitOptions(): KeycloakInitOptions {
-  const silentCheckSsoRedirectUri = `${window.location.origin}/silent-check-sso.html`;
-  return {
-    onLoad: "check-sso",
-    pkceMethod: "S256",
-    silentCheckSsoRedirectUri,
+  // const options: KeycloakInitOptions = {
+  //   onLoad: "login-required",
+  //   pkceMethod: "plain",
+  //   checkLoginIframe: false,
+  // };
+
+  const options: KeycloakInitOptions = {
+    onLoad: "login-required",
     checkLoginIframe: false,
   };
+
+  console.log("[Keycloak] init options", options);
+  return options;
 }

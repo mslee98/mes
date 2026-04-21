@@ -70,6 +70,8 @@ export default function UserProfiles() {
           fallback={{
             employeeNo: authUser.employeeNo as number,
             name: authUser.name as string | undefined,
+            jobCategory: authUser.jobCategory as string | undefined,
+            jobPosition: authUser.jobPosition as string | undefined,
           }}
         />
         <ProfilePasswordCard

@@ -1,4 +1,5 @@
 import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation } from "react-router";
+import { useEffect, useRef } from "react";
 
 import AppLayout from "./layout/AppLayout";
 import Home from "./pages/Home";
@@ -26,16 +27,24 @@ import { useKeycloakAuth } from "./context/KeycloakProvider";
 import NotFound from "./pages/NotFound";
 import Delivery from "./pages/Delivery";
 import DeliveryDetail from "./pages/DeliveryDetail";
-import DashboardMaterial from "./pages/DashboardMaterial";
-import DashboardExecutive from "./pages/DashboardExecutive";
-import DashboardTeamLead from "./pages/DashboardTeamLead";
+// import DashboardMaterial from "./pages/DashboardMaterial";
+// import DashboardExecutive from "./pages/DashboardExecutive";
+// import DashboardTeamLead from "./pages/DashboardTeamLead";
 
 function RequireAuth() {
   const { isLoggedIn, isLoading } = useAuth();
-  const { enabled, initialized, isAuthenticated } = useKeycloakAuth();
+  const { enabled, initialized, isAuthenticated, login } = useKeycloakAuth();
   const location = useLocation();
+  const keycloakLoginStarted = useRef(false);
   const isAuthLoading = enabled ? !initialized : isLoading;
   const canAccess = enabled ? isAuthenticated : isLoggedIn;
+
+  useEffect(() => {
+    if (!enabled || !initialized || isAuthenticated) return;
+    if (keycloakLoginStarted.current) return;
+    keycloakLoginStarted.current = true;
+    void login();
+  }, [enabled, initialized, isAuthenticated, login]);
 
   if (isAuthLoading) {
     return (
@@ -51,6 +60,18 @@ function RequireAuth() {
   }
 
   if (!canAccess) {
+    if (enabled) {
+      return (
+        <div className="flex min-h-screen items-center justify-center bg-white dark:bg-gray-900">
+          <div className="text-center">
+            <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-gray-200 border-t-brand-500 dark:border-gray-700 dark:border-t-brand-400" />
+            <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">
+              Keycloak 로그인으로 이동하는 중...
+            </p>
+          </div>
+        </div>
+      );
+    }
     return <Navigate to="/signin" replace state={{ from: location }} />;
   }
 

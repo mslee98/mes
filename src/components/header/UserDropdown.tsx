@@ -37,8 +37,19 @@ function getUserPayload(user: Record<string, unknown> | null): Record<string, un
   return payload && typeof payload === "object" ? (payload as Record<string, unknown>) : null;
 }
 
+function displayLabelFromCodePair(value: unknown): string {
+  if (typeof value !== "string") return "";
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  return trimmed.split("_")[0]?.trim() || "";
+}
+
 function displayNameCompact(user: Record<string, unknown> | null): string {
   const payload = getUserPayload(user);
+  const realmName = firstNonEmptyString(payload, ["name"]);
+  if (realmName) {
+    return realmName.replace(/\s+/g, "");
+  }
   const familyName = firstNonEmptyString(payload, ["family_name"]);
   const givenName = firstNonEmptyString(payload, ["given_name"]);
   if (familyName || givenName) {
@@ -54,16 +65,23 @@ function displayNameCompact(user: Record<string, unknown> | null): string {
 
 function displayJobTitle(user: Record<string, unknown> | null): string {
   const payload = getUserPayload(user);
-  return (
-    firstNonEmptyString(payload, [
+  const jobTitle = firstNonEmptyString(payload, [
+      "job_positions",
       "user_position",
       "jobTitle",
       "position_title",
       "positionTitle",
       "rank",
       "직급",
-    ]) ||
-    firstNonEmptyString(user, ["jobTitle", "rank", "positionTitle"])
+    ]) || firstNonEmptyString(user, ["jobPosition", "jobTitle", "rank", "positionTitle"]);
+  return displayLabelFromCodePair(jobTitle);
+}
+
+function displayEmail(user: Record<string, unknown> | null): string {
+  const payload = getUserPayload(user);
+  return (
+    firstNonEmptyString(user, ["email"]) ||
+    firstNonEmptyString(payload, ["email"])
   );
 }
 
@@ -77,6 +95,7 @@ export default function UserDropdown() {
   const groupLines = groupsDisplayLines(userRecord);
   const compactName = displayNameCompact(userRecord);
   const jobTitle = displayJobTitle(userRecord);
+  const email = displayEmail(userRecord);
   const employeeNoText =
     user?.employeeNo != null && String(user.employeeNo).trim() !== ""
       ? String(user.employeeNo)
@@ -141,6 +160,11 @@ export default function UserDropdown() {
           <span className="block font-medium text-gray-700 text-theme-sm dark:text-gray-400">
             {dropdownMetaText}
           </span>
+          {email && (
+            <span className="mt-1 block text-theme-xs text-gray-500 dark:text-gray-400">
+              {email}
+            </span>
+          )}
           {groupLines.length > 0 && (
             <span className="mt-1.5 block text-theme-xs leading-snug text-gray-500 dark:text-gray-400 whitespace-pre-line">
               {groupLines.join("\n")}
