@@ -28,3 +28,5 @@ backup/
 *.njsproj
 *.sln
 *.sw?
+
+*.env.*
