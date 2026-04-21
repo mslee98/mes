@@ -93,6 +93,7 @@ function CountryOptionLabel({
 export interface CountrySelectProps {
   id: string;
   label: React.ReactNode;
+  required?: boolean;
   value: string;
   onChange: (code: string) => void;
   isDisabled?: boolean;
@@ -102,6 +103,7 @@ export interface CountrySelectProps {
 export default function CountrySelect({
   id,
   label,
+  required = false,
   value,
   onChange,
   isDisabled = false,
@@ -128,7 +130,9 @@ export default function CountrySelect({
 
   return (
     <div>
-      <Label htmlFor={id}>{label}</Label>
+      <Label htmlFor={id} required={required}>
+        {label}
+      </Label>
       <div className="mt-1">
         <Select<CountrySelectOption, false>
           inputId={id}

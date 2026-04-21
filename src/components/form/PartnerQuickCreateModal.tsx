@@ -184,7 +184,8 @@ export default function PartnerQuickCreateModal({
         {isOpen ? (
           <CountrySelect
             id="partner-quick-country"
-            label="국가 *"
+            label="국가"
+            required
             value={countryCode}
             onChange={setCountryCode}
             helpText="등록 화면에서 선택 가능한 국가만 표시됩니다."

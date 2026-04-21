@@ -116,7 +116,13 @@ const AppSidebar: React.FC = () => {
     [navItems]
   );
   const isActive = useCallback(
-    (path: string) => location.pathname === path,
+    (path: string) => {
+      if (!path) return false;
+      if (path === "/") return location.pathname === "/";
+      return (
+        location.pathname === path || location.pathname.startsWith(`${path}/`)
+      );
+    },
     [location.pathname]
   );
 

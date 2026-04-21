@@ -16,36 +16,20 @@ import toast from "react-hot-toast";
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import ComponentCard from "../components/common/ComponentCard";
+import ConfirmModal from "../components/common/ConfirmModal";
 import LoadingLottie from "../components/common/LoadingLottie";
 import Input from "../components/form/input/InputField";
 import TextArea from "../components/form/input/TextArea";
 import Label from "../components/form/Label";
 import DatePicker from "../components/form/date-picker";
-import SelectInput from "../components/form/SelectInput";
 import SearchableSelectWithCreate from "../components/form/SearchableSelectWithCreate";
 import type { SearchableSelectOption } from "../components/form/SearchableSelectWithCreate";
 import PartnerQuickCreateModal from "../components/form/PartnerQuickCreateModal";
-import FileUploadDropzone from "../components/form/FileUploadDropzone";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHeader,
-  TableRow,
-} from "../components/ui/table";
-import {
-  ChevronDownIcon,
-  PencilIcon,
-  TrashBinIcon,
-} from "../icons";
-import { ReactComponent as ArrowDownOnSquareIcon } from "../icons/arrow-down-on-square.svg?react";
-import { ReactComponent as XCircleSolidIcon } from "../icons/x-circle.svg?react";
 import { useAuth } from "../hooks/useAuth";
 import { useCommonCodesByGroup } from "../hooks/useCommonCodesByGroup";
 import { getCurrencySymbol } from "../lib/formatCurrency";
 import {
   ORDER_LINE_VAT_RATE,
-  OrderLineAmountSummary,
   type LineAmountSummary,
 } from "../lib/orderLineAmountSummary";
 import { itemFormStrings as S } from "./itemFormStrings";
@@ -53,7 +37,6 @@ import {
   COMMON_CODE_GROUP_PURCHASE_ORDER_TYPE,
   COMMON_CODE_GROUP_PURCHASE_ORDER_STATUS,
   COMMON_CODE_GROUP_COUNTRY,
-  commonCodesToSelectOptions,
 } from "../api/commonCode";
 import { partnerSelectLabel } from "../lib/partnerDisplay";
 import { partnerCountryFlagUrl } from "../lib/partnerCountryOptions";
@@ -63,11 +46,9 @@ import {
   type RepresentativeProduct,
 } from "../api/products";
 import {
-  getOrganizationTree,
-  flattenOrganizationUnitsForSelect,
-  getOrganizationUnitUsers,
-  type OrganizationUnitUserItem,
-} from "../api/organization";
+  getEmployeeDirectory,
+  type EmployeeDirectoryItem,
+} from "../api/user";
 import {
   getPurchaseOrder,
   getPurchaseOrderItems,
@@ -88,6 +69,13 @@ import {
   type PurchaseOrderFile,
   type PurchaseOrderItem,
 } from "../api/purchaseOrder";
+import OrderAttachmentSection from "../features/order-form/sections/OrderAttachmentSection";
+import OrderLineEditorSection from "../features/order-form/sections/OrderLineEditorSection";
+import type { ItemRow } from "../features/order-form/types";
+import {
+  buildCreatePayload,
+  buildUpdatePayload,
+} from "../features/order-form/utils/payload";
 
 function todayString() {
   return new Date().toISOString().slice(0, 10);
@@ -98,19 +86,6 @@ function parsePositiveIntId(v: unknown): number | undefined {
   if (typeof v === "string" && /^\d+$/.test(v.trim())) return Number(v.trim());
   return undefined;
 }
-
-type ItemRow = {
-  lineId?: number;
-  /** 대표 제품 — UI (GET /products) */
-  productId: number;
-  /** 공통코드 UNIT 코드 */
-  unitCode: string;
-  qty: number;
-  unitPrice: string;
-  currencyCode: string;
-  requestDeliveryDate: string;
-  remark: string;
-};
 
 /**
  * 
@@ -138,6 +113,14 @@ function formatLineUnitPriceDisplay(value: unknown): string {
   if (decPartRaw == null) return formattedInt;
   const decDigits = decPartRaw.replace(/\D/g, "");
   return decDigits ? `${formattedInt}.${decDigits}` : formattedInt;
+}
+
+/** 환율 입력 — 비어 있으면 null (exchange_rate 미입력) */
+function parseOptionalExchangeRate(display: string): number | null {
+  const t = display.trim();
+  if (!t) return null;
+  const n = Number(t.replace(/,/g, ""));
+  return Number.isFinite(n) ? n : null;
 }
 
 /**
@@ -170,58 +153,7 @@ const emptyItemRow = (): ItemRow => ({
   remark: "",
 });
 
-const LEGACY_DEPT_PREFIX = "legacy-dept:";
 const LEGACY_USER_PREFIX = "legacy-user:";
-
-/**
- * 
- * @param path - 부서 경로
- * @returns 부서 경로 문자열 (레거시 접두사 포함)
- */
-function legacyDeptValue(path: string) {
-  return `${LEGACY_DEPT_PREFIX}${encodeURIComponent(path)}`;
-}
-
-/**
- * 
- * @param selectValue - 부서 선택값
- * @returns 부서 경로 문자열 (레거시 접두사 제거)
- */
-function tryDecodeLegacyDept(selectValue: string): string | null {
-  if (!selectValue.startsWith(LEGACY_DEPT_PREFIX)) return null;
-  try {
-    return decodeURIComponent(selectValue.slice(LEGACY_DEPT_PREFIX.length));
-  } catch {
-    return null;
-  }
-}
-
-/**
- * 
- * @param selectValue - 부서 선택값
- * @param idOptions - 부서 옵션 리스트
- * @returns 부서 경로 문자열
- */
-function parseDeptPathFromSelect(
-  selectValue: string,
-  idOptions: { value: string; label: string }[]
-): string {
-  if (!selectValue) return "";
-  const legacy = tryDecodeLegacyDept(selectValue);
-  if (legacy !== null) return legacy;
-  return idOptions.find((o) => o.value === selectValue)?.label ?? "";
-}
-
-/**
- * 
- * @param selectValue - 부서 선택값
- * @returns 부서 ID
- */
-function orgUnitIdFromDeptSelect(selectValue: string): number | null {
-  if (!selectValue || selectValue.startsWith(LEGACY_DEPT_PREFIX)) return null;
-  const n = Number(selectValue);
-  return Number.isFinite(n) ? n : null;
-}
 
 /**
  * 
@@ -254,12 +186,21 @@ function tryDecodeLegacyUser(selectValue: string): string | null {
  */
 function parseRequesterNameFromSelect(
   selectValue: string,
-  users: OrganizationUnitUserItem[]
+  users: EmployeeDirectoryItem[]
 ): string {
   if (!selectValue) return "";
   const legacy = tryDecodeLegacyUser(selectValue);
   if (legacy !== null) return legacy;
-  return users.find((u) => String(u.id) === selectValue)?.name?.trim() ?? "";
+  return (
+    users.find((u) => String(u.employeeNo) === selectValue)?.name?.trim() ?? ""
+  );
+}
+
+function parseRequesterIdFromSelect(selectValue: string): number | null {
+  if (!selectValue) return null;
+  if (tryDecodeLegacyUser(selectValue) !== null) return null;
+  const n = Number(selectValue);
+  return Number.isFinite(n) ? n : null;
 }
 
 /**
@@ -275,25 +216,41 @@ export default function OrderForm() {
   const { accessToken, user } = useAuth();
 
   const [title, setTitle] = useState("");
+  const [isTitleAutoFilled, setIsTitleAutoFilled] = useState(true);
   const [partnerId, setPartnerId] = useState<string>("");
   const [orderDate, setOrderDate] = useState(todayString());
   const [dueDate, setDueDate] = useState("");
   const [requestDeliveryDate, setRequestDeliveryDate] = useState("");
-  const [requesterDeptSelectValue, setRequesterDeptSelectValue] =
-    useState("");
   const [requesterUserSelectValue, setRequesterUserSelectValue] =
     useState("");
-  const defaultedRequesterForDeptRef = useRef<string>("");
   const [vendorOrderNo, setVendorOrderNo] = useState("");
   const [vendorRequest, setVendorRequest] = useState("");
   const [specialNote, setSpecialNote] = useState("");
   const [orderTypeCode, setOrderTypeCode] = useState("");
   const [orderStatusCode, setOrderStatusCode] = useState("");
   const [orderCurrencyCode, setOrderCurrencyCode] = useState("KRW");
+  const [exchangeRateCurrencyCode, setExchangeRateCurrencyCode] =
+    useState("KRW");
+  const [exchangeRateInput, setExchangeRateInput] = useState("");
   const [partnerCreateOpen, setPartnerCreateOpen] = useState(false);
   const [items, setItems] = useState<ItemRow[]>([emptyItemRow()]);
   const [editingLineIds, setEditingLineIds] = useState<number[]>([]);
   const [pendingFilesForCreate, setPendingFilesForCreate] = useState<File[]>([]);
+  const [recentlySavedLineIds, setRecentlySavedLineIds] = useState<number[]>([]);
+  const [uploadingExistingFileNames, setUploadingExistingFileNames] = useState<
+    string[]
+  >([]);
+  const [recentlyUploadedFileNames, setRecentlyUploadedFileNames] = useState<
+    string[]
+  >([]);
+  const [lineDeleteConfirmIndex, setLineDeleteConfirmIndex] = useState<number | null>(null);
+  const [fileDeleteConfirmId, setFileDeleteConfirmId] = useState<number | null>(null);
+  const recentlySavedLineTimersRef = useRef<
+    Record<number, ReturnType<typeof setTimeout>>
+  >({});
+  const recentlyUploadedFileTimersRef = useRef<
+    Record<string, ReturnType<typeof setTimeout>>
+  >({});
 
   const { data: order, isLoading: orderLoading } = useQuery({
     queryKey: ["purchaseOrder", id],
@@ -406,6 +363,25 @@ export default function OrderForm() {
   });
   const productList: RepresentativeProduct[] = productListResult?.items ?? [];
 
+  const firstLineTitleLabel = useMemo(() => {
+    const firstRow = items[0];
+    if (!firstRow || firstRow.productId <= 0) return "제품 미선택";
+    const product = productList.find((p) => p.id === firstRow.productId);
+    if (!product) return "제품 미선택";
+    return representativeProductLabel(product);
+  }, [items, productList]);
+
+  const firstLineQtyLabel = useMemo(() => {
+    const firstRow = items[0];
+    if (!firstRow) return "0";
+    return String(Number.isFinite(firstRow.qty) ? firstRow.qty : 0);
+  }, [items]);
+
+  const autoGeneratedTitle = useMemo(() => {
+    const dateLabel = orderDate || todayString();
+    return `${dateLabel} - ${firstLineTitleLabel} - ${firstLineQtyLabel}`;
+  }, [orderDate, firstLineTitleLabel, firstLineQtyLabel]);
+
   const { data: currencyCodes = [] } = useCommonCodesByGroup(
     "CURRENCY",
     accessToken,
@@ -429,56 +405,29 @@ export default function OrderForm() {
   );
 
   const {
-    data: organizationTree = [],
-    isLoading: orgTreeLoading,
-    isError: orgTreeError,
+    data: employeeDirectory = [],
+    isLoading: employeeDirectoryLoading,
+    isError: employeeDirectoryError,
   } = useQuery({
-    queryKey: ["organizationTree"],
-    queryFn: () => getOrganizationTree(accessToken ?? undefined),
+    queryKey: ["employeeDirectory"],
+    queryFn: () => getEmployeeDirectory(accessToken!),
     enabled: !!accessToken,
   });
 
-  const departmentOptionsFromTree = useMemo(
-    () => flattenOrganizationUnitsForSelect(organizationTree),
-    [organizationTree]
-  );
-
-  const orgUnitIdForUsers = useMemo(
-    () => orgUnitIdFromDeptSelect(requesterDeptSelectValue),
-    [requesterDeptSelectValue]
-  );
-
-  const {
-    data: orgUnitUsers = [],
-    isLoading: orgUnitUsersLoading,
-    isError: orgUnitUsersError,
-  } = useQuery({
-    queryKey: ["organizationUnitUsers", orgUnitIdForUsers],
-    queryFn: () =>
-      getOrganizationUnitUsers(orgUnitIdForUsers!, accessToken!),
-    enabled: !!accessToken && orgUnitIdForUsers != null,
-  });
-
-  const requesterDepartmentOptions = useMemo(() => {
-    const opts = [...departmentOptionsFromTree];
-    const sel = requesterDeptSelectValue;
-    if (!sel) return opts;
-    const legacyPath = tryDecodeLegacyDept(sel);
-    if (legacyPath && !opts.some((o) => o.value === sel)) {
-      opts.unshift({
-        value: sel,
-        label: `${legacyPath} (저장된 값)`,
-      });
-    }
-    return opts;
-  }, [departmentOptionsFromTree, requesterDeptSelectValue]);
-
+  /**
+   * 
+   * @returns 기본 발주 유형 코드
+   */
   const defaultOrderTypeCode = useMemo(() => {
     if (purchaseOrderTypeCodes.length === 0) return "";
     const general = purchaseOrderTypeCodes.find((c) => c.code === "GENERAL");
     return (general ?? purchaseOrderTypeCodes[0])?.code ?? "";
   }, [purchaseOrderTypeCodes]);
 
+  /**
+   * 
+   * @returns 기본 발주 상태 코드
+   */
   const defaultOrderStatusCode = useMemo(() => {
     if (purchaseOrderStatusCodes.length === 0) return "";
     const registered = purchaseOrderStatusCodes.find(
@@ -487,6 +436,10 @@ export default function OrderForm() {
     return (registered ?? purchaseOrderStatusCodes[0])?.code ?? "";
   }, [purchaseOrderStatusCodes]);
 
+  /**
+   * 
+   * @returns 유효한 발주 유형 코드
+   */
   const effectiveOrderTypeCode = isNew
     ? orderTypeCode || defaultOrderTypeCode
     : orderTypeCode;
@@ -494,23 +447,6 @@ export default function OrderForm() {
   const effectiveOrderStatusCode = isNew
     ? orderStatusCode || defaultOrderStatusCode
     : orderStatusCode;
-
-  const orderTypeSelectOptions = useMemo(() => {
-    const base = commonCodesToSelectOptions(purchaseOrderTypeCodes);
-    if (
-      effectiveOrderTypeCode &&
-      !base.some((o) => o.value === effectiveOrderTypeCode)
-    ) {
-      return [
-        {
-          value: effectiveOrderTypeCode,
-          label: `${effectiveOrderTypeCode} (저장된 값)`,
-        },
-        ...base,
-      ];
-    }
-    return base;
-  }, [purchaseOrderTypeCodes, effectiveOrderTypeCode]);
 
   // const orderStatusSelectOptions = useMemo(() => {
   //   const base = commonCodesToSelectOptions(purchaseOrderStatusCodes);
@@ -530,8 +466,8 @@ export default function OrderForm() {
   // }, [purchaseOrderStatusCodes, effectiveOrderStatusCode]);
 
   const requesterUserOptions = useMemo(() => {
-    const opts = orgUnitUsers.map((u) => ({
-      value: String(u.id),
+    const opts = employeeDirectory.map((u) => ({
+      value: String(u.employeeNo),
       label: `${u.name} (${u.employeeNo})`,
     }));
     const sel = requesterUserSelectValue;
@@ -543,22 +479,19 @@ export default function OrderForm() {
     }
     opts.unshift({ value: sel, label: `사용자 #${sel}` });
     return opts;
-  }, [orgUnitUsers, requesterUserSelectValue]);
-
-  const handleRequesterDeptChange = useCallback((v: string) => {
-    setRequesterDeptSelectValue(v);
-    setRequesterUserSelectValue("");
-    defaultedRequesterForDeptRef.current = "";
-  }, []);
+  }, [employeeDirectory, requesterUserSelectValue]);
 
   useEffect(() => {
     if (!isNew && order) {
+      queueMicrotask(() => setIsTitleAutoFilled(false));
       startTransition(() => {
         setTitle(order.title ?? "");
         setPartnerId(String(order.partnerId ?? ""));
         setOrderDate(order.orderDate ?? todayString());
         setDueDate(order.dueDate ?? "");
-        setOrderCurrencyCode(order.currencyCode ?? "KRW");
+        const persistedCurrencyCode = String(order.currencyCode ?? "KRW").trim() || "KRW";
+        setOrderCurrencyCode(persistedCurrencyCode);
+        setExchangeRateCurrencyCode(persistedCurrencyCode);
         setRequestDeliveryDate(order.requestDeliveryDate ?? "");
         setVendorOrderNo(order.vendorOrderNo ?? "");
         setVendorRequest(order.vendorRequest ?? "");
@@ -567,71 +500,44 @@ export default function OrderForm() {
         setOrderStatusCode(
           String(order.status ?? order.orderStatus ?? "").trim()
         );
+        const persistedExchangeRate = Number(order.exchangeRate ?? NaN);
+        setExchangeRateInput(
+          Number.isFinite(persistedExchangeRate)
+            ? formatLineUnitPriceDisplay(persistedExchangeRate)
+            : ""
+        );
       });
     }
   }, [isNew, order]);
 
   useEffect(() => {
-    if (isNew || !order) return;
-    const path = (order.requesterDepartment ?? "").trim();
-    defaultedRequesterForDeptRef.current = "";
-    if (!path) {
-      setRequesterDeptSelectValue("");
-      setRequesterUserSelectValue("");
-      return;
-    }
-    const match = departmentOptionsFromTree.find((o) => o.label === path);
-    if (match) {
-      setRequesterDeptSelectValue(match.value);
-    } else {
-      setRequesterDeptSelectValue(legacyDeptValue(path));
-    }
-  }, [isNew, order, departmentOptionsFromTree]);
+    if (!isNew) return;
+    if (!isTitleAutoFilled) return;
+    queueMicrotask(() => setTitle(autoGeneratedTitle));
+  }, [isNew, isTitleAutoFilled, autoGeneratedTitle]);
 
   useEffect(() => {
     if (isNew || !order) return;
     const name = (order.requesterName ?? "").trim();
     if (!name) {
-      setRequesterUserSelectValue("");
+      queueMicrotask(() => setRequesterUserSelectValue(""));
       return;
     }
-    const orgId = orgUnitIdFromDeptSelect(requesterDeptSelectValue);
-    if (orgId == null) {
-      setRequesterUserSelectValue(legacyUserValue(name));
-      return;
-    }
-    if (orgUnitUsers.length === 0) return;
-    const u = orgUnitUsers.find((x) => x.name === name);
-    if (u) setRequesterUserSelectValue(String(u.id));
-    else setRequesterUserSelectValue(legacyUserValue(name));
-  }, [isNew, order, requesterDeptSelectValue, orgUnitUsers]);
-
-  useEffect(() => {
-    const legacyPath = tryDecodeLegacyDept(requesterDeptSelectValue);
-    if (legacyPath == null) return;
-    const match = departmentOptionsFromTree.find(
-      (o) => o.label === legacyPath
-    );
-    if (match) setRequesterDeptSelectValue(match.value);
-  }, [departmentOptionsFromTree, requesterDeptSelectValue]);
+    if (employeeDirectory.length === 0) return;
+    const u = employeeDirectory.find((x) => x.name === name);
+    if (u) queueMicrotask(() => setRequesterUserSelectValue(String(u.employeeNo)));
+    else queueMicrotask(() => setRequesterUserSelectValue(legacyUserValue(name)));
+  }, [isNew, order, employeeDirectory]);
 
   useEffect(() => {
     if (!isNew) return;
     if (requesterUserSelectValue !== "") return;
-    const orgId = orgUnitIdFromDeptSelect(requesterDeptSelectValue);
-    if (orgId == null || user?.employeeNo == null || orgUnitUsers.length === 0)
-      return;
-    if (defaultedRequesterForDeptRef.current === String(orgId)) return;
-    const me = orgUnitUsers.find((u) => u.employeeNo === user.employeeNo);
-    defaultedRequesterForDeptRef.current = String(orgId);
-    if (me) setRequesterUserSelectValue(String(me.id));
-  }, [
-    isNew,
-    requesterDeptSelectValue,
-    requesterUserSelectValue,
-    orgUnitUsers,
-    user?.employeeNo,
-  ]);
+    if (user?.employeeNo == null || employeeDirectory.length === 0) return;
+    const me = employeeDirectory.find((u) => u.employeeNo === user.employeeNo);
+    if (me) {
+      queueMicrotask(() => setRequesterUserSelectValue(String(me.employeeNo)));
+    }
+  }, [isNew, requesterUserSelectValue, employeeDirectory, user?.employeeNo]);
 
   const partnerSelectOptions = useMemo(() => {
     return (partners as Partner[]).map((p) => ({
@@ -663,6 +569,10 @@ export default function OrderForm() {
     []
   );
 
+  /**
+   * 
+   * @returns 제품 옵션
+   */
   const productSelectOptions = useMemo(() => {
     return productList.map((p) => ({
       value: String(p.id),
@@ -670,6 +580,10 @@ export default function OrderForm() {
     }));
   }, [productList]);
 
+  /**
+   * 
+   * @returns 통화 옵션
+   */
   const currencyOptions = useMemo(() => {
     const list: { value: string; label: string; symbol?: string }[] = [];
     currencyCodes.forEach((c) =>
@@ -689,6 +603,10 @@ export default function OrderForm() {
     return list;
   }, [currencyCodes]);
 
+  /**
+   * 
+   * @returns 단위 옵션
+   */
   const unitOptions = useMemo(() => {
     const list: { value: string; label: string }[] = [];
     unitCodes.forEach((c) =>
@@ -702,6 +620,10 @@ export default function OrderForm() {
 
   const firstUnitValue = unitOptions[0]?.value ?? "";
 
+  /**
+   * 
+   * @returns 첫 번째 단위 값
+   */
   useEffect(() => {
     if (!isNew || !firstUnitValue) return;
     setItems((prev) => {
@@ -717,6 +639,10 @@ export default function OrderForm() {
     });
   }, [isNew, firstUnitValue]);
 
+  /**
+   * 
+   * @returns 발주 생성 뮤테이션
+   */
   const createMutation = useMutation({
     mutationFn: (payload: PurchaseOrderCreatePayload) =>
       createPurchaseOrder(payload, accessToken!),
@@ -847,6 +773,47 @@ export default function OrderForm() {
     onError: (e: Error) => toast.error(e.message || "삭제에 실패했습니다."),
   });
 
+  const markLineSaved = useCallback((lineId?: number) => {
+    if (!lineId) return;
+    setRecentlySavedLineIds((prev) =>
+      prev.includes(lineId) ? prev : [...prev, lineId]
+    );
+    const existingTimer = recentlySavedLineTimersRef.current[lineId];
+    if (existingTimer) clearTimeout(existingTimer);
+    recentlySavedLineTimersRef.current[lineId] = setTimeout(() => {
+      setRecentlySavedLineIds((prev) => prev.filter((id) => id !== lineId));
+      delete recentlySavedLineTimersRef.current[lineId];
+    }, 2500);
+  }, []);
+
+  const markFileUploadCompleted = useCallback((fileName: string) => {
+    if (!fileName) return;
+    setRecentlyUploadedFileNames((prev) =>
+      prev.includes(fileName) ? prev : [...prev, fileName]
+    );
+    const existingTimer = recentlyUploadedFileTimersRef.current[fileName];
+    if (existingTimer) clearTimeout(existingTimer);
+    recentlyUploadedFileTimersRef.current[fileName] = setTimeout(() => {
+      setRecentlyUploadedFileNames((prev) =>
+        prev.filter((name) => name !== fileName)
+      );
+      delete recentlyUploadedFileTimersRef.current[fileName];
+    }, 3500);
+  }, []);
+
+  const hasUnsavedWorkingLine = useMemo(() => {
+    if (isNew) return false;
+    if (editingLineIds.length > 0) return true;
+    return items.some(
+      (row) =>
+        !row.lineId &&
+        (row.productId > 0 ||
+          row.qty > 0 ||
+          row.unitPrice.trim() !== "" ||
+          row.remark.trim() !== "")
+    );
+  }, [isNew, editingLineIds, items]);
+
   const addItemRow = () => {
     if (!isNew && !canEditExistingOrder) {
       toast.error("수정 권한이 없습니다.");
@@ -945,10 +912,14 @@ export default function OrderForm() {
         unitPrice,
         unit: row.unitCode.trim() || null,
         currencyCode: row.currencyCode.trim() || "KRW",
-        requestDeliveryDate: row.requestDeliveryDate || null,
         remark: row.remark.trim() || null,
       };
-      lineCreateMutation.mutate({ index, payload: createPayload });
+      lineCreateMutation.mutate(
+        { index, payload: createPayload },
+        {
+          onSuccess: (created) => markLineSaved(created?.id),
+        }
+      );
       return;
     }
 
@@ -961,16 +932,22 @@ export default function OrderForm() {
           unit: row.unitCode.trim() || null,
           unitPrice,
           currencyCode: row.currencyCode.trim() || "KRW",
-          requestDeliveryDate: row.requestDeliveryDate || null,
           remark: row.remark.trim() || null,
         },
       },
       {
-        onSuccess: () => finishLineEdit(row.lineId),
+        onSuccess: () => {
+          markLineSaved(row.lineId);
+          finishLineEdit(row.lineId);
+        },
       }
     );
   };
 
+  /**
+   * 
+   * @param index 
+   */
   const removeLine = (index: number) => {
     if (!isNew && !canEditExistingOrder) {
       toast.error("수정 권한이 없습니다.");
@@ -978,13 +955,27 @@ export default function OrderForm() {
     }
     const row = items[index];
     if (!row) return;
-    if (!row.lineId) {
+    const isBlankDraftRow =
+      !row.lineId &&
+      row.productId <= 0 &&
+      row.qty <= 0 &&
+      row.unitPrice.trim() === "" &&
+      row.remark.trim() === "";
+    if (isBlankDraftRow) {
       removeItemRow(index);
       return;
     }
-    lineDeleteMutation.mutate(row.lineId);
+    if (!row.lineId) {
+      setLineDeleteConfirmIndex(index);
+      return;
+    }
+    setLineDeleteConfirmIndex(index);
   };
 
+  /**
+   * 
+   * @param index 
+   */
   const cancelLineEdit = (index: number) => {
     const row = items[index];
     if (!row?.lineId) return;
@@ -1012,10 +1003,18 @@ export default function OrderForm() {
     finishLineEdit(row.lineId);
   };
 
+  /**
+   * 
+   * @param e 
+   */
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!isNew && !canEditExistingOrder) {
       toast.error("작성자만 수정할 수 있으며, 상신 진행 중/종결 상태는 수정할 수 없습니다.");
+      return;
+    }
+    if (hasUnsavedWorkingLine) {
+      toast.error("작업중인 행이 있습니다. 행 저장 후 다시 시도하세요.");
       return;
     }
     if (!title.trim()) {
@@ -1024,6 +1023,14 @@ export default function OrderForm() {
     }
     if (!partnerId || Number(partnerId) <= 0) {
       toast.error("업체를 선택하세요.");
+      return;
+    }
+    if (!dueDate.trim()) {
+      toast.error("고객요청납기일을 입력하세요.");
+      return;
+    }
+    if (!requesterUserSelectValue.trim()) {
+      toast.error("영업담당자를 선택하세요.");
       return;
     }
 
@@ -1054,42 +1061,29 @@ export default function OrderForm() {
         order?.currencyCode ||
         "KRW";
       const supplyAmount = computeHeaderSupplyAmount(validItems, headerCurrency);
-      const payload: PurchaseOrderCreatePayload = {
-        title: title.trim(),
-        partnerId: Number(partnerId),
+      const payload = buildCreatePayload({
+        title,
+        partnerId,
         orderDate,
-        currencyCode: headerCurrency,
-        dueDate: dueDate || null,
-        requestDeliveryDate: requestDeliveryDate || null,
-        requesterDepartment:
-          parseDeptPathFromSelect(
-            requesterDeptSelectValue,
-            departmentOptionsFromTree
-          ).trim() || null,
-        requesterName:
-          parseRequesterNameFromSelect(
-            requesterUserSelectValue,
-            orgUnitUsers
-          ).trim() || null,
-        vendorOrderNo: vendorOrderNo.trim() || null,
-        vendorRequest: vendorRequest.trim() || null,
-        specialNote: specialNote.trim() || null,
-        orderType: effectiveOrderTypeCode.trim() || null,
-        memo: null,
-        status: effectiveOrderStatusCode.trim() || null,
-        supplyAmount,
-        items: validItems.map(
-          (row): PurchaseOrderItemPayload => ({
-            productId: row.productId,
-            qty: row.qty,
-            unitPrice: parseLineUnitPrice(row.unitPrice),
-            unit: row.unitCode.trim() || null,
-            currencyCode: row.currencyCode.trim() || "KRW",
-            requestDeliveryDate: row.requestDeliveryDate || null,
-            remark: row.remark.trim() || null,
-          })
+        dueDate,
+        requestDeliveryDate,
+        requesterDepartment: "",
+        requesterName: parseRequesterNameFromSelect(
+          requesterUserSelectValue,
+          employeeDirectory
         ),
-      };
+        requesterId: parseRequesterIdFromSelect(requesterUserSelectValue),
+        vendorOrderNo,
+        vendorRequest,
+        specialNote,
+        effectiveOrderTypeCode,
+        effectiveOrderStatusCode,
+        headerCurrency,
+        supplyAmount,
+        exchangeRate: parseOptionalExchangeRate(exchangeRateInput),
+        validItems,
+        parseLineUnitPrice,
+      });
       createMutation.mutate(payload);
       return;
     }
@@ -1106,33 +1100,34 @@ export default function OrderForm() {
       return;
     }
 
-    const payload: PurchaseOrderUpdatePayload = {
-      title: title.trim(),
-      partnerId: partnerId ? Number(partnerId) : undefined,
+    const payload = buildUpdatePayload({
+      title,
+      partnerId,
       orderDate,
-      currencyCode: headerCurrency,
-      dueDate: dueDate || null,
-      requestDeliveryDate: requestDeliveryDate || null,
-      requesterDepartment:
-        parseDeptPathFromSelect(
-          requesterDeptSelectValue,
-          departmentOptionsFromTree
-        ).trim() || null,
-      requesterName:
-        parseRequesterNameFromSelect(
-          requesterUserSelectValue,
-          orgUnitUsers
-        ).trim() || null,
-      vendorOrderNo: vendorOrderNo.trim() || null,
-      vendorRequest: vendorRequest.trim() || null,
-      specialNote: specialNote.trim() || null,
-      orderType: effectiveOrderTypeCode.trim() || null,
-      status: effectiveOrderStatusCode.trim() || null,
+      dueDate,
+      requestDeliveryDate,
+      requesterDepartment: "",
+      requesterName: parseRequesterNameFromSelect(
+        requesterUserSelectValue,
+        employeeDirectory
+      ),
+      requesterId: parseRequesterIdFromSelect(requesterUserSelectValue),
+      vendorOrderNo,
+      vendorRequest,
+      specialNote,
+      effectiveOrderTypeCode,
+      effectiveOrderStatusCode,
+      headerCurrency,
       supplyAmount,
-    };
+      exchangeRate: parseOptionalExchangeRate(exchangeRateInput),
+    });
     updateMutation.mutate(payload);
   };
 
+  /**
+   * 
+   * @returns 발주 라인 아이템
+   */
   const resolvedOrderLineItems = useMemo((): PurchaseOrderItem[] => {
     if (isNew || !order) return [];
     const embedded = order.orderItems ?? order.items;
@@ -1222,7 +1217,7 @@ export default function OrderForm() {
         >
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <Label htmlFor="order-display-id">발주 ID</Label>
+              <Label htmlFor="order-display-id" required>발주 ID</Label>
               <Input
                 id="order-display-id"
                 value={orderNoDisplay}
@@ -1232,7 +1227,7 @@ export default function OrderForm() {
               />
             </div>
             <div>
-              <Label htmlFor="order-registrant">등록자</Label>
+              <Label htmlFor="order-registrant" required>등록자</Label>
               <Input
                 id="order-registrant"
                 value={registrantDisplay}
@@ -1242,11 +1237,16 @@ export default function OrderForm() {
               />
             </div>
             <div className="sm:col-span-2">
-              <Label htmlFor="title">제목 *</Label>
+              <Label htmlFor="title" required>
+                제목
+              </Label>
               <Input
                 id="title"
                 value={title}
-                onChange={(e) => setTitle(e.target.value)}
+                onChange={(e) => {
+                  setIsTitleAutoFilled(false);
+                  setTitle(e.target.value);
+                }}
                 placeholder="발주 제목"
                 className="mt-1"
               />
@@ -1254,20 +1254,22 @@ export default function OrderForm() {
 
             <DatePicker
               id="order-orderDate"
-              label="발주일자 *"
+              label="발주일자"
+              required
               placeholder="년-월-일"
               value={orderDate}
               onValueChange={setOrderDate}
             />
             <DatePicker
               id="order-dueDate"
-              label="납품예정일자"
+              label="고객요청납기일"
+              required
               placeholder="년-월-일"
               value={dueDate}
               onValueChange={setDueDate}
             />
 
-            <div className="sm:col-span-2">
+            {/* <div className="sm:col-span-2">
               <Label htmlFor="order-orderType">발주 유형</Label>
               <div className="relative mt-1">
                 <select
@@ -1299,69 +1301,14 @@ export default function OrderForm() {
                   aria-hidden
                 />
               </div>
-            </div>
-
-            <div className="sm:col-span-2 grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="min-w-0">
-                <SearchableSelectWithCreate
-                  id="order-requesterDepartment"
-                  label="부서"
-                  value={requesterDeptSelectValue}
-                  onChange={handleRequesterDeptChange}
-                  options={requesterDepartmentOptions}
-                  placeholder={
-                    orgTreeLoading
-                      ? "조직도 불러오는 중…"
-                      : "조직도에서 부서 검색·선택"
-                  }
-                  noOptionsMessage="조직도에 등록된 부서가 없습니다."
-                  addTrigger="none"
-                  addButtonLabel=""
-                  onAddClick={() => {}}
-                  isDisabled={orgTreeLoading}
-                />
-                {orgTreeError ? (
-                  <p className="mt-1 text-theme-xs text-red-600 dark:text-red-400">
-                    조직도를 불러오지 못했습니다. 저장된 값만 표시될 수 있습니다.
-                  </p>
-                ) : null}
-              </div>
-              <div className="min-w-0">
-                <SearchableSelectWithCreate
-                  id="order-requesterUser"
-                  label="담당자"
-                  value={requesterUserSelectValue}
-                  onChange={setRequesterUserSelectValue}
-                  options={requesterUserOptions}
-                  placeholder={
-                    orgUnitIdForUsers == null
-                      ? "먼저 부서를 선택하세요"
-                      : orgUnitUsersLoading
-                        ? "소속 사용자 불러오는 중…"
-                        : "담당자 검색·선택"
-                  }
-                  noOptionsMessage="이 부서에 표시할 활성 사용자가 없습니다."
-                  addTrigger="none"
-                  addButtonLabel=""
-                  onAddClick={() => {}}
-                  isDisabled={
-                    orgUnitIdForUsers == null ||
-                    orgUnitUsersLoading
-                  }
-                />
-                {orgUnitUsersError ? (
-                  <p className="mt-1 text-theme-xs text-red-600 dark:text-red-400">
-                    담당자 목록을 불러오지 못했습니다.
-                  </p>
-                ) : null}
-              </div>
-            </div>
+            </div> */}
 
             <div className="sm:col-span-2 grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="min-w-0">
                 <SearchableSelectWithCreate
                   id="order-partner"
-                  label="업체명 *"
+                  label="고객명"
+                  required
                   value={partnerId}
                   onChange={setPartnerId}
                   options={partnerSelectOptions}
@@ -1376,23 +1323,39 @@ export default function OrderForm() {
               </div>
 
               <div className="min-w-0">
-                <DatePicker
-                  id="order-requestDeliveryDate"
-                  label="납품요청일자"
-                  placeholder="년-월-일"
-                  value={requestDeliveryDate}
-                  onValueChange={setRequestDeliveryDate}
+                <SearchableSelectWithCreate
+                  id="order-requesterUser"
+                  label="영업담당자"
+                  required
+                  value={requesterUserSelectValue}
+                  onChange={setRequesterUserSelectValue}
+                  options={requesterUserOptions}
+                  placeholder={
+                    employeeDirectoryLoading
+                      ? "전체 직원 목록 불러오는 중…"
+                      : "담당자 검색·선택"
+                  }
+                  noOptionsMessage="표시할 활성 직원이 없습니다."
+                  addTrigger="none"
+                  addButtonLabel=""
+                  onAddClick={() => {}}
+                  isDisabled={employeeDirectoryLoading}
                 />
+                {employeeDirectoryError ? (
+                  <p className="mt-1 text-theme-xs text-red-600 dark:text-red-400">
+                    담당자 목록을 불러오지 못했습니다.
+                  </p>
+                ) : null}
               </div>
             </div>
 
             <div className="sm:col-span-2">
-              <Label htmlFor="vendorOrderNo">업체발주번호</Label>
+              <Label htmlFor="vendorOrderNo">고객발주번호</Label>
               <Input
                 id="vendorOrderNo"
                 value={vendorOrderNo}
                 onChange={(e) => setVendorOrderNo(e.target.value)}
-                placeholder="업체에서 부여한 발주번호"
+                placeholder="고객에서 부여한 발주번호"
                 className="mt-1"
               />
             </div>
@@ -1401,14 +1364,14 @@ export default function OrderForm() {
                 htmlFor="vendorRequest"
                 className="mb-2.5 block text-sm font-medium text-gray-800 dark:text-white/90"
               >
-                업체요청사항
+                고객요청사항
               </Label>
               <TextArea
                 id="vendorRequest"
                 rows={4}
                 value={vendorRequest}
                 onChange={setVendorRequest}
-                placeholder="업체 요청 내용을 입력하세요."
+                placeholder="고객 요청 내용을 입력하세요."
               />
             </div>
             <div className="sm:col-span-2">
@@ -1430,397 +1393,62 @@ export default function OrderForm() {
               <Label className="mb-2.5 block text-sm font-medium text-gray-800 dark:text-white/90">
                 첨부파일
               </Label>
-              <div className="space-y-3">
-                {isNew ? (
-                  <>
-                    <FileUploadDropzone
-                      onSelectFile={addPendingFileForCreate}
-                      onError={(message) => toast.error(message)}
-                      disabled={isPending}
-                      maxFileSizeMb={30}
-                      buttonLabel="파일 선택"
-                      uploadGuideText="파일을 먼저 선택하면 등록 시 자동으로 함께 업로드됩니다."
-                    />
-                    <ul className="divide-y divide-gray-100 text-theme-sm dark:divide-white/5">
-                      {pendingFilesForCreate.length === 0 ? (
-                        <li className="py-2 text-gray-500">
-                          선택된 첨부파일이 없습니다.
-                        </li>
-                      ) : (
-                        pendingFilesForCreate.map((file, index) => (
-                          <li
-                            key={`${file.name}-${file.size}-${index}`}
-                            className="flex items-center justify-between py-2"
-                          >
-                            <span className="truncate pr-3 text-gray-800 dark:text-gray-200">
-                              {file.name}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => removePendingFileForCreate(index)}
-                              className="rounded-lg border border-gray-300 px-2 py-1 text-theme-xs text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
-                            >
-                              제거
-                            </button>
-                          </li>
-                        ))
-                      )}
-                    </ul>
-                  </>
-                ) : (
-                  <>
-                    <FileUploadDropzone
-                      onSelectFile={(file) => fileUploadMutation.mutate(file)}
-                      onError={(message) => toast.error(message)}
-                      disabled={fileUploadMutation.isPending}
-                      maxFileSizeMb={30}
-                      buttonLabel="파일 선택"
-                      uploadGuideText="아래 버튼을 눌러 파일을 업로드하세요."
-                    />
-                    {fileUploadMutation.isPending ? (
-                      <span className="text-theme-xs text-gray-500">업로드 중...</span>
-                    ) : null}
-                    <ul className="divide-y divide-gray-100 text-theme-sm dark:divide-white/5">
-                      {(files as PurchaseOrderFile[]).length === 0 ? (
-                        <li className="py-2 text-gray-500">첨부파일이 없습니다.</li>
-                      ) : (
-                        (files as PurchaseOrderFile[]).map((f) => (
-                          <li
-                            key={f.id}
-                            className="flex items-center justify-between py-2"
-                          >
-                            <span className="text-gray-800 dark:text-gray-200">
-                              {f.fileName ?? "-"}
-                            </span>
-                            <div className="flex items-center gap-2">
-                              <span className="text-gray-500">
-                                {f.uploadedAt ?? f.createdAt ?? ""}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => fileDeleteMutation.mutate(f.id)}
-                                disabled={fileDeleteMutation.isPending}
-                                title="첨부파일 삭제"
-                                aria-label="첨부파일 삭제"
-                                className="inline-flex size-8 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 disabled:pointer-events-none disabled:opacity-40 dark:hover:bg-red-500/10 dark:hover:text-red-400"
-                              >
-                                <TrashBinIcon className="size-4" aria-hidden />
-                              </button>
-                            </div>
-                          </li>
-                        ))
-                      )}
-                    </ul>
-                  </>
-                )}
-              </div>
+              <OrderAttachmentSection
+                isNew={isNew}
+                isPending={isPending}
+                pendingFilesForCreate={pendingFilesForCreate}
+                files={files as PurchaseOrderFile[]}
+                isFileUploadPending={fileUploadMutation.isPending}
+                isFileDeletePending={fileDeleteMutation.isPending}
+                uploadingExistingFileNames={uploadingExistingFileNames}
+                recentlyUploadedFileNames={recentlyUploadedFileNames}
+                onError={(message) => toast.error(message)}
+                onSelectCreateFile={addPendingFileForCreate}
+                onRemoveCreateFile={removePendingFileForCreate}
+                onUploadExistingFile={(file) => {
+                  setUploadingExistingFileNames((prev) =>
+                    prev.includes(file.name) ? prev : [...prev, file.name]
+                  );
+                  fileUploadMutation.mutate(file, {
+                    onSuccess: () => markFileUploadCompleted(file.name),
+                    onSettled: () =>
+                      setUploadingExistingFileNames((prev) =>
+                        prev.filter((name) => name !== file.name)
+                      ),
+                  });
+                }}
+                onDeleteExistingFile={(fileId) => setFileDeleteConfirmId(fileId)}
+              />
             </div>
           </div>
         </ComponentCard>
 
-        <ComponentCard
-          collapsible
-          title="발주 라인"
-          headerEnd={
-            <button
-              type="button"
-              onClick={addItemRow}
-              className="rounded-lg border border-brand-500 px-4 py-2 text-sm font-medium text-brand-600 hover:bg-brand-50 dark:border-brand-600 dark:text-brand-400 dark:hover:bg-gray-800"
-            >
-              + 라인 추가
-            </button>
-          }
-        >
-          <div className="space-y-4 dark:border-gray-700">
-            {/* <PageNotice variant="brand">
-              발주 라인은 <strong>대표 제품</strong>만 선택합니다. 제품 정의 ID는
-              보내지 않으며(<strong>null</strong>), 선택한 제품은{" "}
-              <strong>productId</strong>로 전달됩니다.
-            </PageNotice> */}
-                <div className="relative overflow-x-auto border-b dark:border-gray-800">
-                  <Table className="w-full text-center text-sm text-gray-900 dark:text-white md:table-fixed">
-                    <TableHeader className="border-b border-gray-100 dark:border-white/5">
-                      <TableRow className="hover:bg-transparent">
-                        <TableCell
-                          isHeader
-                          className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[22%]" // 22 + 15 + 22 + 12 + 13 = 
-                        >
-                          제품 *
-                        </TableCell>
-                        <TableCell
-                          isHeader
-                          className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[15%]"
-                        >
-                          단위 · 수량 *
-                        </TableCell>
-                        <TableCell
-                          isHeader
-                          className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[22%]"
-                        >
-                          통화 · 단가 *
-                        </TableCell>
-                        <TableCell
-                          isHeader
-                          className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[12%]"
-                        >
-                          납품 요청일
-                        </TableCell>
-                        <TableCell
-                          isHeader
-                          className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[19%]"
-                        >
-                          비고
-                        </TableCell>
-                        <TableCell
-                          isHeader
-                          className="w-[88px] px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400"
-                        >
-                          <span className="sr-only">행 작업</span>
-                        </TableCell>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody className="divide-y divide-gray-200 dark:divide-gray-800">
-                      {items.map((row, index) => (
-                        <TableRow key={index} className="align-middle hover:bg-transparent">
-                          {(() => {
-                            const isDraftRow = !isNew && !row.lineId;
-                            const isLineEditing =
-                              !isNew &&
-                              !!row.lineId &&
-                              editingLineIds.includes(row.lineId);
-                            const isEditReadonly =
-                              !isNew && !!row.lineId && !isLineEditing;
-                            return (
-                              <>
-                          <TableCell className="min-w-0 px-3 py-3 text-center align-middle">
-                            <div className="flex w-full min-w-0 justify-center">
-                              <SearchableSelectWithCreate
-                                id={`order-product-${index}`}
-                                value={row.productId ? String(row.productId) : ""}
-                                onChange={(v) =>
-                                  setLineProductId(index, Number(v) || 0)
-                                }
-                                options={productSelectOptions}
-                                placeholder="제품"
-                                addTrigger="none"
-                                addButtonLabel="제품 추가"
-                                onAddClick={() => {}}
-                                compact
-                                isClearable={false}
-                                isDisabled={isEditReadonly}
-                                className="w-full min-w-0 max-w-[min(100%,28rem)]"
-                              />
-                            </div>
-                          </TableCell>
-                          <TableCell className="px-3 py-3 text-center align-middle">
-                            <div className="flex justify-center">
-                            <SelectInput
-                              id={`order-line-${index}-qty`}
-                              size="sm"
-                              selectOptions={unitOptions}
-                              selectValue={row.unitCode}
-                              onSelectChange={(v) =>
-                                updateItemRow(index, "unitCode", v)
-                              }
-                              inputValue={row.qty === 0 ? "" : String(row.qty)}
-                              onInputChange={(v) => {
-                                const t = v.trim();
-                                if (t === "") {
-                                  updateItemRow(index, "qty", 0);
-                                  return;
-                                }
-                                const n = Number(t.replace(/,/g, ""));
-                                updateItemRow(
-                                  index,
-                                  "qty",
-                                  Number.isFinite(n) ? n : 0
-                                );
-                              }}
-                              inputType="text"
-                              inputMode="decimal"
-                              inputPlaceholder="0"
-                              selectPlaceholder="단위"
-                              inputSuffix=""
-                              selectClassName="min-w-[3.25rem] max-w-[4.25rem] pl-2 pr-7"
-                              className="shadow-none max-w-full"
-                              disabled={isEditReadonly}
-                            />
-                            </div>
-                          </TableCell>
-                          <TableCell className="px-3 py-3 text-center align-middle">
-                            <div className="flex justify-center">
-                            <SelectInput
-                              id={`order-line-${index}-unitPrice`}
-                              size="sm"
-                              selectOptions={currencyOptions}
-                              selectValue={row.currencyCode || "KRW"}
-                              onSelectChange={(v) =>
-                                updateItemRow(index, "currencyCode", v)
-                              }
-                              inputValue={row.unitPrice}
-                              onInputChange={(v) =>
-                                updateItemRow(index, "unitPrice", v)
-                              }
-                              inputPlaceholder="0"
-                              selectPlaceholder={S.selectCurrency}
-                              formatNumber
-                              maxFractionDigits={2}
-                              className="shadow-none max-w-full"
-                              disabled={isEditReadonly}
-                            />
-                            </div>
-                          </TableCell>
-                          <TableCell className="px-3 py-3 text-center align-middle">
-                            <div className="flex justify-center">
-                            <DatePicker
-                              id={`order-line-req-${index}`}
-                              placeholder="년-월-일"
-                              value={row.requestDeliveryDate}
-                              onValueChange={(v) =>
-                                updateItemRow(index, "requestDeliveryDate", v)
-                              }
-                              compact
-                              className="max-w-full min-w-0"
-                              disabled={isEditReadonly}
-                            />
-                            </div>
-                          </TableCell>
-                          <TableCell className="px-3 py-3 text-center align-middle">
-                            <div className="flex justify-center">
-                            <input
-                              type="text"
-                              value={row.remark}
-                              onChange={(e) =>
-                                updateItemRow(index, "remark", e.target.value)
-                              }
-                              placeholder="비고"
-                              className="h-9 w-full min-w-[6rem] rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-center text-theme-xs text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/20 dark:border-gray-600 dark:bg-gray-900 dark:text-white dark:placeholder:text-white/30 dark:focus:border-brand-800"
-                              aria-label="비고"
-                              disabled={isEditReadonly}
-                            />
-                            </div>
-                          </TableCell>
-                          <TableCell className="px-3 py-3 text-center align-middle">
-                            {isNew ? (
-                              <button
-                                type="button"
-                                onClick={() => removeItemRow(index)}
-                                disabled={items.length <= 1}
-                                title="행 삭제"
-                                aria-label="행 삭제"
-                                className="inline-flex size-9 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 disabled:pointer-events-none disabled:opacity-40 dark:hover:bg-red-500/10 dark:hover:text-red-400"
-                              >
-                                <TrashBinIcon className="size-[18px]" aria-hidden />
-                              </button>
-                            ) : isDraftRow ? (
-                              <div className="inline-flex items-center gap-1">
-                                <button
-                                  type="button"
-                                  onClick={() => saveLine(index)}
-                                  disabled={
-                                    lineCreateMutation.isPending ||
-                                    lineUpdateMutation.isPending
-                                  }
-                                  title="행 추가 저장"
-                                  aria-label="행 추가 저장"
-                                  className="inline-flex size-9 items-center justify-center rounded-lg text-brand-600 transition-colors hover:bg-brand-50 disabled:pointer-events-none disabled:opacity-40 dark:text-brand-400 dark:hover:bg-brand-500/10"
-                                >
-                                  <ArrowDownOnSquareIcon className="size-[18px]" aria-hidden />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => removeItemRow(index)}
-                                  disabled={items.length <= 1}
-                                  title="행 취소"
-                                  aria-label="행 취소"
-                                  className="inline-flex size-9 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 disabled:pointer-events-none disabled:opacity-40 dark:hover:bg-white/10 dark:hover:text-gray-200"
-                                >
-                                  <XCircleSolidIcon className="size-[18px]" aria-hidden />
-                                </button>
-                              </div>
-                            ) : isLineEditing ? (
-                              <div className="inline-flex items-center gap-1">
-                                <button
-                                  type="button"
-                                  onClick={() => saveLine(index)}
-                                  disabled={
-                                    lineCreateMutation.isPending ||
-                                    lineUpdateMutation.isPending
-                                  }
-                                  title="행 저장"
-                                  aria-label="행 저장"
-                                  className="inline-flex size-9 items-center justify-center rounded-lg text-brand-600 transition-colors hover:bg-brand-50 disabled:pointer-events-none disabled:opacity-40 dark:text-brand-400 dark:hover:bg-brand-500/10"
-                                >
-                                  <ArrowDownOnSquareIcon className="size-[18px]" aria-hidden />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => cancelLineEdit(index)}
-                                  title="행 편집 취소"
-                                  aria-label="행 편집 취소"
-                                  className="inline-flex size-9 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 disabled:pointer-events-none disabled:opacity-40 dark:hover:bg-white/10 dark:hover:text-gray-200"
-                                >
-                                  <XCircleSolidIcon className="size-[18px]" aria-hidden />
-                                </button>
-                              </div>
-                            ) : (
-                              <div className="inline-flex items-center gap-1">
-                                <button
-                                  type="button"
-                                  onClick={() => beginLineEdit(row.lineId)}
-                                  title="행 수정"
-                                  aria-label="행 수정"
-                                  className="inline-flex size-9 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-brand-600 dark:hover:bg-white/10 dark:hover:text-brand-400"
-                                >
-                                  <PencilIcon className="size-[18px]" aria-hidden />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => removeLine(index)}
-                                  disabled={
-                                    lineDeleteMutation.isPending ||
-                                    items.length <= 1
-                                  }
-                                  title="행 삭제"
-                                  aria-label="행 삭제"
-                                  className="inline-flex size-9 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 disabled:pointer-events-none disabled:opacity-40 dark:hover:bg-red-500/10 dark:hover:text-red-400"
-                                >
-                                  <TrashBinIcon className="size-[18px]" aria-hidden />
-                                </button>
-                              </div>
-                            )}
-                          </TableCell>
-                              </>
-                            );
-                          })()}
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-
-                <div className="relative inline-flex w-full items-center justify-center">
-                  <hr className="my-8 h-px w-64 max-w-full border-0 bg-gray-200 dark:bg-gray-700" />
-                  <span className="absolute left-1/2 -translate-x-1/2 bg-white px-3 text-sm font-medium text-gray-600 dark:bg-[#171F2F] dark:text-gray-400">
-                    주문 요약
-                  </span>
-                </div>
-                <OrderLineAmountSummary
-                  summaries={
-                    draftLineAmountSummaries.length > 0
-                      ? draftLineAmountSummaries
-                      : [
-                          {
-                            currencyCode: orderCurrencyCode || "KRW",
-                            subtotal: 0,
-                            vat: 0,
-                            total: 0,
-                          },
-                        ]
-                  }
-                />
-            </div>
-        </ComponentCard>
+        <OrderLineEditorSection
+          isNew={isNew}
+          items={items}
+          editingLineIds={editingLineIds}
+          productSelectOptions={productSelectOptions}
+          unitOptions={unitOptions}
+          currencyOptions={currencyOptions}
+          orderCurrencyCode={orderCurrencyCode}
+          exchangeRateCurrencyCode={exchangeRateCurrencyCode}
+          exchangeRateInput={exchangeRateInput}
+          onExchangeRateCurrencyChange={setExchangeRateCurrencyCode}
+          onExchangeRateInputChange={setExchangeRateInput}
+          draftLineAmountSummaries={draftLineAmountSummaries}
+          isLineCreatePending={lineCreateMutation.isPending}
+          isLineUpdatePending={lineUpdateMutation.isPending}
+          isLineDeletePending={lineDeleteMutation.isPending}
+          recentlySavedLineIds={recentlySavedLineIds}
+          onAddItemRow={addItemRow}
+          onSetLineProductId={setLineProductId}
+          onUpdateItemRow={updateItemRow}
+          onRemoveItemRow={removeItemRow}
+          onSaveLine={saveLine}
+          onCancelLineEdit={cancelLineEdit}
+          onBeginLineEdit={beginLineEdit}
+          onRemoveLine={removeLine}
+        />
 
         <div className="flex flex-wrap items-center gap-3 border-t border-gray-100 pt-4 dark:border-white/5">
           <button
@@ -1848,10 +1476,58 @@ export default function OrderForm() {
         </div>
       </form>
 
+      {/* /**
+       * 
+       * @returns 업체 빠른 등록 모달
+       */}
       <PartnerQuickCreateModal
         isOpen={partnerCreateOpen}
         onClose={() => setPartnerCreateOpen(false)}
         onCreated={(p) => setPartnerId(String(p.id))}
+      />
+
+      <ConfirmModal
+        isOpen={lineDeleteConfirmIndex != null}
+        title="발주 라인을 삭제할까요?"
+        message="삭제 후 되돌릴 수 없습니다."
+        confirmText="삭제"
+        cancelText="취소"
+        confirmVariant="danger"
+        isConfirming={lineDeleteMutation.isPending}
+        onClose={() => setLineDeleteConfirmIndex(null)}
+        onConfirm={() => {
+          if (lineDeleteConfirmIndex == null) return;
+          const row = items[lineDeleteConfirmIndex];
+          if (!row) {
+            setLineDeleteConfirmIndex(null);
+            return;
+          }
+          if (!row.lineId) {
+            removeItemRow(lineDeleteConfirmIndex);
+            setLineDeleteConfirmIndex(null);
+            return;
+          }
+          lineDeleteMutation.mutate(row.lineId, {
+            onSettled: () => setLineDeleteConfirmIndex(null),
+          });
+        }}
+      />
+
+      <ConfirmModal
+        isOpen={fileDeleteConfirmId != null}
+        title="첨부파일을 삭제할까요?"
+        message="삭제 후 되돌릴 수 없습니다."
+        confirmText="삭제"
+        cancelText="취소"
+        confirmVariant="danger"
+        isConfirming={fileDeleteMutation.isPending}
+        onClose={() => setFileDeleteConfirmId(null)}
+        onConfirm={() => {
+          if (fileDeleteConfirmId == null) return;
+          fileDeleteMutation.mutate(fileDeleteConfirmId, {
+            onSettled: () => setFileDeleteConfirmId(null),
+          });
+        }}
       />
     </>
   );

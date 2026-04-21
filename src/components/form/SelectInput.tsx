@@ -31,6 +31,8 @@ interface SelectInputProps {
   /** input 포맷(숫자 천단위 등) - onInputChange에 이미 포맷된 문자열 전달 시 true */
   formatNumber?: boolean;
   maxFractionDigits?: number;
+  /** blur 시 고정 소수점 자릿수(예: 2면 1 -> 1.00) */
+  fixedFractionDigits?: number;
 }
 
 const sizeStyles = {
@@ -56,6 +58,7 @@ export default function SelectInput({
   selectClassName = "",
   formatNumber = false,
   maxFractionDigits = 2,
+  fixedFractionDigits,
 }: SelectInputProps) {
   const selectedOption = selectOptions.find((o) => o.value === selectValue);
   const suffix = inputSuffix ?? selectedOption?.symbol ?? selectedOption?.label ?? "";
@@ -81,6 +84,16 @@ export default function SelectInput({
       return;
     }
     onInputChange(raw);
+  };
+
+  const handleInputBlur = () => {
+    if (!formatNumber || fixedFractionDigits == null) return;
+    const raw = inputValue.replace(/,/g, "").trim();
+    if (!raw) return;
+    const n = Number(raw);
+    if (!Number.isFinite(n)) return;
+    const fixed = n.toFixed(fixedFractionDigits);
+    onInputChange(formatWithCommas(fixed));
   };
 
   const baseBorder =
@@ -131,6 +144,7 @@ export default function SelectInput({
           inputMode={inputMode ?? (inputType === "number" || formatNumber ? "decimal" : "text")}
           value={inputValue}
           onChange={handleInputChange}
+          onBlur={handleInputBlur}
           placeholder={inputPlaceholder}
           disabled={disabled}
           className={`w-full ${sizeStyles[size]} ${baseBorder} rounded-r-lg border-l-0 rounded-l-none text-right tabular-nums placeholder:text-gray-400 dark:placeholder:text-gray-500 ${inputPaddingRight} ${disabledClass}`}

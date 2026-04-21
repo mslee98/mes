@@ -96,6 +96,8 @@ export interface PurchaseOrderCreatePayload {
   requesterDepartment?: string | null;
   /** 발주 담당자명 */
   requesterName?: string | null;
+  /** 발주 담당자 사번(employeeNo) */
+  requesterId?: number | null;
   vendorOrderNo?: string | null;
   vendorRequest?: string | null;
   specialNote?: string | null;
@@ -106,6 +108,10 @@ export interface PurchaseOrderCreatePayload {
   status?: string | null;
   /** 공급가액(부가세 제외) — 프론트 계산·선택 */
   supplyAmount?: number | null;
+  /** 공급가액 환산용 환율 (orders.exchange_rate) */
+  exchangeRate?: number | string | null;
+  /** 환율 기준일 — 보통 발주일과 동일 (orders.exchange_rate_date) */
+  exchangeRateDate?: string | null;
   items: PurchaseOrderItemPayload[];
 }
 
@@ -118,6 +124,7 @@ export interface PurchaseOrderUpdatePayload {
   requestDeliveryDate?: string | null;
   requesterDepartment?: string | null;
   requesterName?: string | null;
+  requesterId?: number | null;
   vendorOrderNo?: string | null;
   vendorRequest?: string | null;
   specialNote?: string | null;
@@ -127,6 +134,8 @@ export interface PurchaseOrderUpdatePayload {
   /** 상태 변경 시 이력 코멘트 */
   statusChangeComment?: string | null;
   supplyAmount?: number | null;
+  exchangeRate?: number | string | null;
+  exchangeRateDate?: string | null;
   /** 수정 시 품목 라인 전체 갱신 */
   items?: PurchaseOrderItemPayload[];
 }
@@ -208,6 +217,10 @@ export interface PurchaseOrderDetail extends PurchaseOrderListItem {
   items?: PurchaseOrderItem[];
   /** 제품 공급가액(부가세 제외) */
   supplyAmount?: number | null;
+  /** 공급가액 환산용 환율 */
+  exchangeRate?: number | null;
+  /** 환율 기준일 */
+  exchangeRateDate?: string | null;
   /** 조회 전용: 라인 Σ (수량×단가) 등 */
   totalAmount?: number | null;
   /**
@@ -432,6 +445,8 @@ type ApiOrderDetailRaw = PurchaseOrderDetail & {
   supply_amount?: unknown;
   /** 스네이크 케이스 응답 호환 */
   total_amount?: unknown;
+  exchange_rate?: unknown;
+  exchange_rate_date?: string | null;
 };
 
 function parseDecimalLike(v: unknown): number {
@@ -752,6 +767,13 @@ function mapPurchaseOrderDetail(raw: unknown): PurchaseOrderDetail {
     totalAmount: parseDecimalLikeOptional(
       data.totalAmount ?? data.total_amount
     ),
+    exchangeRate: parseDecimalLikeOptional(
+      rec.exchangeRate ?? rec.exchange_rate
+    ),
+    exchangeRateDate:
+      (typeof rec.exchangeRateDate === "string" && rec.exchangeRateDate) ||
+      (typeof rec.exchange_rate_date === "string" && rec.exchange_rate_date) ||
+      null,
     ...(currentApprovalRequest
       ? { currentApprovalRequest }
       : {}),

@@ -12,6 +12,7 @@ type PropsType = {
   onChange?: flatpickr.Options.Hook | flatpickr.Options.Hook[];
   defaultDate?: flatpickr.Options.DateOption;
   label?: string;
+  required?: boolean;
   placeholder?: string;
   value?: string;
   onValueChange?: (value: string) => void;
@@ -26,6 +27,7 @@ export default function DatePicker({
   mode,
   onChange,
   label,
+  required = false,
   defaultDate,
   placeholder,
   value,
@@ -110,7 +112,11 @@ export default function DatePicker({
 
   return (
     <div>
-      {label && <Label htmlFor={id}>{label}</Label>}
+      {label && (
+        <Label htmlFor={id} required={required}>
+          {label}
+        </Label>
+      )}
 
       <div className="relative">
         <input

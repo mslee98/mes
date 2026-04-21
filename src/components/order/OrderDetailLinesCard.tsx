@@ -25,7 +25,7 @@ export function OrderDetailLinesCard({
   orderLineSummaries,
 }: OrderDetailLinesCardProps) {
   return (
-    <ComponentCard title="발주 라인" collapsible defaultCollapsed={true}>
+    <ComponentCard title="발주 제품 라인" collapsible defaultCollapsed={true}>
       <div className="space-y-4 dark:border-gray-700">
         <div className="relative overflow-x-auto border-b dark:border-gray-800">
           <Table className="w-full text-center text-sm text-gray-900 dark:text-white md:table-fixed">
@@ -57,13 +57,7 @@ export function OrderDetailLinesCard({
                 </TableCell>
                 <TableCell
                   isHeader
-                  className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[13%]"
-                >
-                  납품 요청일
-                </TableCell>
-                <TableCell
-                  isHeader
-                  className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[12%]"
+                  className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[25%]"
                 >
                   비고
                 </TableCell>
@@ -79,7 +73,7 @@ export function OrderDetailLinesCard({
               {orderLines.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={7}
+                    colSpan={6}
                     className="px-3 py-6 text-center text-theme-sm text-gray-500 dark:text-gray-400"
                   >
                     등록된 발주 라인이 없습니다.
@@ -119,9 +113,6 @@ export function OrderDetailLinesCard({
                         {item.amount != null
                           ? formatCurrency(item.amount, lineCc)
                           : "-"}
-                      </TableCell>
-                      <TableCell className="px-3 py-3 text-center align-middle text-gray-600 dark:text-gray-400">
-                        {item.requestDeliveryDate ?? "-"}
                       </TableCell>
                       <TableCell className="px-3 py-3 text-center align-middle text-gray-600 dark:text-gray-400">
                         {item.remark ?? "-"}

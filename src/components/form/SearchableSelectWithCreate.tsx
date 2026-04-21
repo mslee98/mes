@@ -19,6 +19,7 @@ export type SearchableSelectOption = {
 export interface SearchableSelectWithCreateProps {
   id?: string;
   label?: string;
+  required?: boolean;
   /** 선택 값 (빈 문자열이면 미선택) */
   value: string;
   onChange: (value: string) => void;
@@ -115,6 +116,7 @@ function buildStyles(
 export default function SearchableSelectWithCreate({
   id,
   label,
+  required = false,
   value,
   onChange,
   options,
@@ -194,7 +196,7 @@ export default function SearchableSelectWithCreate({
     <div className={className}>
       {label ? (
         <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
-          <Label htmlFor={id} className="!mb-0">
+          <Label htmlFor={id} className="!mb-0" required={required}>
             {label}
           </Label>
           {showPopoverAdd ? (

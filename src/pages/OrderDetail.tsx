@@ -46,7 +46,6 @@ import {
 import { rejectApprovalRequest } from "../api/approvalRequests";
 import { API_BASE } from "../api/apiBase";
 import {
-  COMMON_CODE_GROUP_PURCHASE_ORDER_TYPE,
   COMMON_CODE_GROUP_PURCHASE_ORDER_STATUS,
   COMMON_CODE_GROUP_DELIVERY_STATUS,
   COMMON_CODE_GROUP_COUNTRY,
@@ -247,12 +246,6 @@ export default function OrderDetail() {
     [deliveries]
   );
 
-  const { data: purchaseOrderTypeCodes = [] } = useCommonCodesByGroup(
-    COMMON_CODE_GROUP_PURCHASE_ORDER_TYPE,
-    accessToken,
-    { enabled: !!accessToken && !isAuthLoading }
-  );
-
   const { data: purchaseOrderStatusCodes = [] } = useCommonCodesByGroup(
     COMMON_CODE_GROUP_PURCHASE_ORDER_STATUS,
     accessToken,
@@ -399,14 +392,6 @@ export default function OrderDetail() {
     deliveryMgrOrgUsers,
     deliveryManagerUserSelectValue,
   ]);
-
-  const orderTypeDisplayName = useMemo(() => {
-    if (!order) return "-";
-    const d = order as PurchaseOrderDetail;
-    const code = String(d.orderType ?? "").trim();
-    const hit = purchaseOrderTypeCodes.find((c) => c.code === code);
-    return hit?.name || code || "-";
-  }, [order, purchaseOrderTypeCodes]);
 
   const orderStatusDisplayName = useMemo(() => {
     if (!order) return "-";
@@ -821,6 +806,31 @@ export default function OrderDetail() {
     String((po.partner as Partner | undefined)?.countryCode ?? "")
   );
   const headerCurrency = po.currencyCode ?? "KRW";
+  const normalizedHeaderCurrency = headerCurrency.trim().toUpperCase() || "KRW";
+  const isForeignHeaderCurrency = normalizedHeaderCurrency !== "KRW";
+  const supplyAmountValue =
+    po.supplyAmount != null && Number.isFinite(Number(po.supplyAmount))
+      ? Number(po.supplyAmount)
+      : null;
+  const subtotalForVat =
+    supplyAmountValue ??
+    (po.totalAmount != null && Number.isFinite(Number(po.totalAmount))
+      ? Number(po.totalAmount)
+      : null);
+  const totalAmountWithVat =
+    subtotalForVat != null ? subtotalForVat * 1.1 : null;
+  const exchangeRateValue = Number(po.exchangeRate ?? NaN);
+  const hasExchangeRate =
+    Number.isFinite(exchangeRateValue) && exchangeRateValue > 0;
+  const exchangeRateDateLabel = formatDate(po.exchangeRateDate ?? po.orderDate);
+  const supplyAmountKrw =
+    supplyAmountValue != null && isForeignHeaderCurrency && hasExchangeRate
+      ? supplyAmountValue * exchangeRateValue
+      : null;
+  const totalAmountKrw =
+    totalAmountWithVat != null && isForeignHeaderCurrency && hasExchangeRate
+      ? totalAmountWithVat * exchangeRateValue
+      : null;
   const orderSummaryTh =
     "w-[11%] min-w-[5.5rem] whitespace-nowrap bg-gray-50 px-3 py-2.5 text-left text-theme-xs font-medium text-gray-600 dark:bg-gray-800/60 dark:text-gray-400";
   const orderSummaryTd = "px-3 py-2.5 text-sm text-gray-900 dark:text-gray-100";
@@ -882,12 +892,12 @@ export default function OrderDetail() {
                     </dd>
                   </div>
                 ) : null}
-                <div className="flex min-w-0 max-w-full items-baseline gap-1.5">
+                {/* <div className="flex min-w-0 max-w-full items-baseline gap-1.5">
                   <dt className="shrink-0 text-gray-500 dark:text-gray-400">부서</dt>
                   <dd className="max-w-md break-words font-medium text-gray-900 dark:text-gray-100">
                     {requestDeptLabel || "-"}
                   </dd>
-                </div>
+                </div> */}
                 <div className="flex items-baseline gap-1.5">
                   <dt className="shrink-0 text-gray-500 dark:text-gray-400">담당</dt>
                   <dd className="font-medium text-gray-900 dark:text-gray-100">
@@ -996,31 +1006,15 @@ export default function OrderDetail() {
                 </tr>
                 <tr>
                   <th scope="row" className={orderSummaryTh}>
-                    발주 유형
-                  </th>
-                  <td className={orderSummaryTd}>{orderTypeDisplayName}</td>
-                  <th scope="row" className={orderSummaryTh}>
-                    통화
-                  </th>
-                  <td className={orderSummaryTd}>{headerCurrency}</td>
-                </tr>
-                <tr>
-                  <th scope="row" className={orderSummaryTh}>
-                    요청 납기
-                  </th>
-                  <td className={orderSummaryTd}>{formatDate(po.dueDate)}</td>
-                  <th scope="row" className={orderSummaryTh}>
-                    납품 요청일
-                  </th>
-                  <td className={orderSummaryTd}>{formatDate(po.requestDeliveryDate)}</td>
-                </tr>
-                <tr>
-                  <th scope="row" className={orderSummaryTh}>
                     업체 발주번호
                   </th>
-                  <td className={orderSummaryTd} colSpan={3}>
+                  <td className={orderSummaryTd}>
                     {po.vendorOrderNo?.trim() || "—"}
                   </td>
+                  <th scope="row" className={orderSummaryTh}>
+                    고객요청납기일
+                  </th>
+                  <td className={orderSummaryTd}>{formatDate(po.dueDate)}</td>
                 </tr>
                 {po.vendorRequest ? (
                   <tr>
@@ -1056,12 +1050,28 @@ export default function OrderDetail() {
                     className={`${orderSummaryTd} font-medium tabular-nums`}
                     colSpan={3}
                   >
-                    {po.supplyAmount != null ? (
+                    {supplyAmountValue != null ? (
                       <>
-                        {formatCurrency(po.supplyAmount, headerCurrency)}
+                        {formatCurrency(supplyAmountValue, headerCurrency)}
                         <span className="ml-1.5 text-theme-xs font-normal text-gray-500 dark:text-gray-400">
                           ({headerCurrency})
                         </span>
+                        {isForeignHeaderCurrency ? (
+                          <span className="mt-1 block text-theme-xs font-normal text-gray-500 dark:text-gray-400">
+                            {supplyAmountKrw != null ? (
+                              <>
+                                환산(기준환율{" "}
+                                {formatCurrency(exchangeRateValue, "KRW", {
+                                  withSymbol: false,
+                                })}
+                                원, {exchangeRateDateLabel}){" "}
+                                {formatCurrency(supplyAmountKrw, "KRW")}
+                              </>
+                            ) : (
+                              "환산값 없음 (환율 미등록)"
+                            )}
+                          </span>
+                        ) : null}
                       </>
                     ) : (
                       "—"
@@ -1076,12 +1086,28 @@ export default function OrderDetail() {
                     className={`${orderSummaryTd} font-medium tabular-nums`}
                     colSpan={3}
                   >
-                    {po.totalAmount != null ? (
+                    {totalAmountWithVat != null ? (
                       <>
-                        {formatCurrency(po.totalAmount, headerCurrency)}
+                        {formatCurrency(totalAmountWithVat, headerCurrency)}
                         <span className="ml-1.5 text-theme-xs font-normal text-gray-500 dark:text-gray-400">
                           ({headerCurrency})
                         </span>
+                        {isForeignHeaderCurrency ? (
+                          <span className="mt-1 block text-theme-xs font-normal text-gray-500 dark:text-gray-400">
+                            {totalAmountKrw != null ? (
+                              <>
+                                환산(기준환율{" "}
+                                {formatCurrency(exchangeRateValue, "KRW", {
+                                  withSymbol: false,
+                                })}
+                                원, {exchangeRateDateLabel}){" "}
+                                {formatCurrency(totalAmountKrw, "KRW")}
+                              </>
+                            ) : (
+                              "환산값 없음 (환율 미등록)"
+                            )}
+                          </span>
+                        ) : null}
                       </>
                     ) : (
                       "—"
@@ -1484,7 +1510,8 @@ export default function OrderDetail() {
             </div>
             <DatePicker
               id="delivery-date"
-              label="납품일 *"
+              label="납품일"
+              required
               placeholder="년-월-일"
               value={deliveryDate}
               onValueChange={setDeliveryDate}

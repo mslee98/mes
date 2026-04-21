@@ -27,6 +27,7 @@ import { useKeycloakAuth } from "./context/KeycloakProvider";
 import NotFound from "./pages/NotFound";
 import Delivery from "./pages/Delivery";
 import DeliveryDetail from "./pages/DeliveryDetail";
+import UIPlayground from "./pages/UIPlayground";
 // import DashboardMaterial from "./pages/DashboardMaterial";
 // import DashboardExecutive from "./pages/DashboardExecutive";
 // import DashboardTeamLead from "./pages/DashboardTeamLead";
@@ -118,6 +119,7 @@ function App() {
               <Route path="user" element={<User />} />
               <Route path="user/:userId" element={<UserDetail />} />
               <Route path="profile" element={<UserProfiles />} />
+              <Route path="ui" element={<UIPlayground />} />
             </Route>
           </Route>
 

@@ -79,6 +79,12 @@ export interface UserItem {
   [key: string]: unknown;
 }
 
+/** `/users/directory` 응답 항목 (활성 사용자 사번/이름 디렉터리) */
+export interface EmployeeDirectoryItem {
+  employeeNo: number;
+  name: string;
+}
+
 /** 조직 단위 체인을 "회사 > 본사 > 부서" 형태 문자열로 반환 */
 export function getOrganizationPath(unit: OrganizationUnitRef): string {
   const path: string[] = [];
@@ -307,6 +313,42 @@ export async function getUsers(accessToken: string): Promise<UserItem[]> {
 
   const payload = await res.json();
   return normalizeUserList(payload);
+}
+
+/** `GET /users/directory` — 활성 사용자 사번/이름 목록 */
+export async function getEmployeeDirectory(
+  accessToken: string
+): Promise<EmployeeDirectoryItem[]> {
+  const res = await fetchAuthorized(
+    `${API_BASE}/users/directory`,
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      credentials: "include",
+    },
+    accessToken
+  );
+
+  if (!res.ok) {
+    throw await createApiError(res, "직원 디렉터리를 불러오지 못했습니다.");
+  }
+
+  const payload = await res.json();
+  if (!Array.isArray(payload)) return [];
+  return payload
+    .map((row) => {
+      if (!row || typeof row !== "object") return null;
+      const raw = row as Record<string, unknown>;
+      const employeeNo =
+        typeof raw.employeeNo === "number"
+          ? raw.employeeNo
+          : Number(raw.employeeNo);
+      const name = String(raw.name ?? "").trim();
+      if (!Number.isFinite(employeeNo) || !name) return null;
+      return { employeeNo, name } satisfies EmployeeDirectoryItem;
+    })
+    .filter((row): row is EmployeeDirectoryItem => row != null);
 }
 
 export interface ChangePasswordRequest {
