@@ -1,8 +1,7 @@
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { getPartners, type Partner } from "../api/purchaseOrder";
+import { usePartnersQuery } from "./usePartnersQuery";
 import type { CommonCodeItem } from "../api/commonCode";
-import { partnerSelectLabel } from "../lib/partnerDisplay";
+import { toPartnerSelectOptions } from "../lib/partnerSelectOptions";
 
 export interface UsePartnerListFilterOptions {
   accessToken: string | null | undefined;
@@ -30,9 +29,7 @@ export function usePartnerListFilter({
       ? enabledOption && !!accessToken
       : !!accessToken && !isAuthLoading;
 
-  const { data: partners = [] } = useQuery({
-    queryKey: ["partners"],
-    queryFn: () => getPartners(accessToken!),
+  const { data: partners = [] } = usePartnersQuery(accessToken, undefined, {
     enabled: queryEnabled,
   });
 
@@ -40,12 +37,7 @@ export function usePartnerListFilter({
     const list: { value: string; label: string }[] = [
       { value: "", label: "전체" },
     ];
-    (partners as Partner[]).forEach((p) =>
-      list.push({
-        value: String(p.id),
-        label: partnerSelectLabel(p, countryCodes),
-      })
-    );
+    list.push(...toPartnerSelectOptions(partners, countryCodes));
     return list;
   }, [partners, countryCodes]);
 

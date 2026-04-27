@@ -22,6 +22,7 @@ import {
 } from "../../lib/partnerCountryOptions";
 
 const DEFAULT_DEFENSE_MARKET = "CIVILIAN";
+const PARTNER_CODE_REGEX = /^[A-Z]{1,2}$/;
 
 export interface PartnerQuickCreateModalProps {
   isOpen: boolean;
@@ -56,24 +57,30 @@ export default function PartnerQuickCreateModal({
 
   useEffect(() => {
     if (!isOpen) {
-      setDefenseMarket("");
-      setCountryCode("");
+      queueMicrotask(() => {
+        setDefenseMarket("");
+        setCountryCode("");
+      });
       return;
     }
-    setCountryCode((prev) => {
-      if (prev && isPartnerCountryCode(prev)) return prev;
-      return DEFAULT_PARTNER_COUNTRY_CODE;
+    queueMicrotask(() => {
+      setCountryCode((prev) => {
+        if (prev && isPartnerCountryCode(prev)) return prev;
+        return DEFAULT_PARTNER_COUNTRY_CODE;
+      });
     });
   }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen || defenseOptions.length === 0) return;
-    setDefenseMarket((prev) => {
-      if (prev && defenseOptions.some((o) => o.value === prev)) return prev;
-      const preferred =
-        defenseOptions.find((o) => o.value === DEFAULT_DEFENSE_MARKET) ??
-        defenseOptions[0];
-      return preferred?.value ?? "";
+    queueMicrotask(() => {
+      setDefenseMarket((prev) => {
+        if (prev && defenseOptions.some((o) => o.value === prev)) return prev;
+        const preferred =
+          defenseOptions.find((o) => o.value === DEFAULT_DEFENSE_MARKET) ??
+          defenseOptions[0];
+        return preferred?.value ?? "";
+      });
     });
   }, [isOpen, defenseOptions]);
 
@@ -96,8 +103,13 @@ export default function PartnerQuickCreateModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!code.trim() || !name.trim()) {
+    const normalizedCode = code.trim().toUpperCase();
+    if (!normalizedCode || !name.trim()) {
       toast.error("업체 코드와 이름을 입력하세요.");
+      return;
+    }
+    if (!PARTNER_CODE_REGEX.test(normalizedCode)) {
+      toast.error("업체 코드는 영문 대문자 1~2자리만 입력할 수 있습니다. (예: A, ZZ)");
       return;
     }
     if (defenseOptions.length === 0) {
@@ -115,11 +127,11 @@ export default function PartnerQuickCreateModal({
       return;
     }
     mutation.mutate({
-      code: code.trim(),
+      code: normalizedCode,
       name: name.trim(),
       defenseMarket: dm,
       countryCode: cc,
-      contact: contact.trim() || null,
+      contactPhone: contact.trim() || null,
     });
   };
 
@@ -139,11 +151,15 @@ export default function PartnerQuickCreateModal({
           <Input
             id="partner-quick-code"
             value={code}
-            onChange={(e) => setCode(e.target.value)}
-            placeholder="예: CUST-001"
+            onChange={(e) => setCode(e.target.value.toUpperCase())}
+            placeholder="예: A, ZZ"
+            maxLength={2}
             className="mt-1"
             autoComplete="off"
           />
+          <p className="mt-1 text-theme-xs text-gray-500 dark:text-gray-400">
+            영문 대문자 1~2자리만 입력 가능합니다. (A~Z, AA~ZZ)
+          </p>
         </div>
         <div>
           <Label htmlFor="partner-quick-name">업체명 *</Label>

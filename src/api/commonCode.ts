@@ -74,6 +74,9 @@ export const COMMON_CODE_GROUP_APPROVAL_STATUS = "APPROVAL_STATUS";
 export const COMMON_CODE_GROUP_ORG_TYPE = "ORG_TYPE";
 /** 거래처 유형 — `GET /api/common-codes/groups/PARTNER_TYPE/codes` */
 export const COMMON_CODE_GROUP_PARTNER_TYPE = "PARTNER_TYPE";
+/** 협력사 부문 — `GET /api/common-codes/groups/PARTNER_SUPPLIER_SEGMENT/codes` */
+export const COMMON_CODE_GROUP_PARTNER_SUPPLIER_SEGMENT =
+  "PARTNER_SUPPLIER_SEGMENT";
 /** 거래처 민수/군수 — `GET /api/common-codes/groups/PARTNER_DEFENSE_MARKET/codes` */
 export const COMMON_CODE_GROUP_PARTNER_DEFENSE_MARKET =
   "PARTNER_DEFENSE_MARKET";

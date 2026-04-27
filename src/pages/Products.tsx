@@ -1,16 +1,11 @@
 import { useMemo, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router";
-import toast from "react-hot-toast";
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import ListPageLoading from "../components/common/ListPageLoading";
-import Input from "../components/form/input/InputField";
 import Select from "../components/form/Select";
-import Label from "../components/form/Label";
-import TextArea from "../components/form/input/TextArea";
 import Badge from "../components/ui/badge/Badge";
-import { Modal } from "../components/ui/modal";
 import {
   DataListPrimaryActionButton,
   DataListSearchInput,
@@ -28,13 +23,7 @@ import {
 } from "../components/ui/table";
 import { useAuth } from "../hooks/useAuth";
 import { useServerListPagination } from "../hooks/useServerListPagination";
-import { useCommonCodesByGroup } from "../hooks/useCommonCodesByGroup";
 import {
-  COMMON_CODE_GROUP_PRODUCT_CATEGORY,
-  commonCodesToSelectOptions,
-} from "../api/commonCode";
-import {
-  createProduct,
   getProductList,
   type GetProductListParams,
   type ProductListItemDto,
@@ -47,97 +36,17 @@ const STATUS_FILTER_OPTIONS = [
 ];
 
 /** Select 첫 줄이 disabled placeholder라 실제 선택값으로 표현 */
-const FILTER_CATEGORY_ALL = "__all__";
-const CREATE_CATEGORY_NONE = "__none__";
-
 export default function Products() {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const { accessToken, isLoading: isAuthLoading } = useAuth();
   const [searchKeyword, setSearchKeyword] = useState("");
   const [searchOptionsOpen, setSearchOptionsOpen] = useState(false);
-  const [categoryCode, setCategoryCode] = useState("");
+  const [productTypeFilter, setProductTypeFilter] = useState("");
+  const [arrayTypeFilter, setArrayTypeFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [listPage, setListPage] = useState(1);
   const [listPageSize, setListPageSize] = useState(20);
 
-  const [createOpen, setCreateOpen] = useState(false);
-  const [npCode, setNpCode] = useState("");
-  const [npName, setNpName] = useState("");
-  const [npCategory, setNpCategory] = useState(CREATE_CATEGORY_NONE);
-  const [npDesc, setNpDesc] = useState("");
-  const [npActive, setNpActive] = useState(true);
-
-  const { data: productCategoryCodes = [] } = useCommonCodesByGroup(
-    COMMON_CODE_GROUP_PRODUCT_CATEGORY,
-    accessToken,
-    { enabled: !!accessToken && !isAuthLoading }
-  );
-
-  const filterCategoryOptions = useMemo(
-    () => [
-      { value: FILTER_CATEGORY_ALL, label: "분류 전체" },
-      ...commonCodesToSelectOptions(productCategoryCodes),
-    ],
-    [productCategoryCodes]
-  );
-
-  const createCategoryOptions = useMemo(
-    () => [
-      { value: CREATE_CATEGORY_NONE, label: "선택 안 함" },
-      ...commonCodesToSelectOptions(productCategoryCodes),
-    ],
-    [productCategoryCodes]
-  );
-
-  const resetCreateForm = () => {
-    setNpCode("");
-    setNpName("");
-    setNpCategory(CREATE_CATEGORY_NONE);
-    setNpDesc("");
-    setNpActive(true);
-  };
-
-  const openCreateModal = () => {
-    resetCreateForm();
-    setCreateOpen(true);
-  };
-
-  const createMutation = useMutation({
-    mutationFn: () =>
-      createProduct(accessToken as string, {
-        productCode: npCode.trim(),
-        productName: npName.trim(),
-        categoryCode:
-          !npCategory || npCategory === CREATE_CATEGORY_NONE
-            ? null
-            : npCategory.trim() || null,
-        description: npDesc.trim() || null,
-        isActive: npActive,
-      }),
-    onSuccess: (p) => {
-      queryClient.invalidateQueries({ queryKey: ["productList"] });
-      toast.success("제품을 등록했습니다.");
-      resetCreateForm();
-      setCreateOpen(false);
-      navigate(`/products/${p.id}`);
-    },
-    onError: (e: Error) =>
-      toast.error(e.message || "등록에 실패했습니다."),
-  });
-
-  const handleCreateSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!npCode.trim()) {
-      toast.error("제품 코드를 입력하세요.");
-      return;
-    }
-    if (!npName.trim()) {
-      toast.error("제품명을 입력하세요.");
-      return;
-    }
-    createMutation.mutate();
-  };
 
   const listParams = useMemo((): GetProductListParams => {
     const p: GetProductListParams = {
@@ -146,12 +55,12 @@ export default function Products() {
     };
     const kw = searchKeyword.trim();
     if (kw) p.keyword = kw;
-    const cat = categoryCode.trim();
-    if (cat && cat !== FILTER_CATEGORY_ALL) p.categoryCode = cat;
+    if (productTypeFilter.trim()) p.keyword = [p.keyword, productTypeFilter].filter(Boolean).join(" ");
+    if (arrayTypeFilter.trim()) p.keyword = [p.keyword, arrayTypeFilter].filter(Boolean).join(" ");
     if (statusFilter === "active") p.isActive = true;
     if (statusFilter === "inactive") p.isActive = false;
     return p;
-  }, [listPage, listPageSize, searchKeyword, categoryCode, statusFilter]);
+  }, [listPage, listPageSize, searchKeyword, productTypeFilter, arrayTypeFilter, statusFilter]);
 
   const { data, isLoading, error, isPlaceholderData } = useQuery({
     queryKey: ["productList", listParams],
@@ -169,102 +78,12 @@ export default function Products() {
     setListPage,
     listPageSize,
     setListPageSize,
-    resetPageDeps: [searchKeyword, categoryCode, statusFilter],
+    resetPageDeps: [searchKeyword, productTypeFilter, arrayTypeFilter, statusFilter],
     emptyTotalPages: "one",
   });
 
   return (
     <>
-      <Modal
-        isOpen={createOpen}
-        onClose={() => {
-          if (!createMutation.isPending) setCreateOpen(false);
-        }}
-        className="mx-4 max-h-[90vh] w-full max-w-lg overflow-y-auto p-6 sm:p-8"
-      >
-        <h2 className="mb-1 text-lg font-semibold text-gray-900 dark:text-white">
-          제품 등록
-        </h2>
-        <p className="mb-5 text-theme-sm text-gray-500 dark:text-gray-400">
-          제품 코드는 등록 후 변경할 수 없습니다. 분류는 공통코드{" "}
-          <code className="rounded bg-gray-100 px-1 dark:bg-gray-800">
-            PRODUCT_CATEGORY
-          </code>
-          에서 선택합니다.
-        </p>
-        <form onSubmit={handleCreateSubmit} className="space-y-4">
-          <div>
-            <Label htmlFor="np-code">제품 코드 *</Label>
-            <Input
-              id="np-code"
-              value={npCode}
-              onChange={(e) => setNpCode(e.target.value)}
-              placeholder="예: MARKOS-ENG"
-              className="mt-1.5"
-              autoComplete="off"
-            />
-          </div>
-          <div>
-            <Label htmlFor="np-name">제품명 *</Label>
-            <Input
-              id="np-name"
-              value={npName}
-              onChange={(e) => setNpName(e.target.value)}
-              placeholder="표시 이름"
-              className="mt-1.5"
-            />
-          </div>
-          <div>
-            <Label htmlFor="np-category">분류</Label>
-            <Select
-              id="np-category"
-              className="mt-1.5"
-              placeholder="분류"
-              value={npCategory}
-              onChange={setNpCategory}
-              options={createCategoryOptions}
-              size="md"
-            />
-          </div>
-          <div>
-            <Label htmlFor="np-desc">설명</Label>
-            <TextArea
-              id="np-desc"
-              value={npDesc}
-              onChange={(v) => setNpDesc(v)}
-              rows={3}
-              className="mt-1.5"
-            />
-          </div>
-          <label className="flex cursor-pointer items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-            <input
-              type="checkbox"
-              checked={npActive}
-              onChange={(e) => setNpActive(e.target.checked)}
-              className="rounded border-gray-300"
-            />
-            활성
-          </label>
-          <div className="flex flex-wrap gap-2 border-t border-gray-100 pt-4 dark:border-white/10">
-            <button
-              type="submit"
-              disabled={createMutation.isPending || !accessToken}
-              className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white hover:bg-brand-600 disabled:opacity-50 dark:bg-brand-600"
-            >
-              등록
-            </button>
-            <button
-              type="button"
-              disabled={createMutation.isPending}
-              onClick={() => setCreateOpen(false)}
-              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
-            >
-              취소
-            </button>
-          </div>
-        </form>
-      </Modal>
-
       <PageMeta title="제품 목록" description="대표 제품 목록" />
       <PageBreadcrumb pageTitle="제품 목록" />
       {/* <p className="mb-3 text-sm text-gray-500 dark:text-gray-400">
@@ -288,17 +107,22 @@ export default function Products() {
           <>
             <div className="w-full sm:w-48">
               <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">
-                분류
+                제품 유형
               </p>
               <Select
-                options={filterCategoryOptions}
-                value={
-                  categoryCode === "" ? FILTER_CATEGORY_ALL : categoryCode
-                }
-                onChange={(v) =>
-                  setCategoryCode(v === FILTER_CATEGORY_ALL ? "" : v)
-                }
-                placeholder="분류 필터"
+                value={productTypeFilter}
+                onChange={setProductTypeFilter}
+                options={[{ value: "", label: "제품유형 전체" }, { value: "ENGINE", label: "ENGINE" }, { value: "CAMERA", label: "CAMERA" }]}
+                placeholder="제품유형"
+                size="md"
+              />
+            </div>
+            <div className="w-full sm:w-[200px]">
+              <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">Array Type</p>
+              <Select
+                options={[{ value: "", label: "Array 전체" }, { value: "QVGA", label: "QVGA" }, { value: "VGA", label: "VGA" }, { value: "SXGA", label: "SXGA" }, { value: "CUSTOM", label: "CUSTOM" }]}
+                value={arrayTypeFilter}
+                onChange={setArrayTypeFilter}
                 size="md"
               />
             </div>
@@ -327,7 +151,7 @@ export default function Products() {
             }
             actions={
               <>
-                <DataListPrimaryActionButton onClick={openCreateModal}>
+                <DataListPrimaryActionButton onClick={() => navigate("/products/new")}>
                   제품 등록
                 </DataListPrimaryActionButton>
                 <div className="flex items-center gap-3">
@@ -377,7 +201,7 @@ export default function Products() {
                   isHeader
                   className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400"
                 >
-                  제품 코드
+                  사업명
                 </TableCell>
                 <TableCell
                   isHeader
@@ -389,7 +213,7 @@ export default function Products() {
                   isHeader
                   className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400"
                 >
-                  분류
+                  타입/해상도
                 </TableCell>
                 <TableCell
                   isHeader
@@ -421,7 +245,7 @@ export default function Products() {
                   }}
                 >
                   <TableCell className="px-5 py-4 text-sm text-gray-500 dark:text-gray-400">
-                    <code>{p.productCode || "-"}</code>
+                    <code>{p.businessName || "-"}</code>
                   </TableCell>
                   <TableCell className="px-5 py-4 text-sm font-medium text-gray-800 dark:text-white/90">
                     <Link
@@ -433,11 +257,25 @@ export default function Products() {
                     </Link>
                   </TableCell>
                   <TableCell className="px-5 py-4 text-sm text-gray-500 dark:text-gray-400">
-                    {p.categoryCode ? (
-                      <code>{p.categoryCode}</code>
-                    ) : (
-                      "-"
-                    )}
+                    <code>
+                      {(() => {
+                        const productType = String(p.productType ?? "").trim() || "-";
+                        const arrayType = String(p.arrayType ?? "").trim();
+                        const arrayTypeDisplay =
+                          arrayType === "CUSTOM"
+                            ? `CUSTOM${
+                                p.arrayCustomText?.trim()
+                                  ? ` (${p.arrayCustomText.trim()})`
+                                  : ""
+                              }`
+                            : arrayType || "-";
+                        const resolution =
+                          p.arrayWidth != null && p.arrayHeight != null
+                            ? `${p.arrayWidth}x${p.arrayHeight}`
+                            : "-";
+                        return `${productType} / ${arrayTypeDisplay} (${resolution})`;
+                      })()}
+                    </code>
                   </TableCell>
                   <TableCell className="max-w-[14rem] px-5 py-4 text-sm text-gray-500 dark:text-gray-400">
                     <span

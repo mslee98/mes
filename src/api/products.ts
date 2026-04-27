@@ -12,10 +12,15 @@ function authHeaders(accessToken: string): HeadersInit {
 
 /** 제품 마스터 공통 필드 (목록·상세·셀렉트) */
 export interface RepresentativeProduct {
-  id: number;
-  productCode: string;
+  id: string;
+  businessName: string;
   productName: string;
-  categoryCode?: string | null;
+  productType: "ENGINE" | "CAMERA";
+  arrayType: "QVGA" | "VGA" | "SXGA" | "CUSTOM";
+  arrayCustomText?: string | null;
+  arrayWidth?: number | null;
+  arrayHeight?: number | null;
+  pixelPitch?: string | null;
   description?: string | null;
   isActive?: boolean;
   createdAt?: string;
@@ -37,35 +42,70 @@ export interface ProductListResultDto {
 export type ProductDetailDto = RepresentativeProduct;
 
 export interface ProductCreatePayload {
-  productCode: string;
+  businessName: string;
   productName: string;
-  categoryCode?: string | null;
+  productType: "ENGINE" | "CAMERA";
+  arrayType: "QVGA" | "VGA" | "SXGA" | "CUSTOM";
+  arrayCustomText?: string | null;
+  arrayWidth: number;
+  arrayHeight: number;
+  pixelPitch: number;
   description?: string | null;
   isActive?: boolean;
 }
 
 export interface ProductUpdatePayload {
+  businessName?: string;
   productName?: string;
-  categoryCode?: string | null;
+  productType?: "ENGINE" | "CAMERA";
+  arrayType?: "QVGA" | "VGA" | "SXGA" | "CUSTOM";
+  arrayCustomText?: string | null;
+  arrayWidth?: number | null;
+  arrayHeight?: number | null;
+  pixelPitch?: number;
   description?: string | null;
   isActive?: boolean;
+}
+
+export interface ProductFileMetadata {
+  id: number;
+  originalName?: string;
+  storedName?: string;
+  filePath?: string;
+  mimeType?: string;
+  fileSize?: number;
+}
+
+export interface ProductFileLink {
+  id: number;
+  fileId?: number;
+  targetType?: string;
+  targetId?: string;
+  categoryCode?: string;
+  createdById?: number;
+  createdAt?: string;
+  file?: ProductFileMetadata;
+  fileName?: string;
+  filePath?: string;
+  fileType?: string;
+  uploadedAt?: string;
 }
 
 /** 목록·셀렉트용 표시 문자열 (이름·코드 구분) */
 export function representativeProductLabel(p: RepresentativeProduct): string {
   const name = (p.productName ?? "").trim();
-  const code = (p.productCode ?? "").trim();
-  if (name && code && name !== code) return `${name} (${code})`;
-  return name || code || "-";
+  const businessName = (p.businessName ?? "").trim();
+  if (name && businessName && name !== businessName) return `${name} (${businessName})`;
+  return name || businessName || "-";
 }
 
 function mapProduct(raw: unknown): RepresentativeProduct {
   const o = raw as Record<string, unknown>;
-  const productCode =
-    typeof o.productCode === "string"
-      ? o.productCode
-      : typeof o.code === "string"
-        ? o.code
+  const businessName =
+    typeof o.businessName === "string"
+      ? o.businessName
+      : typeof o.business_name === "string"
+        ? o.business_name
         : "";
   const productName =
     typeof o.productName === "string"
@@ -73,11 +113,41 @@ function mapProduct(raw: unknown): RepresentativeProduct {
       : typeof o.name === "string"
         ? o.name
         : "";
-  const categoryRaw = o.categoryCode;
-  const categoryCode =
-    categoryRaw == null || categoryRaw === ""
+  const productTypeRaw = o.productType ?? o.product_type;
+  const productType =
+    productTypeRaw === "ENGINE" || productTypeRaw === "CAMERA"
+      ? productTypeRaw
+      : "ENGINE";
+  const arrayTypeRaw = o.arrayType ?? o.array_type;
+  const arrayType =
+    arrayTypeRaw === "QVGA" ||
+    arrayTypeRaw === "VGA" ||
+    arrayTypeRaw === "SXGA" ||
+    arrayTypeRaw === "CUSTOM"
+      ? arrayTypeRaw
+      : "QVGA";
+  const arrayCustomRaw = o.arrayCustomText ?? o.array_custom_text;
+  const arrayCustomText =
+    arrayCustomRaw == null || arrayCustomRaw === ""
       ? null
-      : String(categoryRaw);
+      : String(arrayCustomRaw);
+  const widthRaw = o.arrayWidth ?? o.array_width;
+  const heightRaw = o.arrayHeight ?? o.array_height;
+  const arrayWidth =
+    typeof widthRaw === "number" && Number.isFinite(widthRaw)
+      ? widthRaw
+      : widthRaw == null || widthRaw === ""
+        ? null
+        : Number(widthRaw);
+  const arrayHeight =
+    typeof heightRaw === "number" && Number.isFinite(heightRaw)
+      ? heightRaw
+      : heightRaw == null || heightRaw === ""
+        ? null
+        : Number(heightRaw);
+  const pixelPitchRaw = o.pixelPitch ?? o.pixel_pitch;
+  const pixelPitch =
+    pixelPitchRaw == null || pixelPitchRaw === "" ? null : String(pixelPitchRaw);
   const desc = o.description;
   const description =
     desc == null ? null : typeof desc === "string" ? desc : String(desc);
@@ -86,10 +156,15 @@ function mapProduct(raw: unknown): RepresentativeProduct {
   const updatedAt =
     typeof o.updatedAt === "string" ? o.updatedAt : undefined;
   return {
-    id: Number(o.id ?? 0),
-    productCode,
+    id: String(o.id ?? "").trim(),
+    businessName,
     productName,
-    categoryCode,
+    productType,
+    arrayType,
+    arrayCustomText,
+    arrayWidth: Number.isFinite(arrayWidth) ? arrayWidth : null,
+    arrayHeight: Number.isFinite(arrayHeight) ? arrayHeight : null,
+    pixelPitch,
     description,
     isActive: typeof o.isActive === "boolean" ? o.isActive : undefined,
     createdAt,
@@ -177,7 +252,7 @@ export async function createProduct(
 
 /** GET /api/products/:id (product.read) */
 export async function getProduct(
-  id: number,
+  id: string,
   accessToken: string
 ): Promise<ProductDetailDto> {
   const res = await fetchAuthorized(`${API_BASE}/products/${id}`, {
@@ -192,7 +267,7 @@ export async function getProduct(
 
 /** PATCH /api/products/:id (product.manage) */
 export async function updateProduct(
-  id: number,
+  id: string,
   accessToken: string,
   body: ProductUpdatePayload
 ): Promise<RepresentativeProduct> {
@@ -206,4 +281,72 @@ export async function updateProduct(
     throw await createApiError(res, "제품을 수정하지 못했습니다.");
   }
   return mapProduct(await res.json());
+}
+
+export async function uploadProductFiles(
+  productId: string,
+  files: File[],
+  accessToken: string
+): Promise<ProductFileLink[]> {
+  if (!accessToken?.trim()) {
+    throw new Error("로그인이 만료되었습니다. 다시 로그인해 주세요.");
+  }
+  if (files.length === 0) {
+    throw new Error("파일을 1개 이상 선택해 주세요.");
+  }
+  const form = new FormData();
+  files.forEach((file) => form.append("files", file));
+  const res = await fetchAuthorized(
+    `${API_BASE}/products/${productId}/files`,
+    {
+      method: "POST",
+      headers: authHeaders(accessToken),
+      body: form,
+      credentials: "include",
+    },
+    accessToken
+  );
+  if (!res.ok) {
+    throw await createApiError(res, "제품 파일을 업로드하지 못했습니다.");
+  }
+  const data = await res.json();
+  return Array.isArray(data) ? (data as ProductFileLink[]) : [];
+}
+
+export async function getProductFiles(
+  productId: string,
+  accessToken: string
+): Promise<ProductFileLink[]> {
+  const res = await fetchAuthorized(
+    `${API_BASE}/products/${productId}/files`,
+    {
+      headers: authHeaders(accessToken),
+      credentials: "include",
+    },
+    accessToken
+  );
+  if (!res.ok) {
+    throw await createApiError(res, "제품 파일 목록을 불러오지 못했습니다.");
+  }
+  const data = await res.json();
+  return Array.isArray(data) ? (data as ProductFileLink[]) : [];
+}
+
+export async function deleteProductFile(
+  productId: string,
+  fileLinkId: number,
+  accessToken: string
+): Promise<void> {
+  const res = await fetchAuthorized(
+    `${API_BASE}/products/${productId}/files/${fileLinkId}`,
+    {
+      method: "DELETE",
+      headers: authHeaders(accessToken),
+      credentials: "include",
+    },
+    accessToken
+  );
+  if (!res.ok) {
+    throw await createApiError(res, "제품 파일을 삭제하지 못했습니다.");
+  }
 }

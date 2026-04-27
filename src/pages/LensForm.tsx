@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router";
 import toast from "react-hot-toast";
@@ -11,29 +11,32 @@ import FormField from "../components/form/FormField";
 import Label from "../components/form/Label";
 import Input from "../components/form/input/InputField";
 import InputAddonField from "../components/form/InputAddonField";
-import TextArea from "../components/form/input/TextArea";
-import Select from "../components/form/Select";
 import FileUploadDropzone from "../components/form/FileUploadDropzone";
 import ActiveToggle from "../components/form/ActiveToggle";
 import FormActionBar from "../components/form/FormActionBar";
+import SearchableSelectWithCreate from "../components/form/SearchableSelectWithCreate";
+import { renderPartnerOptionLabel } from "../components/form/PartnerOptionLabel";
 import { TrashBinIcon } from "../icons";
 import { useAuth } from "../hooks/useAuth";
+import { usePartnerCommonCodes } from "../hooks/usePartnerCommonCodes";
+import { usePartnersQuery } from "../hooks/usePartnersQuery";
 import {
-  createProduct,
-  deleteProductFile,
-  getProduct,
-  getProductFiles,
-  updateProduct,
-  uploadProductFiles,
-} from "../api/products";
+  createLens,
+  deleteLensFile,
+  getLens,
+  getLensFiles,
+  updateLens,
+  uploadLensFiles,
+} from "../api/lenses";
+import {
+  PARTNER_SUPPLIER_SEGMENT_OTHER,
+  PARTNER_TYPE_SUPPLIER,
+} from "../lib/partnerPredicates";
+import { toPartnerSearchableSelectOptions } from "../lib/partnerSelectOptions";
 import { validateRequiredFields } from "../lib/formValidation";
 import { fileTypeIconSrc } from "../lib/fileTypeIcon";
 
-const ARRAY_TYPE_PRESET: Record<"QVGA" | "VGA" | "SXGA", { width: string; height: string }> = {
-  QVGA: { width: "320", height: "256" },
-  VGA: { width: "640", height: "480" },
-  SXGA: { width: "1280", height: "1024" },
-};
+const LENS_MANUFACTURER_SUPPLIER_SEGMENT_CODE = PARTNER_SUPPLIER_SEGMENT_OTHER;
 
 function normalizeNumberLike(raw: string) {
   const sanitized = raw.replace(/[^\d.]/g, "");
@@ -49,46 +52,54 @@ function formatAttachmentDateTime(iso?: string) {
   return d.toLocaleString("ko-KR");
 }
 
-export default function ProductForm() {
-  const { productId } = useParams();
-  const isNew = !productId;
-  const id = String(productId ?? "").trim();
+export default function LensForm() {
+  const { lensId } = useParams();
+  const isNew = !lensId;
+  const id = String(lensId ?? "").trim();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { accessToken, isLoading: isAuthLoading } = useAuth();
 
-  const [businessName, setBusinessName] = useState("");
-  const [productName, setProductName] = useState("");
-  const [productType, setProductType] = useState<"ENGINE" | "CAMERA">("ENGINE");
-  const [arrayType, setArrayType] = useState<"QVGA" | "VGA" | "SXGA" | "CUSTOM" | "">("");
-  const [arrayCustomText, setArrayCustomText] = useState("");
-  const [arrayWidth, setArrayWidth] = useState("");
-  const [arrayHeight, setArrayHeight] = useState("");
-  const [pixelPitch, setPixelPitch] = useState("");
-  const [description, setDescription] = useState("");
+  const [manufacturerId, setManufacturerId] = useState("");
+  const [lensName, setLensName] = useState("");
+  const [fNumber, setFNumber] = useState("");
+  const [focalLength, setFocalLength] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [pendingFilesForCreate, setPendingFilesForCreate] = useState<File[]>([]);
   const [deleteTargetFileId, setDeleteTargetFileId] = useState<number | null>(null);
 
+  const { data: partners = [], isLoading: isPartnersLoading } = usePartnersQuery(
+    accessToken,
+    {
+      type: PARTNER_TYPE_SUPPLIER,
+      supplierSegmentCode: LENS_MANUFACTURER_SUPPLIER_SEGMENT_CODE,
+    },
+    { enabled: !!accessToken && !isAuthLoading }
+  );
+  const { countryCodes } = usePartnerCommonCodes(
+    accessToken,
+    !!accessToken && !isAuthLoading
+  );
+
   const {
     data: existing,
-    isLoading: isLoadLoading,
+    isLoading: isLensLoading,
     error: loadError,
   } = useQuery({
-    queryKey: ["product", id],
-    queryFn: () => getProduct(id, accessToken as string),
+    queryKey: ["lens", id],
+    queryFn: () => getLens(id, accessToken as string),
     enabled: !isNew && !!accessToken && !isAuthLoading && id !== "",
   });
   const { data: files = [] } = useQuery({
-    queryKey: ["productFiles", id],
-    queryFn: () => getProductFiles(id, accessToken as string),
+    queryKey: ["lensFiles", id],
+    queryFn: () => getLensFiles(id, accessToken as string),
     enabled: !isNew && !!accessToken && !isAuthLoading && id !== "",
   });
 
   const uploadErrorMessage = (error: unknown) => {
     const message = error instanceof Error ? error.message : "";
-    if (message.includes("FILE_TARGET_TYPE / PRODUCT")) {
-      return "백엔드 공통코드(FILE_TARGET_TYPE/PRODUCT) 미반영 상태입니다. 시드 반영 후 다시 시도해 주세요.";
+    if (message.includes("FILE_TARGET_TYPE / LENS")) {
+      return "백엔드 공통코드(FILE_TARGET_TYPE/LENS) 미반영 상태입니다. 시드 반영 후 다시 시도해 주세요.";
     }
     if (message.includes("401") || message.toLowerCase().includes("unauthorized")) {
       return "로그인이 만료되었습니다. 다시 로그인해 주세요.";
@@ -98,67 +109,35 @@ export default function ProductForm() {
 
   useEffect(() => {
     if (!existing) return;
-    queueMicrotask(() => {
-      setBusinessName(existing.businessName ?? "");
-      setProductName(existing.productName ?? "");
-      setProductType(existing.productType ?? "ENGINE");
-      setArrayType(existing.arrayType ?? "");
-      setArrayCustomText(existing.arrayCustomText ?? "");
-      setArrayWidth(existing.arrayWidth != null ? String(existing.arrayWidth) : "");
-      setArrayHeight(existing.arrayHeight != null ? String(existing.arrayHeight) : "");
-      setPixelPitch(
-        existing.pixelPitch != null && Number.isFinite(Number(existing.pixelPitch))
-          ? String(Math.trunc(Number(existing.pixelPitch)))
-          : ""
-      );
-      setDescription(existing.description ?? "");
-      setIsActive(existing.isActive !== false);
-    });
+    setManufacturerId(
+      existing.manufacturerId != null ? String(existing.manufacturerId) : ""
+    );
+    setLensName(existing.lensName?.trim() || "");
+    setFNumber(existing.fNumber ?? "");
+    setFocalLength(existing.focalLength ?? "");
+    setIsActive(existing.isActive !== false);
   }, [existing]);
 
-  const updateMutation = useMutation({
-    mutationFn: () =>
-      updateProduct(id, accessToken as string, {
-        businessName: businessName.trim(),
-        productName: productName.trim(),
-        productType,
-        arrayType: arrayType as "QVGA" | "VGA" | "SXGA" | "CUSTOM",
-        arrayCustomText: arrayType === "CUSTOM" ? arrayCustomText.trim() || null : null,
-        arrayWidth: Number(arrayWidth),
-        arrayHeight: Number(arrayHeight),
-        pixelPitch: Number(pixelPitch),
-        description: description.trim() || null,
-        isActive,
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["productList"] });
-      queryClient.invalidateQueries({ queryKey: ["product", id] });
-      toast.success("제품을 수정했습니다.");
-      navigate(`/products/${id}`);
-    },
-    onError: (e: Error) =>
-      toast.error(e.message || "수정에 실패했습니다."),
-  });
+  const manufacturerOptions = useMemo(
+    () => toPartnerSearchableSelectOptions(partners, countryCodes),
+    [partners, countryCodes]
+  );
+
   const createMutation = useMutation({
     mutationFn: () =>
-      createProduct(accessToken as string, {
-        businessName: businessName.trim(),
-        productName: productName.trim(),
-        productType,
-        arrayType: arrayType as "QVGA" | "VGA" | "SXGA" | "CUSTOM",
-        arrayCustomText: arrayType === "CUSTOM" ? arrayCustomText.trim() || null : null,
-        arrayWidth: Number(arrayWidth),
-        arrayHeight: Number(arrayHeight),
-        pixelPitch: Number(pixelPitch),
-        description: description.trim() || null,
+      createLens(accessToken as string, {
+        manufacturerId: manufacturerId.trim(),
+        lensName: lensName.trim(),
+        fNumber: fNumber.trim(),
+        focalLength: focalLength.trim(),
         isActive,
       }),
     onSuccess: async (created) => {
-      queryClient.invalidateQueries({ queryKey: ["productList"] });
+      queryClient.invalidateQueries({ queryKey: ["lensList"] });
       if (pendingFilesForCreate.length > 0) {
         try {
-          await uploadProductFiles(
-            String(created.id),
+          await uploadLensFiles(
+            created.id,
             pendingFilesForCreate,
             accessToken as string
           );
@@ -166,67 +145,61 @@ export default function ProductForm() {
           toast.error(uploadErrorMessage(error));
         }
       }
-      toast.success("제품을 등록했습니다.");
-      navigate(`/products/${created.id}`);
+      toast.success("렌즈를 등록했습니다.");
+      navigate(`/lenses/${created.id}`);
     },
     onError: (e: Error) => toast.error(e.message || "등록에 실패했습니다."),
   });
+
+  const updateMutation = useMutation({
+    mutationFn: () =>
+      updateLens(id, accessToken as string, {
+        manufacturerId: manufacturerId.trim(),
+        lensName: lensName.trim(),
+        fNumber: fNumber.trim(),
+        focalLength: focalLength.trim(),
+        isActive,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["lensList"] });
+      queryClient.invalidateQueries({ queryKey: ["lens", id] });
+      toast.success("렌즈를 수정했습니다.");
+      navigate(`/lenses/${id}`);
+    },
+    onError: (e: Error) => toast.error(e.message || "수정에 실패했습니다."),
+  });
   const fileUploadMutation = useMutation({
     mutationFn: (selectedFiles: File[]) =>
-      uploadProductFiles(id, selectedFiles, accessToken as string),
+      uploadLensFiles(id, selectedFiles, accessToken as string),
     onSuccess: (uploaded) => {
-      queryClient.invalidateQueries({ queryKey: ["productFiles", id] });
+      queryClient.invalidateQueries({ queryKey: ["lensFiles", id] });
       toast.success(`첨부파일 ${uploaded.length}건을 업로드했습니다.`);
     },
     onError: (error: Error) => toast.error(uploadErrorMessage(error)),
   });
   const fileDeleteMutation = useMutation({
     mutationFn: (fileLinkId: number) =>
-      deleteProductFile(id, fileLinkId, accessToken as string),
+      deleteLensFile(id, fileLinkId, accessToken as string),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["productFiles", id] });
+      queryClient.invalidateQueries({ queryKey: ["lensFiles", id] });
       toast.success("첨부파일을 삭제했습니다.");
     },
     onError: (error: Error) => toast.error(uploadErrorMessage(error)),
   });
-  const openDeleteConfirm = (fileLinkId: number) => {
-    setDeleteTargetFileId(fileLinkId);
-  };
-  const closeDeleteConfirm = () => {
-    if (fileDeleteMutation.isPending) return;
-    setDeleteTargetFileId(null);
-  };
-  const confirmDeleteFile = () => {
-    if (deleteTargetFileId == null) return;
-    fileDeleteMutation.mutate(deleteTargetFileId, {
-      onSettled: () => setDeleteTargetFileId(null),
-    });
-  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (
       !validateRequiredFields(
         [
-          { value: businessName, message: "사업명을 입력하세요." },
-          { value: productName, message: "제품명을 입력하세요." },
-          { value: arrayType, message: "배열 타입을 선택하세요." },
+          { value: manufacturerId, message: "제조사를 선택하세요." },
+          { value: lensName, message: "렌즈명을 입력하세요." },
+          { value: fNumber, message: "F Number를 입력하세요." },
+          { value: focalLength, message: "초점 거리를 입력하세요." },
         ],
         toast.error
       )
     ) {
-      return;
-    }
-    if (!arrayWidth.trim() || Number(arrayWidth) <= 0) {
-      toast.error("Array Width는 0보다 커야 합니다.");
-      return;
-    }
-    if (!arrayHeight.trim() || Number(arrayHeight) <= 0) {
-      toast.error("Array Height는 0보다 커야 합니다.");
-      return;
-    }
-    if (!pixelPitch.trim() || Number(pixelPitch) <= 0) {
-      toast.error("Pixel Pitch는 0보다 커야 합니다.");
       return;
     }
     if (isNew) {
@@ -236,32 +209,25 @@ export default function ProductForm() {
     updateMutation.mutate();
   };
 
-  const handleArrayTypeChange = (next: "QVGA" | "VGA" | "SXGA" | "CUSTOM" | "") => {
-    setArrayType(next);
-    if (!next) return;
-    if (next === "CUSTOM") return;
-    const preset = ARRAY_TYPE_PRESET[next];
-    setArrayWidth(preset.width);
-    setArrayHeight(preset.height);
-  };
+  const pending = createMutation.isPending || updateMutation.isPending;
 
   if (!isNew && !id) {
     return (
       <DetailPageState
-        title="제품 수정"
-        description="제품 마스터"
-        pageTitle="제품 수정"
-        invalidMessage="잘못된 제품 ID입니다."
+        title="렌즈 수정"
+        description="렌즈 마스터"
+        pageTitle="렌즈 수정"
+        invalidMessage="잘못된 렌즈 ID입니다."
       />
     );
   }
 
-  if (isAuthLoading || (!isNew && isLoadLoading)) {
+  if (isAuthLoading || (!isNew && isLensLoading) || isPartnersLoading) {
     return (
       <DetailPageState
-        title="제품 수정"
-        description="제품 마스터"
-        pageTitle="제품 수정"
+        title={isNew ? "렌즈 등록" : "렌즈 수정"}
+        description="렌즈 마스터"
+        pageTitle={isNew ? "렌즈 등록" : "렌즈 수정"}
         loadingMessage="불러오는 중..."
       />
     );
@@ -270,150 +236,96 @@ export default function ProductForm() {
   if (!isNew && loadError) {
     return (
       <DetailPageState
-        title="제품 수정"
-        description="제품 마스터"
-        pageTitle="제품 수정"
+        title="렌즈 수정"
+        description="렌즈 마스터"
+        pageTitle="렌즈 수정"
         errorMessage={
           loadError instanceof Error
             ? loadError.message
-            : "제품을 불러오지 못했습니다."
+            : "렌즈를 불러오지 못했습니다."
         }
       />
     );
   }
 
-  const pending = updateMutation.isPending || createMutation.isPending;
-
   return (
     <>
-      <PageMeta title={isNew ? "제품 등록" : "제품 수정"} description="대표 제품 마스터" />
-      <PageBreadcrumb pageTitle={isNew ? "제품 등록" : "제품 수정"} />
-
+      <PageMeta title={isNew ? "렌즈 등록" : "렌즈 수정"} description="렌즈 마스터" />
+      <PageBreadcrumb pageTitle={isNew ? "렌즈 등록" : "렌즈 수정"} />
       <form onSubmit={handleSubmit} className="space-y-6">
         <ComponentCard
-          title={isNew ? "제품 등록" : "제품 수정"}
-          desc={isNew ? "제품 주요 속성(유형/어레이/픽셀피치)을 등록합니다." : "제품 주요 속성(유형/어레이/픽셀피치)을 수정합니다."}
+          title={isNew ? "렌즈 등록" : "렌즈 수정"}
+          desc={
+            isNew
+              ? "렌즈 기본 정보(제조사/렌즈명/F Number/초점 거리)를 등록합니다."
+              : "렌즈 기본 정보(제조사/렌즈명/F Number/초점 거리)를 수정합니다."
+          }
         >
           <div className="grid gap-4 sm:grid-cols-2">
+            <div className="min-w-0 sm:col-span-2">
+              <SearchableSelectWithCreate
+                id="lens-manufacturer"
+                label="제조사 (업체 선택)"
+                required
+                value={manufacturerId}
+                onChange={setManufacturerId}
+                options={manufacturerOptions}
+                formatOptionLabel={renderPartnerOptionLabel}
+                placeholder="검색하여 업체 선택"
+                addTrigger="none"
+                addButtonLabel=""
+                onAddClick={() => {}}
+              />
+            </div>
             <div className="min-w-0">
               <FormField
-                label="사업명"
+                label="렌즈명"
                 required
                 reserveHelpSpace
                 control={
                   <Input
-                    value={businessName}
-                    onChange={(e) => setBusinessName(e.target.value)}
+                    value={lensName}
+                    onChange={(e) => setLensName(e.target.value)}
                   />
                 }
               />
             </div>
             <div className="min-w-0">
               <FormField
-                label="제품명"
-                required
-                reserveHelpSpace
-                control={
-                  <Input
-                    value={productName}
-                    onChange={(e) => setProductName(e.target.value)}
-                    placeholder="표시 이름"
-                  />
-                }
-              />
-            </div>
-            <div className="min-w-0">
-              <FormField
-                id="product-edit-type"
-                label="제품 유형"
-                required
-                reserveHelpSpace
-                control={
-                  <Select
-                    id="product-edit-type"
-                    value={productType}
-                    onChange={(v) => setProductType(v as "ENGINE" | "CAMERA")}
-                    options={[{ value: "ENGINE", label: "ENGINE" }, { value: "CAMERA", label: "CAMERA" }]}
-                    size="md"
-                  />
-                }
-              />
-            </div>
-            <div className="min-w-0">
-              <FormField
-                id="product-edit-pixel-pitch"
-                label="Pixel Pitch"
+                id="lens-fnumber"
+                label="F Number"
                 required
                 reserveHelpSpace
                 controlMarginClassName=""
                 control={
                   <InputAddonField
-                    id="product-edit-pixel-pitch"
-                    value={pixelPitch}
-                    onChange={(value) => setPixelPitch(normalizeNumberLike(value))}
-                    placeholder="예: 14"
-                    addon="µm"
+                    id="lens-fnumber"
+                    value={fNumber}
+                    onChange={(value) => setFNumber(normalizeNumberLike(value))}
+                    placeholder="예: 1.4"
+                    addon="F/"
+                    addonPlacement="outside-left"
+                    addonAriaLabel="f-number prefix"
+                  />
+                }
+              />
+            </div>
+            <div className="min-w-0">
+              <FormField
+                id="lens-focal-length"
+                label="초점 거리"
+                required
+                reserveHelpSpace
+                controlMarginClassName=""
+                control={
+                  <InputAddonField
+                    id="lens-focal-length"
+                    value={focalLength}
+                    onChange={(value) => setFocalLength(normalizeNumberLike(value))}
+                    placeholder="예: 25"
+                    addon="mm"
                     addonPlacement="outside-right"
-                    addonAriaLabel="pixel pitch unit"
-                  />
-                }
-              />
-            </div>
-            <div className="min-w-0">
-              <FormField
-                id="product-edit-arrayType"
-                label="배열 타입"
-                required
-                reserveHelpSpace
-                control={
-                  <Select
-                    id="product-edit-arrayType"
-                    value={arrayType}
-                    onChange={(v) =>
-                      handleArrayTypeChange(v as "QVGA" | "VGA" | "SXGA" | "CUSTOM" | "")
-                    }
-                    options={[{ value: "", label: "배열 타입 선택" }, { value: "QVGA", label: "QVGA" }, { value: "VGA", label: "VGA" }, { value: "SXGA", label: "SXGA" }, { value: "CUSTOM", label: "CUSTOM" }]}
-                    size="md"
-                  />
-                }
-              />
-            </div>
-            <div className="min-w-0">
-              <FormField
-                label="배열수"
-                required
-                reserveHelpSpace
-                control={
-                  <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
-                    <Input
-                      value={arrayWidth}
-                      onChange={(e) => setArrayWidth(e.target.value.replace(/\D/g, ""))}
-                      placeholder="가로"
-                      className="w-full"
-                    />
-                    <span className="px-1 text-base font-semibold text-gray-500 dark:text-gray-400">
-                      ×
-                    </span>
-                    <Input
-                      value={arrayHeight}
-                      onChange={(e) => setArrayHeight(e.target.value.replace(/\D/g, ""))}
-                      placeholder="세로"
-                      className="w-full"
-                    />
-                  </div>
-                }
-              />
-            </div>
-            <div className="min-w-0 sm:col-span-2">
-              <FormField
-                label="설명"
-                reserveHelpSpace
-                control={
-                  <TextArea
-                    value={description}
-                    onChange={(v) => setDescription(v)}
-                    rows={3}
-                    className=""
+                    addonAriaLabel="focal-length unit"
                   />
                 }
               />
@@ -478,7 +390,7 @@ export default function ProductForm() {
                 ) : (
                   <>
                     <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-theme-xs text-amber-700 dark:border-amber-700/40 dark:bg-amber-500/10 dark:text-amber-300">
-                      제품 수정 화면의 첨부파일 업로드/삭제는 저장 버튼과 별개로 즉시 반영됩니다.
+                      렌즈 수정 화면의 첨부파일 업로드/삭제는 저장 버튼과 별개로 즉시 반영됩니다.
                     </p>
                     <FileUploadDropzone
                       onSelectFiles={(selected) => fileUploadMutation.mutate(selected)}
@@ -513,7 +425,7 @@ export default function ProductForm() {
                                 </span>
                                 <button
                                   type="button"
-                                  onClick={() => openDeleteConfirm(Number(f.id))}
+                                  onClick={() => setDeleteTargetFileId(Number(f.id))}
                                   disabled={fileDeleteMutation.isPending}
                                   title="첨부파일 삭제"
                                   aria-label="첨부파일 삭제"
@@ -538,7 +450,7 @@ export default function ProductForm() {
             </div>
             <div className="sm:col-span-2 flex items-center pt-1">
               <ActiveToggle
-                id="product-active-toggle"
+                id="lens-active-toggle"
                 checked={isActive}
                 onChange={setIsActive}
               />
@@ -548,7 +460,7 @@ export default function ProductForm() {
             submitLabel={isNew ? "등록" : "저장"}
             isPending={pending}
             submitDisabled={!accessToken}
-            cancelTo={isNew ? "/products" : `/products/${id}`}
+            cancelTo={isNew ? "/lenses" : `/lenses/${id}`}
           />
         </ComponentCard>
       </form>
@@ -562,8 +474,16 @@ export default function ProductForm() {
           confirmVariant="danger"
           illustration="trash"
           isConfirming={fileDeleteMutation.isPending}
-          onClose={closeDeleteConfirm}
-          onConfirm={confirmDeleteFile}
+          onClose={() => {
+            if (fileDeleteMutation.isPending) return;
+            setDeleteTargetFileId(null);
+          }}
+          onConfirm={() => {
+            if (deleteTargetFileId == null) return;
+            fileDeleteMutation.mutate(deleteTargetFileId, {
+              onSettled: () => setDeleteTargetFileId(null),
+            });
+          }}
         />
       ) : null}
     </>

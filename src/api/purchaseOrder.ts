@@ -4,7 +4,7 @@
  * - **Base**: `API_BASE` (`apiBase.ts`, `VITE_AUTH_BASE_URL` + `/api`)
  * - **인증**: `Authorization: Bearer <accessToken>` + `credentials: "include"`
  * - **JSON**: `Content-Type: application/json` + `JSON.stringify`
- * - **파일**: `FormData` + 필드명 `file` (multipart, Content-Type은 브라우저 설정)
+ * - **파일**: `FormData` + 필드명 `files` (multipart, Content-Type은 브라우저 설정)
  * - **응답**: 목록은 `T[]` 또는 `{ data: T[] }` 모두 수용. 상세/라인은 snake_case·별칭을 mapper로 정규화
  *
  * 엔드포인트 표: `docs/FRONTEND_API.md` §4
@@ -33,17 +33,86 @@ function jsonHeaders(accessToken: string): HeadersInit {
 // --- 타입 정의 (백엔드 계약과 맞춘 요청/응답 모델) ---
 
 export interface Partner {
-  id: number;
+  id: string;
   code: string;
   name: string;
+  /** 공통코드 PARTNER_TYPE (예: CUSTOMER, SUPPLIER) */
   type?: string;
+  /** 공통코드 PARTNER_SUPPLIER_SEGMENT — DB `supplier_segment_code`, `type === SUPPLIER` 일 때 */
+  supplierSegment?: string | null;
+  /** 백엔드 요청/응답 호환 키 */
+  supplierSegmentCode?: string | null;
   /** 공통코드 PARTNER_DEFENSE_MARKET (예: CIVILIAN, MILITARY) */
   defenseMarket?: string;
   /** 공통코드 COUNTRY (예: KR, SG, IN) */
   countryCode?: string;
-  contact?: string;
-  address?: string;
+  /** DB `business_registration_no` */
+  businessRegistrationNo?: string | null;
+  /** DB `contact_person` */
+  contactPerson?: string | null;
+  /** DB `contact_phone` */
+  contactPhone?: string | null;
+  /** DB `contact_email` */
+  contactEmail?: string | null;
+  /** DB `contact` (레거시 한 줄 연락처) */
+  contact?: string | null;
+  address?: string | null;
+  memo?: string | null;
   isActive?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+function partnerStr(v: unknown): string | undefined {
+  if (v == null) return undefined;
+  const s = String(v).trim();
+  return s === "" ? undefined : s;
+}
+
+/** GET/POST/PATCH 응답에서 camelCase·snake_case 모두 수용 */
+export function mapPartnerFromApi(raw: Record<string, unknown>): Partner {
+  const inactive =
+    raw.isActive === false ||
+    raw.is_active === false ||
+    raw.is_active === 0;
+
+  const supplierSegment =
+    partnerStr(raw.supplierSegment) ??
+    partnerStr(raw.supplierSegmentCode) ??
+    partnerStr(raw.supplier_segment) ??
+    partnerStr(raw.supplier_segment_code) ??
+    null;
+
+  return {
+    id: String(raw.id ?? ""),
+    code: String(raw.code ?? ""),
+    name: String(raw.name ?? ""),
+    type: partnerStr(raw.type),
+    supplierSegment,
+    supplierSegmentCode: supplierSegment,
+    defenseMarket:
+      partnerStr(raw.defenseMarket) ?? partnerStr(raw.defense_market),
+    countryCode:
+      partnerStr(raw.countryCode) ?? partnerStr(raw.country_code),
+    businessRegistrationNo:
+      partnerStr(raw.businessRegistrationNo) ??
+      partnerStr(raw.business_registration_no) ??
+      null,
+    contactPerson:
+      partnerStr(raw.contactPerson) ?? partnerStr(raw.contact_person) ?? null,
+    contactPhone:
+      partnerStr(raw.contactPhone) ?? partnerStr(raw.contact_phone) ?? null,
+    contactEmail:
+      partnerStr(raw.contactEmail) ?? partnerStr(raw.contact_email) ?? null,
+    contact: partnerStr(raw.contact) ?? null,
+    address: partnerStr(raw.address) ?? null,
+    memo: partnerStr(raw.memo) ?? null,
+    isActive: inactive ? false : true,
+    createdAt:
+      partnerStr(raw.createdAt) ?? partnerStr(raw.created_at),
+    updatedAt:
+      partnerStr(raw.updatedAt) ?? partnerStr(raw.updated_at),
+  };
 }
 
 export interface PartnerCreatePayload {
@@ -52,13 +121,40 @@ export interface PartnerCreatePayload {
   defenseMarket: string;
   countryCode: string;
   type?: string | null;
+  /** 백엔드 요청 키 */
+  supplierSegmentCode?: string | null;
+  supplierSegment?: string | null;
+  businessRegistrationNo?: string | null;
+  contactPerson?: string | null;
+  contactPhone?: string | null;
+  contactEmail?: string | null;
   contact?: string | null;
   address?: string | null;
+  memo?: string | null;
+}
+
+export interface PartnerUpdatePayload {
+  code?: string;
+  name?: string;
+  defenseMarket?: string;
+  countryCode?: string;
+  type?: string | null;
+  /** 백엔드 요청 키 */
+  supplierSegmentCode?: string | null;
+  supplierSegment?: string | null;
+  businessRegistrationNo?: string | null;
+  contactPerson?: string | null;
+  contactPhone?: string | null;
+  contactEmail?: string | null;
+  contact?: string | null;
+  address?: string | null;
+  memo?: string | null;
+  isActive?: boolean;
 }
 
 export interface PurchaseOrderItemPayload {
   /** 대표 제품 id (필수) */
-  productId: number;
+  productId: string;
   qty: number;
   unitPrice: number;
   /** 공통코드 UNIT (예: EA, BOX) */
@@ -72,7 +168,7 @@ export interface PurchaseOrderItemPayload {
 }
 
 export interface PurchaseOrderLinePatchPayload {
-  productId?: number | null;
+  productId?: string | null;
   qty?: number;
   quantity?: number;
   unit?: string | null;
@@ -87,7 +183,7 @@ export interface PurchaseOrderLinePatchPayload {
 
 export interface PurchaseOrderCreatePayload {
   title: string;
-  partnerId: number;
+  partnerId: string;
   orderDate: string;
   currencyCode?: string | null;
   dueDate?: string | null;
@@ -117,7 +213,7 @@ export interface PurchaseOrderCreatePayload {
 
 export interface PurchaseOrderUpdatePayload {
   title?: string;
-  partnerId?: number;
+  partnerId?: string;
   orderDate?: string;
   currencyCode?: string | null;
   dueDate?: string | null;
@@ -141,10 +237,10 @@ export interface PurchaseOrderUpdatePayload {
 }
 
 export interface PurchaseOrderListItem {
-  id: number;
+  id: string;
   orderNo: string;
   title: string;
-  partnerId: number;
+  partnerId: string;
   partner?: Partner;
   orderDate: string;
   currencyCode?: string | null;
@@ -161,7 +257,7 @@ export interface PurchaseOrderListItem {
 export interface PurchaseOrderItem {
   id: number;
   /** 대표 제품 id */
-  productId: number;
+  productId: string;
   /** 발주 시점 스냅샷 */
   productNameSnapshot?: string | null;
   definitionNameSnapshot?: string | null;
@@ -181,7 +277,7 @@ export interface PurchaseOrderItem {
 
 export interface PurchaseOrderStatusHistoryEntry {
   id: number;
-  orderId?: number;
+  orderId?: string;
   fromStatus?: string | null;
   toStatus?: string | null;
   changedById?: number;
@@ -232,8 +328,8 @@ export interface PurchaseOrderDetail extends PurchaseOrderListItem {
 export interface PurchaseOrderFile {
   /** 파일 링크 ID(삭제 API 파라미터로 사용) */
   id: number;
-  purchaseOrderId?: number;
-  orderId?: number;
+  purchaseOrderId?: string;
+  orderId?: string;
   fileId?: number;
   fileName: string | null;
   filePath: string | null;
@@ -245,6 +341,7 @@ export interface PurchaseOrderFile {
   uploadedAt?: string;
   createdAt?: string;
 }
+
 
 /** POST /purchase-orders/:id/deliveries — 본문 `lines` 한 줄 (order_items.id = orderItemId) */
 export interface DeliveryCreateLinePayload {
@@ -305,7 +402,7 @@ export interface DeliveryOrderRef {
   orderNo?: string;
   title?: string;
   partner?: Partner;
-  partnerId?: number;
+  partnerId?: string;
 }
 
 /**
@@ -347,11 +444,11 @@ export interface Delivery {
   id: number;
   deliveryNo?: string;
   title?: string | null;
-  partnerId?: number;
+  partnerId?: string;
   partner?: Partner;
-  orderId?: number;
+  orderId?: string;
   /** 발주 PK — 응답에 따라 `order.id` 또는 최상위 필드 */
-  purchaseOrderId?: number;
+  purchaseOrderId?: string;
   order?: DeliveryOrderWithDetail;
   deliveryDate: string;
   plannedDeliveryDate?: string | null;
@@ -376,8 +473,8 @@ export interface Delivery {
 export interface DeliveryListParams {
   page?: number;
   pageSize?: number;
-  partnerId?: number;
-  orderId?: number;
+  partnerId?: string;
+  orderId?: string;
   /** `DELIVERY_STATUS` 의 code */
   status?: string;
 }
@@ -425,7 +522,7 @@ export function aggregateDeliveredQtyByOrderItemId(
 
 /** 발주 목록 쿼리 파라미터 — 서버 표준: `GET /purchase-orders?partnerId&status` */
 export interface PurchaseOrderListParams {
-  partnerId?: number;
+  partnerId?: string;
   /** 쿼리 키 `status` (PURCHASE_ORDER_STATUS 의 code) */
   status?: string;
   /** @deprecated `status`와 동일. 전송 시 `status`로만 붙음 */
@@ -500,15 +597,9 @@ function mapApiOrderLineToPurchaseOrderItem(
   if (!Number.isFinite(id)) return null;
 
   const lineProductRaw = x.productId;
-  const lineProductNum =
-    typeof lineProductRaw === "number"
-      ? lineProductRaw
-      : lineProductRaw != null
-        ? Number(lineProductRaw)
-        : NaN;
-  const lineProductId = Number.isFinite(lineProductNum) ? lineProductNum : 0;
-
-  if (lineProductId <= 0) {
+  const lineProductId =
+    lineProductRaw == null ? "" : String(lineProductRaw).trim();
+  if (!lineProductId) {
     return null;
   }
 
@@ -592,8 +683,8 @@ function mapOrderLinesFromApi(rawLines: unknown): PurchaseOrderItem[] {
 function mapPurchaseOrderListItem(raw: unknown): PurchaseOrderListItem | null {
   if (!raw || typeof raw !== "object") return null;
   const x = raw as Record<string, unknown>;
-  const id = typeof x.id === "number" ? x.id : Number(x.id);
-  if (!Number.isFinite(id)) return null;
+  const id = String(x.id ?? "").trim();
+  if (!id) return null;
 
   const orderNoRaw = x.orderNo ?? x.order_no;
   const orderNo =
@@ -602,10 +693,7 @@ function mapPurchaseOrderListItem(raw: unknown): PurchaseOrderListItem | null {
   const title =
     (typeof x.title === "string" && x.title.trim()) || "";
 
-  const pid = x.partnerId ?? x.partner_id;
-  const partnerIdNum =
-    typeof pid === "number" ? pid : Number(pid);
-  const partnerId = Number.isFinite(partnerIdNum) ? partnerIdNum : 0;
+  const partnerId = String(x.partnerId ?? x.partner_id ?? "").trim();
 
   const orderDate =
     (typeof x.orderDate === "string" && x.orderDate) ||
@@ -650,7 +738,7 @@ function mapPurchaseOrderListItem(raw: unknown): PurchaseOrderListItem | null {
 
   const partner =
     x.partner && typeof x.partner === "object"
-      ? (x.partner as Partner)
+      ? mapPartnerFromApi(x.partner as Record<string, unknown>)
       : undefined;
 
   const progressRaw = x.progressStatus ?? x.progress_status;
@@ -745,8 +833,17 @@ function mapPurchaseOrderDetail(raw: unknown): PurchaseOrderDetail {
     null;
   const currentApprovalRequest = mapApprovalRequestFromApi(arRaw);
 
+  const partnerRaw = rec.partner;
+  const partnerMapped =
+    partnerRaw != null &&
+    typeof partnerRaw === "object" &&
+    !Array.isArray(partnerRaw)
+      ? mapPartnerFromApi(partnerRaw as Record<string, unknown>)
+      : undefined;
+
   return {
     ...data,
+    ...(partnerMapped !== undefined ? { partner: partnerMapped } : {}),
     orderDate,
     orderStatus,
     orderItems: lines,
@@ -825,7 +922,7 @@ export async function getPurchaseOrders(
 
 /** `GET /purchase-orders/:id` — 상세·품목·attachments 등 (mapper로 정규화) */
 export async function getPurchaseOrder(
-  id: number,
+  id: string,
   accessToken: string
 ): Promise<PurchaseOrderDetail> {
   const res = await fetchAuthorized(
@@ -865,7 +962,7 @@ export async function createPurchaseOrder(
 
 /** `PUT /purchase-orders/:id` — 헤더(및 타입상 선택 필드) JSON 수정 */
 export async function updatePurchaseOrder(
-  id: number,
+  id: string,
   payload: PurchaseOrderUpdatePayload,
   accessToken: string
 ): Promise<PurchaseOrderDetail> {
@@ -889,7 +986,7 @@ export async function updatePurchaseOrder(
 
 /** `GET /purchase-orders/:id/lines` — 상세에 라인이 비었을 때 보조 조회 */
 export async function getPurchaseOrderItems(
-  id: number,
+  id: string,
   accessToken: string
 ): Promise<PurchaseOrderItem[]> {
   const res = await fetchAuthorized(
@@ -910,7 +1007,7 @@ export async function getPurchaseOrderItems(
 
 /** `PATCH /purchase-orders/:orderId/lines/:lineId` — 품목 라인 부분 수정 JSON */
 export async function updatePurchaseOrderLine(
-  orderId: number,
+  orderId: string,
   lineId: number,
   payload: PurchaseOrderLinePatchPayload,
   accessToken: string
@@ -933,7 +1030,7 @@ export async function updatePurchaseOrderLine(
 
 /** `POST /purchase-orders/:orderId/lines` — 품목 1줄 추가 JSON */
 export async function createPurchaseOrderLine(
-  orderId: number,
+  orderId: string,
   payload: PurchaseOrderItemPayload,
   accessToken: string
 ): Promise<PurchaseOrderItem> {
@@ -955,7 +1052,7 @@ export async function createPurchaseOrderLine(
 
 /** `DELETE /purchase-orders/:orderId/lines/:lineId` */
 export async function deletePurchaseOrderLine(
-  orderId: number,
+  orderId: string,
   lineId: number,
   accessToken: string
 ): Promise<void> {
@@ -977,12 +1074,18 @@ export async function deletePurchaseOrderLine(
 
 /** `POST /purchase-orders/:id/files` — multipart, 필드명 `file` */
 export async function uploadPurchaseOrderFile(
-  id: number,
-  file: File,
+  id: string,
+  files: File[],
   accessToken: string
-): Promise<PurchaseOrderFile> {
+): Promise<PurchaseOrderFile[]> {
+  if (!accessToken?.trim()) {
+    throw new Error("로그인이 만료되었습니다. 다시 로그인해 주세요.");
+  }
+  if (files.length === 0) {
+    throw new Error("파일을 1개 이상 선택해 주세요.");
+  }
   const form = new FormData();
-  form.append("file", file);
+  files.forEach((file) => form.append("files", file));
   const res = await fetchAuthorized(
     `${API_BASE}/purchase-orders/${id}/files`,
     {
@@ -996,12 +1099,30 @@ export async function uploadPurchaseOrderFile(
   if (!res.ok) {
     throw await createApiError(res, "파일을 업로드하지 못했습니다.");
   }
-  return res.json();
+  const data = await res.json();
+  if (Array.isArray(data)) {
+    return data.map((raw) => {
+      const item = raw as Record<string, unknown>;
+      const file = item.file as Record<string, unknown> | undefined;
+      return {
+        id: Number(item.id ?? 0),
+        orderId: String(item.targetId ?? ""),
+        fileId: Number(item.fileId ?? 0),
+        fileName: String(file?.originalName ?? ""),
+        filePath: String(file?.filePath ?? ""),
+        fileType: String(file?.mimeType ?? ""),
+        fileSize: Number(file?.fileSize ?? 0),
+        uploadedById: Number(item.createdById ?? 0),
+        createdAt: typeof item.createdAt === "string" ? item.createdAt : undefined,
+      };
+    });
+  }
+  return [];
 }
 
 /** `GET /purchase-orders/:id/files` — 첨부(파일 링크) 목록 */
 export async function getPurchaseOrderFiles(
-  id: number,
+  id: string,
   accessToken: string
 ): Promise<PurchaseOrderFile[]> {
   const res = await fetchAuthorized(
@@ -1021,7 +1142,7 @@ export async function getPurchaseOrderFiles(
 
 /** `DELETE /purchase-orders/:orderId/files/:fileLinkId` — file_links.id 기준 */
 export async function deletePurchaseOrderFile(
-  orderId: number,
+  orderId: string,
   fileLinkId: number,
   accessToken: string
 ): Promise<void> {
@@ -1043,7 +1164,7 @@ export async function deletePurchaseOrderFile(
 
 /** `POST /purchase-orders/:id/deliveries` — 납품 등록 JSON */
 export async function createDelivery(
-  purchaseOrderId: number,
+  purchaseOrderId: string,
   payload: DeliveryCreatePayload,
   accessToken: string
 ): Promise<Delivery> {
@@ -1072,11 +1193,11 @@ export async function getDeliveriesList(
   const p = params ?? {};
   if (p.page != null && p.page > 0) sp.set("page", String(p.page));
   if (p.pageSize != null && p.pageSize > 0) sp.set("pageSize", String(p.pageSize));
-  if (p.partnerId != null && Number.isFinite(p.partnerId)) {
-    sp.set("partnerId", String(p.partnerId));
+  if (p.partnerId != null && String(p.partnerId).trim() !== "") {
+    sp.set("partnerId", String(p.partnerId).trim());
   }
-  if (p.orderId != null && Number.isFinite(p.orderId)) {
-    sp.set("orderId", String(p.orderId));
+  if (p.orderId != null && String(p.orderId).trim() !== "") {
+    sp.set("orderId", String(p.orderId).trim());
   }
   if (p.status?.trim()) sp.set("status", p.status.trim());
   const qs = sp.toString();
@@ -1131,7 +1252,7 @@ export async function getDeliveryById(
 
 /** `GET /purchase-orders/:id/deliveries` */
 export async function getDeliveries(
-  purchaseOrderId: number,
+  purchaseOrderId: string,
   accessToken: string
 ): Promise<Delivery[]> {
   const res = await fetchAuthorized(
@@ -1186,7 +1307,7 @@ export interface PurchaseOrderApprovalActionPayload {
 }
 
 async function postPurchaseOrderApprovalSegment(
-  id: number,
+  id: string,
   segment: "submit" | "approve" | "reject", // reject: 레거시 서버 호환만
   payload: PurchaseOrderApprovalActionPayload,
   accessToken: string
@@ -1280,7 +1401,7 @@ async function postPurchaseOrderApprovalSegment(
 
 /** `POST /purchase-orders/:id/approval/submit` — 결재 상신(요청) */
 export async function submitPurchaseOrderApproval(
-  id: number,
+  id: string,
   payload: PurchaseOrderApprovalActionPayload,
   accessToken: string
 ): Promise<void> {
@@ -1292,7 +1413,7 @@ export async function submitPurchaseOrderApproval(
  * 응답 본문(발주 상세)은 선택적; 성공 시 쿼리 무효화로 상세를 다시 받는 패턴을 쓴다.
  */
 export async function approvePurchaseOrderApproval(
-  id: number,
+  id: string,
   payload: PurchaseOrderApprovalActionPayload,
   accessToken: string
 ): Promise<void> {
@@ -1304,7 +1425,7 @@ export async function approvePurchaseOrderApproval(
  * @deprecated 현행 백엔드 스펙에는 반려 엔드포인트 없음.
  */
 export async function rejectPurchaseOrderApproval(
-  id: number,
+  id: string,
   payload: PurchaseOrderApprovalActionPayload,
   accessToken: string
 ): Promise<void> {
@@ -1313,10 +1434,31 @@ export async function rejectPurchaseOrderApproval(
 
 // --- 거래처·코드그룹 (발주 폼 드롭다운 보조, Bearer 사용) ---
 
+export interface GetPartnersParams {
+  /** 파트너 조회 용도 (예: ORDER, LENS) */
+  usage?: "ORDER" | "LENS" | string;
+  /** 공통코드 PARTNER_SUPPLIER_SEGMENT (예: MECHANICAL, MATERIAL, OTHER) */
+  supplierSegmentCode?: string;
+  /** 공통코드 PARTNER_TYPE (예: CUSTOMER, SUPPLIER) */
+  type?: string;
+}
+
 /** `GET /partners` */
-export async function getPartners(accessToken: string): Promise<Partner[]> {
+export async function getPartners(
+  accessToken: string,
+  params?: GetPartnersParams
+): Promise<Partner[]> {
+  const query = new URLSearchParams();
+  const usage = String(params?.usage ?? "").trim();
+  const supplierSegmentCode = String(params?.supplierSegmentCode ?? "").trim();
+  const type = String(params?.type ?? "").trim();
+  if (usage) query.set("usage", usage);
+  if (supplierSegmentCode) query.set("supplierSegmentCode", supplierSegmentCode);
+  if (type) query.set("type", type);
+  const qs = query.toString();
+
   const res = await fetchAuthorized(
-    `${API_BASE}/partners`,
+    `${API_BASE}/partners${qs ? `?${qs}` : ""}`,
     {
       headers: authHeaders(accessToken),
       credentials: "include",
@@ -1327,7 +1469,30 @@ export async function getPartners(accessToken: string): Promise<Partner[]> {
     throw await createApiError(res, "거래처 목록을 불러오지 못했습니다.");
   }
   const data = await res.json();
-  return Array.isArray(data) ? data : data?.data ?? [];
+  const list: unknown[] = Array.isArray(data) ? data : data?.data ?? [];
+  return list.map((item) =>
+    mapPartnerFromApi(item as Record<string, unknown>)
+  );
+}
+
+/** `GET /partners/:id` */
+export async function getPartner(
+  id: string,
+  accessToken: string
+): Promise<Partner> {
+  const res = await fetchAuthorized(
+    `${API_BASE}/partners/${id}`,
+    {
+      headers: authHeaders(accessToken),
+      credentials: "include",
+    },
+    accessToken
+  );
+  if (!res.ok) {
+    throw await createApiError(res, "거래처 정보를 불러오지 못했습니다.");
+  }
+  const raw = await res.json();
+  return mapPartnerFromApi(raw as Record<string, unknown>);
 }
 
 /** `POST /partners` — 거래처 빠른 등록 등 */
@@ -1335,12 +1500,22 @@ export async function createPartner(
   payload: PartnerCreatePayload,
   accessToken: string
 ): Promise<Partner> {
+  const body: Record<string, unknown> = {
+    ...payload,
+    country_code: payload.countryCode,
+    defense_market: payload.defenseMarket,
+    supplier_segment_code: payload.supplierSegmentCode ?? payload.supplierSegment,
+    business_registration_no: payload.businessRegistrationNo,
+    contact_person: payload.contactPerson,
+    contact_phone: payload.contactPhone,
+    contact_email: payload.contactEmail,
+  };
   const res = await fetchAuthorized(
     `${API_BASE}/partners`,
     {
       method: "POST",
       headers: jsonHeaders(accessToken),
-      body: JSON.stringify(payload),
+      body: JSON.stringify(body),
       credentials: "include",
     },
     accessToken
@@ -1348,8 +1523,33 @@ export async function createPartner(
   if (!res.ok) {
     throw await createApiError(res, "거래처를 등록하지 못했습니다.");
   }
-  return res.json();
+  const raw = await res.json();
+  return mapPartnerFromApi(raw as Record<string, unknown>);
 }
+
+/** `PATCH /partners/:id` */
+export async function updatePartner(
+  id: string,
+  payload: PartnerUpdatePayload,
+  accessToken: string
+): Promise<Partner> {
+  const res = await fetchAuthorized(
+    `${API_BASE}/partners/${id}`,
+    {
+      method: "PATCH",
+      headers: jsonHeaders(accessToken),
+      body: JSON.stringify(payload),
+      credentials: "include",
+    },
+    accessToken
+  );
+  if (!res.ok) {
+    throw await createApiError(res, "거래처를 수정하지 못했습니다.");
+  }
+  const raw = await res.json();
+  return mapPartnerFromApi(raw as Record<string, unknown>);
+}
+
 
 export interface CodeItem {
   id: number;
