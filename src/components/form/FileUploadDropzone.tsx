@@ -3,11 +3,14 @@ import { useId, useRef, useState, type ChangeEvent, type DragEvent } from "react
 import { ReactComponent as ArchiveBoxArrowDownIcon } from "../../icons/archive-box-arrow-down.svg?react";
 
 type FileUploadDropzoneProps = {
-  onSelectFile: (file: File) => void;
+  onSelectFile?: (file: File) => void;
+  onSelectFiles?: (files: File[]) => void;
   onError?: (message: string) => void;
   accept?: string;
   disabled?: boolean;
   maxFileSizeMb?: number;
+  maxFiles?: number;
+  multiple?: boolean;
   buttonLabel?: string;
   uploadGuideText?: string;
   className?: string;
@@ -15,10 +18,13 @@ type FileUploadDropzoneProps = {
 
 export default function FileUploadDropzone({
   onSelectFile,
+  onSelectFiles,
   onError,
   accept,
   disabled = false,
   maxFileSizeMb = 30,
+  maxFiles = 10,
+  multiple = true,
   buttonLabel = "파일 선택",
   uploadGuideText = "아래 버튼을 눌러 파일을 업로드하세요.",
   className = "",
@@ -32,22 +38,33 @@ export default function FileUploadDropzone({
     inputRef.current?.click();
   };
 
-  const handleSelectedFile = (file: File | null | undefined) => {
-    if (!file) return;
-
+  const validateFile = (file: File): boolean => {
     const maxBytes = maxFileSizeMb * 1024 * 1024;
     if (file.size > maxBytes) {
       onError?.(`파일 크기는 최대 ${maxFileSizeMb}MB까지 업로드할 수 있습니다.`);
-      return;
+      return false;
     }
+    return true;
+  };
 
-    onSelectFile(file);
+  const handleSelectedFiles = (incomingFiles: File[]) => {
+    if (incomingFiles.length === 0) return;
+    const sliced = multiple ? incomingFiles.slice(0, maxFiles) : incomingFiles.slice(0, 1);
+    if (multiple && incomingFiles.length > maxFiles) {
+      onError?.(`파일은 최대 ${maxFiles}개까지 선택할 수 있습니다.`);
+    }
+    const valid = sliced.filter(validateFile);
+    if (valid.length === 0) return;
+    onSelectFiles?.(valid);
+    if (!onSelectFiles && onSelectFile) {
+      valid.forEach((file) => onSelectFile(file));
+    }
   };
 
   const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0] ?? null;
+    const files = Array.from(event.target.files ?? []);
     event.target.value = "";
-    handleSelectedFile(file);
+    handleSelectedFiles(files);
   };
 
   const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
@@ -65,8 +82,8 @@ export default function FileUploadDropzone({
     event.preventDefault();
     if (disabled) return;
     setIsDragActive(false);
-    const file = event.dataTransfer.files?.[0] ?? null;
-    handleSelectedFile(file);
+    const files = Array.from(event.dataTransfer.files ?? []);
+    handleSelectedFiles(files);
   };
 
   return (
@@ -110,6 +127,7 @@ export default function FileUploadDropzone({
         type="file"
         className="hidden"
         accept={accept}
+        multiple={multiple}
         onChange={handleChange}
         disabled={disabled}
       />

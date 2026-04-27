@@ -1,65 +1,18 @@
 import { useMemo } from "react";
-import Select, {
-  type GroupBase,
-  type StylesConfig,
-} from "react-select";
+import Select from "react-select";
 import Label from "./Label";
 import { useTheme } from "../../context/ThemeContext";
 import {
   PARTNER_COUNTRY_OPTIONS,
   partnerCountryFlagUrl,
 } from "../../lib/partnerCountryOptions";
+import { buildReactSelectStyles } from "./reactSelectStyles";
 
 export type CountrySelectOption = {
   value: string;
   label: string;
   flagUrl?: string;
 };
-
-function buildStyles(
-  isDark: boolean
-): StylesConfig<CountrySelectOption, false, GroupBase<CountrySelectOption>> {
-  const bg = isDark ? "#111827" : "#ffffff";
-  const border = isDark ? "#374151" : "#d1d5db";
-  const text = isDark ? "#f9fafb" : "#111827";
-  const muted = isDark ? "#9ca3af" : "#6b7280";
-  const hoverBg = isDark ? "#1f2937" : "#f3f4f6";
-  const focusRing = "0 0 0 2px rgba(70, 95, 255, 0.25)";
-
-  return {
-    container: (base) => ({ ...base, width: "100%" }),
-    control: (base, state) => ({
-      ...base,
-      minHeight: 44,
-      fontSize: 14,
-      borderRadius: 8,
-      backgroundColor: bg,
-      borderColor: state.isFocused ? "#465fff" : border,
-      boxShadow: state.isFocused ? focusRing : "none",
-      "&:hover": { borderColor: state.isFocused ? "#465fff" : border },
-    }),
-    menu: (base) => ({ ...base, backgroundColor: bg, zIndex: 10001 }),
-    menuPortal: (base) => ({ ...base, zIndex: 100020 }),
-    menuList: (base) => ({ ...base, padding: 4 }),
-    option: (base, state) => ({
-      ...base,
-      cursor: "pointer",
-      backgroundColor: state.isSelected
-        ? isDark
-          ? "#312e81"
-          : "#e0e7ff"
-        : state.isFocused
-          ? hoverBg
-          : "transparent",
-      color: text,
-    }),
-    singleValue: (base) => ({ ...base, color: text }),
-    input: (base) => ({ ...base, color: text }),
-    placeholder: (base) => ({ ...base, color: muted }),
-    indicatorSeparator: (base) => ({ ...base, backgroundColor: border }),
-    dropdownIndicator: (base) => ({ ...base, color: muted }),
-  };
-}
 
 function CountryOptionLabel({
   label,
@@ -98,6 +51,7 @@ export interface CountrySelectProps {
   onChange: (code: string) => void;
   isDisabled?: boolean;
   helpText?: React.ReactNode;
+  showLabel?: boolean;
 }
 
 export default function CountrySelect({
@@ -108,10 +62,14 @@ export default function CountrySelect({
   onChange,
   isDisabled = false,
   helpText,
+  showLabel = true,
 }: CountrySelectProps) {
   const { theme } = useTheme();
   const isDark = theme === "dark";
-  const styles = useMemo(() => buildStyles(isDark), [isDark]);
+  const styles = useMemo(
+    () => buildReactSelectStyles<CountrySelectOption>(isDark, "md"),
+    [isDark]
+  );
 
   const options: CountrySelectOption[] = useMemo(
     () =>
@@ -130,10 +88,12 @@ export default function CountrySelect({
 
   return (
     <div>
-      <Label htmlFor={id} required={required}>
-        {label}
-      </Label>
-      <div className="mt-1">
+      {showLabel ? (
+        <Label htmlFor={id} required={required}>
+          {label}
+        </Label>
+      ) : null}
+      <div className={showLabel ? "mt-1" : ""}>
         <Select<CountrySelectOption, false>
           inputId={id}
           instanceId={id}

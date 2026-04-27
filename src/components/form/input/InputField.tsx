@@ -1,5 +1,6 @@
 import type React from "react";
 import type { FC } from "react";
+import { CheckCircleIcon, ErrorIcon } from "../../../icons";
 
 interface InputProps {
   type?: "text" | "number" | "email" | "password" | "date" | "time" | string;
@@ -15,6 +16,7 @@ interface InputProps {
   step?: number;
   disabled?: boolean;
   readOnly?: boolean;
+  maxLength?: number;
   autoComplete?: string;
   success?: boolean;
   error?: boolean;
@@ -35,12 +37,19 @@ const Input: FC<InputProps> = ({
   step,
   disabled = false,
   readOnly = false,
+  maxLength,
   autoComplete,
   success = false,
   error = false,
   hint,
 }) => {
+  const hasStatusIcon = !disabled && (error || success);
+
   let inputClasses = ` h-11 w-full rounded-lg border appearance-none px-4 py-2.5 text-sm shadow-theme-xs placeholder:text-gray-400 focus:outline-hidden focus:ring-3  dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 ${className}`;
+
+  if (hasStatusIcon) {
+    inputClasses += " pr-10";
+  }
 
   if (disabled) {
     inputClasses += ` text-gray-500 border-gray-300 opacity-40 bg-gray-100 cursor-not-allowed dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700 opacity-40`;
@@ -53,23 +62,39 @@ const Input: FC<InputProps> = ({
   }
 
   return (
-    <div className="relative">
-      <input
-        type={type}
-        id={id}
-        name={name}
-        placeholder={placeholder}
-        value={value}
-        onChange={onChange}
-        onBlur={onBlur}
-        min={min}
-        max={max}
-        step={step}
-        disabled={disabled}
-        readOnly={readOnly}
-        autoComplete={autoComplete}
-        className={inputClasses}
-      />
+    <div>
+      <div className="relative">
+        <input
+          type={type}
+          id={id}
+          name={name}
+          placeholder={placeholder}
+          value={value}
+          onChange={onChange}
+          onBlur={onBlur}
+          min={min}
+          max={max}
+          step={step}
+          disabled={disabled}
+          readOnly={readOnly}
+          maxLength={maxLength}
+          autoComplete={autoComplete}
+          className={inputClasses}
+        />
+
+        {hasStatusIcon && (
+          <span
+            className="pointer-events-none absolute top-1/2 right-3.5 -translate-y-1/2"
+            aria-hidden
+          >
+            {error ? (
+              <ErrorIcon className="size-4 text-error-500 dark:text-error-400" />
+            ) : (
+              <CheckCircleIcon className="size-4 text-success-500 dark:text-success-400" />
+            )}
+          </span>
+        )}
+      </div>
 
       {hint && (
         <p

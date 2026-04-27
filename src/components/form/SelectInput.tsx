@@ -16,8 +16,10 @@ interface SelectInputProps {
   /** 오른쪽 input 값 */
   inputValue: string;
   onInputChange: (value: string) => void;
-  inputType?: "text" | "number";
-  inputMode?: "numeric" | "decimal" | "text";
+  inputType?: "text" | "number" | "tel";
+  inputMode?: "numeric" | "decimal" | "text" | "tel";
+  /** 기본 우측 정렬·tabular-nums(금액). 전화번호 등은 left */
+  inputTextAlign?: "left" | "right";
   inputPlaceholder?: string;
   selectPlaceholder?: string;
   id?: string;
@@ -26,6 +28,10 @@ interface SelectInputProps {
   size?: "sm" | "md";
   disabled?: boolean;
   className?: string;
+  /** 컨테이너 그림자 사용 여부 (기본 true) */
+  withShadow?: boolean;
+  /** select / input 사이 구분선 표시 */
+  showDivider?: boolean;
   /** 왼쪽 native select에 추가 클래스(테이블 좁은 열에서 `min-w-[3.5rem]` 등) */
   selectClassName?: string;
   /** input 포맷(숫자 천단위 등) - onInputChange에 이미 포맷된 문자열 전달 시 true */
@@ -55,10 +61,13 @@ export default function SelectInput({
   size = "md",
   disabled = false,
   className = "",
+  withShadow = true,
+  showDivider = false,
   selectClassName = "",
   formatNumber = false,
   maxFractionDigits = 2,
   fixedFractionDigits,
+  inputTextAlign = "right",
 }: SelectInputProps) {
   const selectedOption = selectOptions.find((o) => o.value === selectValue);
   const suffix = inputSuffix ?? selectedOption?.symbol ?? selectedOption?.label ?? "";
@@ -103,10 +112,14 @@ export default function SelectInput({
     : "";
 
   const inputPaddingRight = suffix ? "pr-10" : "";
+  const inputAlignClass =
+    inputTextAlign === "left"
+      ? "text-left "
+      : "text-right tabular-nums ";
 
   return (
     <div
-      className={`flex -space-x-px rounded-lg overflow-hidden shadow-sm ${className}`}
+      className={`flex ${showDivider ? "space-x-0" : "-space-x-px"} rounded-lg overflow-hidden ${withShadow ? "shadow-sm" : ""} ${className}`}
       role="group"
     >
       <label htmlFor={id ? `${id}-select` : undefined} className="sr-only">
@@ -137,17 +150,30 @@ export default function SelectInput({
           aria-hidden
         />
       </div>
+      {showDivider ? (
+        <span
+          className="pointer-events-none w-px self-stretch bg-gray-300 dark:bg-gray-700"
+          aria-hidden
+        />
+      ) : null}
       <div className="relative flex flex-1 min-w-0">
         <input
           id={id ? `${id}-input` : undefined}
           type={inputType === "number" ? "text" : inputType}
-          inputMode={inputMode ?? (inputType === "number" || formatNumber ? "decimal" : "text")}
+          inputMode={
+            inputMode ??
+            (inputType === "tel"
+              ? "tel"
+              : inputType === "number" || formatNumber
+                ? "decimal"
+                : "text")
+          }
           value={inputValue}
           onChange={handleInputChange}
           onBlur={handleInputBlur}
           placeholder={inputPlaceholder}
           disabled={disabled}
-          className={`w-full ${sizeStyles[size]} ${baseBorder} rounded-r-lg border-l-0 rounded-l-none text-right tabular-nums placeholder:text-gray-400 dark:placeholder:text-gray-500 ${inputPaddingRight} ${disabledClass}`}
+          className={`w-full ${sizeStyles[size]} ${baseBorder} rounded-r-lg border-l-0 rounded-l-none ${inputAlignClass} placeholder:text-gray-400 dark:placeholder:text-gray-500 ${inputPaddingRight} ${disabledClass}`}
           aria-label={inputPlaceholder ?? "값"}
         />
         {suffix && (
