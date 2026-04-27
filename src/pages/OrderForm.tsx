@@ -2,8 +2,8 @@ import {
   useState,
   useMemo,
   useEffect,
-  useCallback,
   startTransition,
+  useCallback,
   useRef,
 } from "react";
 import {
@@ -11,7 +11,7 @@ import {
   useMutation,
   useQueryClient,
 } from "@tanstack/react-query";
-import { Link, useParams, useNavigate } from "react-router";
+import { useParams, useNavigate } from "react-router";
 import toast from "react-hot-toast";
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
@@ -23,23 +23,18 @@ import TextArea from "../components/form/input/TextArea";
 import Label from "../components/form/Label";
 import DatePicker from "../components/form/date-picker";
 import SearchableSelectWithCreate from "../components/form/SearchableSelectWithCreate";
-import type { SearchableSelectOption } from "../components/form/SearchableSelectWithCreate";
-import PartnerQuickCreateModal from "../components/form/PartnerQuickCreateModal";
+import { renderPartnerOptionLabel } from "../components/form/PartnerOptionLabel";
+import FormActionBar from "../components/form/FormActionBar";
 import { useAuth } from "../hooks/useAuth";
-import { useCommonCodesByGroup } from "../hooks/useCommonCodesByGroup";
+import { useOrderCommonCodes } from "../hooks/useOrderCommonCodes";
+import { usePartnersQuery } from "../hooks/usePartnersQuery";
 import { getCurrencySymbol } from "../lib/formatCurrency";
 import {
   ORDER_LINE_VAT_RATE,
   type LineAmountSummary,
 } from "../lib/orderLineAmountSummary";
 import { itemFormStrings as S } from "./itemFormStrings";
-import {
-  COMMON_CODE_GROUP_PURCHASE_ORDER_TYPE,
-  COMMON_CODE_GROUP_PURCHASE_ORDER_STATUS,
-  COMMON_CODE_GROUP_COUNTRY,
-} from "../api/commonCode";
-import { partnerSelectLabel } from "../lib/partnerDisplay";
-import { partnerCountryFlagUrl } from "../lib/partnerCountryOptions";
+import { toPartnerSearchableSelectOptions } from "../lib/partnerSelectOptions";
 import {
   getProductList,
   representativeProductLabel,
@@ -53,7 +48,6 @@ import {
   getPurchaseOrder,
   getPurchaseOrderItems,
   getPurchaseOrderFiles,
-  getPartners,
   createPurchaseOrder,
   uploadPurchaseOrderFile,
   deletePurchaseOrderFile,
@@ -65,7 +59,6 @@ import {
   type PurchaseOrderUpdatePayload,
   type PurchaseOrderItemPayload,
   type PurchaseOrderLinePatchPayload,
-  type Partner,
   type PurchaseOrderFile,
   type PurchaseOrderItem,
 } from "../api/purchaseOrder";
@@ -76,9 +69,20 @@ import {
   buildCreatePayload,
   buildUpdatePayload,
 } from "../features/order-form/utils/payload";
+import { validateRequiredFields } from "../lib/formValidation";
+
+const PARTNER_TYPE_CUSTOMER = "CUSTOMER";
 
 function todayString() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function isOrderDateRangeValid(orderDate: string, dueDate: string): boolean {
+  const order = String(orderDate ?? "").trim();
+  const due = String(dueDate ?? "").trim();
+  if (!order || !due) return true;
+  // yyyy-mm-dd 형식은 문자열 비교로도 날짜 선후 비교가 가능합니다.
+  return order <= due;
 }
 
 function parsePositiveIntId(v: unknown): number | undefined {
@@ -144,7 +148,7 @@ function computeHeaderSupplyAmount(rows: ItemRow[], headerCurrency: string): num
  */
 const emptyItemRow = (): ItemRow => ({
   lineId: undefined,
-  productId: 0,
+  productId: "",
   unitCode: "",
   qty: 0,
   unitPrice: "",
@@ -212,7 +216,7 @@ export default function OrderForm() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const isNew = orderId == null || orderId === "new";
-  const id = isNew ? 0 : Number(orderId);
+  const id = isNew ? "" : String(orderId ?? "").trim();
   const { accessToken, user } = useAuth();
 
   const [title, setTitle] = useState("");
@@ -232,7 +236,6 @@ export default function OrderForm() {
   const [exchangeRateCurrencyCode, setExchangeRateCurrencyCode] =
     useState("KRW");
   const [exchangeRateInput, setExchangeRateInput] = useState("");
-  const [partnerCreateOpen, setPartnerCreateOpen] = useState(false);
   const [items, setItems] = useState<ItemRow[]>([emptyItemRow()]);
   const [editingLineIds, setEditingLineIds] = useState<number[]>([]);
   const [pendingFilesForCreate, setPendingFilesForCreate] = useState<File[]>([]);
@@ -245,6 +248,16 @@ export default function OrderForm() {
   >([]);
   const [lineDeleteConfirmIndex, setLineDeleteConfirmIndex] = useState<number | null>(null);
   const [fileDeleteConfirmId, setFileDeleteConfirmId] = useState<number | null>(null);
+  const uploadErrorMessage = (error: unknown) => {
+    const message = error instanceof Error ? error.message : "";
+    if (message.includes("401") || message.toLowerCase().includes("unauthorized")) {
+      return "로그인이 만료되었습니다. 다시 로그인해 주세요.";
+    }
+    if (message.includes("파일을 1개 이상 선택해 주세요")) {
+      return "업로드할 파일을 먼저 선택해 주세요.";
+    }
+    return message || "첨부파일 업로드에 실패했습니다.";
+  };
   const recentlySavedLineTimersRef = useRef<
     Record<number, ReturnType<typeof setTimeout>>
   >({});
@@ -255,13 +268,13 @@ export default function OrderForm() {
   const { data: order, isLoading: orderLoading } = useQuery({
     queryKey: ["purchaseOrder", id],
     queryFn: () => getPurchaseOrder(id, accessToken!),
-    enabled: !isNew && !!accessToken && Number.isFinite(id),
+    enabled: !isNew && !!accessToken && id !== "",
   });
 
   const shouldFetchOrderLineItems =
     !isNew &&
     !!accessToken &&
-    Number.isFinite(id) &&
+    id !== "" &&
     !!order &&
     ((order.orderItems?.length ?? 0) === 0 &&
       (order.items?.length ?? 0) === 0);
@@ -328,24 +341,26 @@ export default function OrderForm() {
   const { data: files = [] } = useQuery({
     queryKey: ["purchaseOrderFiles", id],
     queryFn: () => getPurchaseOrderFiles(id, accessToken!),
-    enabled: !isNew && !!accessToken && Number.isFinite(id),
+    enabled: !isNew && !!accessToken && id !== "",
   });
 
   /**
    * 
    * @returns 거래처 리스트
    */
-  const { data: partners = [] } = useQuery({
-    queryKey: ["partners"],
-    queryFn: () => getPartners(accessToken!),
+  const { data: partners = [] } = usePartnersQuery(accessToken, {
+    type: PARTNER_TYPE_CUSTOMER,
+  }, {
     enabled: !!accessToken,
   });
 
-  const { data: countryCodes = [] } = useCommonCodesByGroup(
-    COMMON_CODE_GROUP_COUNTRY,
-    accessToken,
-    { enabled: !!accessToken }
-  );
+  const {
+    countryCodes,
+    currencyCodes,
+    unitCodes,
+    purchaseOrderTypeCodes,
+    purchaseOrderStatusCodes,
+  } = useOrderCommonCodes(accessToken, !!accessToken);
 
   /**
    * 
@@ -365,7 +380,7 @@ export default function OrderForm() {
 
   const firstLineTitleLabel = useMemo(() => {
     const firstRow = items[0];
-    if (!firstRow || firstRow.productId <= 0) return "제품 미선택";
+    if (!firstRow || !firstRow.productId.trim()) return "제품 미선택";
     const product = productList.find((p) => p.id === firstRow.productId);
     if (!product) return "제품 미선택";
     return representativeProductLabel(product);
@@ -381,28 +396,6 @@ export default function OrderForm() {
     const dateLabel = orderDate || todayString();
     return `${dateLabel} - ${firstLineTitleLabel} - ${firstLineQtyLabel}`;
   }, [orderDate, firstLineTitleLabel, firstLineQtyLabel]);
-
-  const { data: currencyCodes = [] } = useCommonCodesByGroup(
-    "CURRENCY",
-    accessToken,
-    { enabled: !!accessToken }
-  );
-
-  const { data: unitCodes = [] } = useCommonCodesByGroup("UNIT", accessToken, {
-    enabled: !!accessToken,
-  });
-
-  const { data: purchaseOrderTypeCodes = [] } = useCommonCodesByGroup(
-    COMMON_CODE_GROUP_PURCHASE_ORDER_TYPE,
-    accessToken,
-    { enabled: !!accessToken }
-  );
-
-  const { data: purchaseOrderStatusCodes = [] } = useCommonCodesByGroup(
-    COMMON_CODE_GROUP_PURCHASE_ORDER_STATUS,
-    accessToken,
-    { enabled: !!accessToken }
-  );
 
   const {
     data: employeeDirectory = [],
@@ -540,34 +533,8 @@ export default function OrderForm() {
   }, [isNew, requesterUserSelectValue, employeeDirectory, user?.employeeNo]);
 
   const partnerSelectOptions = useMemo(() => {
-    return (partners as Partner[]).map((p) => ({
-      value: String(p.id),
-      label: partnerSelectLabel(p, countryCodes),
-      countryCode: String(p.countryCode ?? "").trim().toUpperCase(),
-    }));
+    return toPartnerSearchableSelectOptions(partners, countryCodes);
   }, [partners, countryCodes]);
-
-  const renderPartnerOptionLabel = useCallback(
-    (option: SearchableSelectOption) => {
-      const flagUrl = option.countryCode
-        ? partnerCountryFlagUrl(option.countryCode)
-        : undefined;
-      return (
-        <div className="flex items-center gap-2">
-          {flagUrl ? (
-            <img
-              src={flagUrl}
-              alt=""
-              className="h-5 w-[1.375rem] shrink-0 rounded-sm object-cover"
-              decoding="async"
-            />
-          ) : null}
-          <span>{option.label}</span>
-        </div>
-      );
-    },
-    []
-  );
 
   /**
    * 
@@ -626,16 +593,18 @@ export default function OrderForm() {
    */
   useEffect(() => {
     if (!isNew || !firstUnitValue) return;
-    setItems((prev) => {
-      let changed = false;
-      const next = prev.map((row) => {
-        if (row.unitCode === "") {
-          changed = true;
-          return { ...row, unitCode: firstUnitValue };
-        }
-        return row;
+    queueMicrotask(() => {
+      setItems((prev) => {
+        let changed = false;
+        const next = prev.map((row) => {
+          if (row.unitCode === "") {
+            changed = true;
+            return { ...row, unitCode: firstUnitValue };
+          }
+          return row;
+        });
+        return changed ? next : prev;
       });
-      return changed ? next : prev;
     });
   }, [isNew, firstUnitValue]);
 
@@ -649,15 +618,20 @@ export default function OrderForm() {
     onSuccess: async (data) => {
       queryClient.invalidateQueries({ queryKey: ["purchaseOrders"] });
       if (pendingFilesForCreate.length > 0) {
-        const uploadResults = await Promise.allSettled(
-          pendingFilesForCreate.map((file) =>
-            uploadPurchaseOrderFile(data.id, file, accessToken!)
-          )
-        );
-        const uploadedCount = uploadResults.filter(
-          (result) => result.status === "fulfilled"
-        ).length;
-        const failedCount = uploadResults.length - uploadedCount;
+        let uploadedCount = 0;
+        let failedCount = 0;
+        try {
+          const uploaded = await uploadPurchaseOrderFile(
+            data.id,
+            pendingFilesForCreate,
+            accessToken!
+          );
+          uploadedCount = uploaded.length;
+          failedCount = Math.max(pendingFilesForCreate.length - uploadedCount, 0);
+        } catch (error) {
+          failedCount = pendingFilesForCreate.length;
+          toast.error(uploadErrorMessage(error));
+        }
         if (uploadedCount > 0) {
           toast.success(
             `발주가 등록되었고 첨부파일 ${uploadedCount}건이 업로드되었습니다.`
@@ -754,12 +728,12 @@ export default function OrderForm() {
   });
 
   const fileUploadMutation = useMutation({
-    mutationFn: (file: File) => uploadPurchaseOrderFile(id, file, accessToken!),
+    mutationFn: (files: File[]) => uploadPurchaseOrderFile(id, files, accessToken!),
     onSuccess: () => {
       toast.success("파일이 업로드되었습니다.");
       queryClient.invalidateQueries({ queryKey: ["purchaseOrderFiles", id] });
     },
-    onError: (e: Error) => toast.error(e.message || "업로드에 실패했습니다."),
+    onError: (e: Error) => toast.error(uploadErrorMessage(e)),
   });
 
   const fileDeleteMutation = useMutation({
@@ -807,7 +781,7 @@ export default function OrderForm() {
     return items.some(
       (row) =>
         !row.lineId &&
-        (row.productId > 0 ||
+        (row.productId.trim() !== "" ||
           row.qty > 0 ||
           row.unitPrice.trim() !== "" ||
           row.remark.trim() !== "")
@@ -831,9 +805,10 @@ export default function OrderForm() {
     );
   };
 
-  const addPendingFileForCreate = (file: File) => {
-    setPendingFilesForCreate((prev) => [...prev, file]);
-    toast.success(`첨부 대기 목록에 추가되었습니다: ${file.name}`);
+  const addPendingFileForCreate = (files: File[]) => {
+    if (files.length === 0) return;
+    setPendingFilesForCreate((prev) => [...prev, ...files]);
+    toast.success(`첨부 대기 목록에 ${files.length}건 추가되었습니다.`);
   };
 
   const removePendingFileForCreate = (targetIndex: number) => {
@@ -853,7 +828,7 @@ export default function OrderForm() {
     });
   };
 
-  const setLineProductId = (index: number, productId: number) => {
+  const setLineProductId = (index: number, productId: string) => {
     setItems((prev) => {
       const next = [...prev];
       const row = next[index];
@@ -886,7 +861,7 @@ export default function OrderForm() {
     }
     const row = items[index];
     if (!row) return;
-    if (row.productId <= 0) {
+    if (!row.productId.trim()) {
       toast.error("대표 제품을 선택하세요.");
       return;
     }
@@ -957,7 +932,7 @@ export default function OrderForm() {
     if (!row) return;
     const isBlankDraftRow =
       !row.lineId &&
-      row.productId <= 0 &&
+      row.productId.trim() === "" &&
       row.qty <= 0 &&
       row.unitPrice.trim() === "" &&
       row.remark.trim() === "";
@@ -1017,27 +992,29 @@ export default function OrderForm() {
       toast.error("작업중인 행이 있습니다. 행 저장 후 다시 시도하세요.");
       return;
     }
-    if (!title.trim()) {
-      toast.error("제목을 입력하세요.");
+    if (
+      !validateRequiredFields(
+        [
+          { value: title, message: "제목을 입력하세요." },
+          { value: partnerId, message: "업체를 선택하세요." },
+          { value: dueDate, message: "고객요청납기일을 입력하세요." },
+          { value: requesterUserSelectValue, message: "영업담당자를 선택하세요." },
+        ],
+        toast.error
+      )
+    ) {
       return;
     }
-    if (!partnerId || Number(partnerId) <= 0) {
-      toast.error("업체를 선택하세요.");
-      return;
-    }
-    if (!dueDate.trim()) {
-      toast.error("고객요청납기일을 입력하세요.");
-      return;
-    }
-    if (!requesterUserSelectValue.trim()) {
-      toast.error("영업담당자를 선택하세요.");
+
+    if (!isOrderDateRangeValid(orderDate, dueDate)) {
+      toast.error("고객요청납기일은 발주일자보다 빠를 수 없고, 발주일자는 고객요청납기일보다 클 수 없습니다.");
       return;
     }
 
     if (isNew) {
       const validItems = items.filter(
         (row) =>
-          row.productId > 0 &&
+          row.productId.trim() !== "" &&
           row.unitCode.trim() !== "" &&
           row.qty > 0 &&
           parseLineUnitPrice(row.unitPrice) >= 0
@@ -1128,12 +1105,12 @@ export default function OrderForm() {
    * 
    * @returns 발주 라인 아이템
    */
-  const resolvedOrderLineItems = useMemo((): PurchaseOrderItem[] => {
+  const resolvedOrderLineItems = (() => {
     if (isNew || !order) return [];
     const embedded = order.orderItems ?? order.items;
     if (embedded && embedded.length > 0) return embedded;
     return orderLineItemsFetched;
-  }, [isNew, order, orderLineItemsFetched]);
+  })() as PurchaseOrderItem[];
 
   useEffect(() => {
     if (isNew) return;
@@ -1144,7 +1121,7 @@ export default function OrderForm() {
         ? [{ ...emptyItemRow(), unitCode: firstUnitValue }]
         : lines.map((line) => ({
             lineId: Number(line.id ?? 0) || undefined,
-            productId: line.productId ?? 0,
+            productId: line.productId ?? "",
             unitCode: String(line.unit ?? firstUnitValue ?? "").trim(),
             qty: Number(line.qty ?? 0),
             unitPrice: formatLineUnitPriceDisplay(line.unitPrice),
@@ -1314,11 +1291,9 @@ export default function OrderForm() {
                   options={partnerSelectOptions}
                   formatOptionLabel={renderPartnerOptionLabel}
                   placeholder="검색하여 업체 선택"
-                  addTrigger="popover"
-                  popoverDescription="목록에 없는 업체는 정보 아이콘을 눌러 빠르게 등록할 수 있습니다. 등록 후 자동으로 선택됩니다."
-                  popoverAriaLabel="업체 빠른 등록 안내"
-                  addButtonLabel="업체 등록"
-                  onAddClick={() => setPartnerCreateOpen(true)}
+                  addTrigger="none"
+                  addButtonLabel=""
+                  onAddClick={() => {}}
                 />
               </div>
 
@@ -1403,18 +1378,24 @@ export default function OrderForm() {
                 uploadingExistingFileNames={uploadingExistingFileNames}
                 recentlyUploadedFileNames={recentlyUploadedFileNames}
                 onError={(message) => toast.error(message)}
-                onSelectCreateFile={addPendingFileForCreate}
+                onSelectCreateFiles={addPendingFileForCreate}
                 onRemoveCreateFile={removePendingFileForCreate}
-                onUploadExistingFile={(file) => {
-                  setUploadingExistingFileNames((prev) =>
-                    prev.includes(file.name) ? prev : [...prev, file.name]
-                  );
-                  fileUploadMutation.mutate(file, {
-                    onSuccess: () => markFileUploadCompleted(file.name),
-                    onSettled: () =>
-                      setUploadingExistingFileNames((prev) =>
-                        prev.filter((name) => name !== file.name)
-                      ),
+                onUploadExistingFiles={(incomingFiles) => {
+                  if (incomingFiles.length === 0) return;
+                  const names = incomingFiles.map((file) => file.name);
+                  setUploadingExistingFileNames((prev) => [
+                    ...prev,
+                    ...names.filter((name) => !prev.includes(name)),
+                  ]);
+                  fileUploadMutation.mutate(incomingFiles, {
+                    onSuccess: () => {
+                      names.forEach((name) => markFileUploadCompleted(name));
+                    },
+                    onSettled: () => {
+                    setUploadingExistingFileNames((prev) =>
+                      prev.filter((name) => !names.includes(name))
+                    );
+                    },
                   });
                 }}
                 onDeleteExistingFile={(fileId) => setFileDeleteConfirmId(fileId)}
@@ -1450,41 +1431,19 @@ export default function OrderForm() {
           onRemoveLine={removeLine}
         />
 
-        <div className="flex flex-wrap items-center gap-3 border-t border-gray-100 pt-4 dark:border-white/5">
-          <button
-            type="submit"
-            disabled={isPending}
-            className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white hover:bg-brand-600 disabled:opacity-50"
-          >
-            {isPending
-              ? "저장 중..."
-              : isNew
-                ? "등록"
-                : "수정"}
-          </button>
-          <Link
-            to={isNew ? "/order" : `/order/${id}`}
-            className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300"
-          >
-            취소
-          </Link>
+        <FormActionBar
+          submitLabel={isNew ? "등록" : "수정"}
+          pendingSubmitLabel="저장 중..."
+          isPending={isPending}
+          cancelTo={isNew ? "/order" : `/order/${id}`}
+        >
           {isNew ? (
             <span className="text-theme-sm text-gray-500 dark:text-gray-400">
               발주번호·ID는 등록 완료 시 자동 부여됩니다.
             </span>
           ) : null}
-        </div>
+        </FormActionBar>
       </form>
-
-      {/* /**
-       * 
-       * @returns 업체 빠른 등록 모달
-       */}
-      <PartnerQuickCreateModal
-        isOpen={partnerCreateOpen}
-        onClose={() => setPartnerCreateOpen(false)}
-        onCreated={(p) => setPartnerId(String(p.id))}
-      />
 
       <ConfirmModal
         isOpen={lineDeleteConfirmIndex != null}

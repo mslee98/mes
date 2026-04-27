@@ -49,7 +49,7 @@ export function buildCreatePayload({
 }: BuildCreatePayloadParams): PurchaseOrderCreatePayload {
   return {
     title: title.trim(),
-    partnerId: Number(partnerId),
+    partnerId: partnerId.trim(),
     orderDate,
     currencyCode: headerCurrency,
     dueDate: dueDate || null,
@@ -68,7 +68,7 @@ export function buildCreatePayload({
     exchangeRateDate: orderDate || null,
     items: validItems.map(
       (row): PurchaseOrderItemPayload => ({
-        productId: row.productId,
+        productId: row.productId.trim(),
         qty: row.qty,
         unitPrice: parseLineUnitPrice(row.unitPrice),
         unit: row.unitCode.trim() || null,
@@ -118,7 +118,7 @@ export function buildUpdatePayload({
 }: BuildUpdatePayloadParams): PurchaseOrderUpdatePayload {
   return {
     title: title.trim(),
-    partnerId: partnerId ? Number(partnerId) : undefined,
+    partnerId: partnerId ? partnerId.trim() : undefined,
     orderDate,
     currencyCode: headerCurrency,
     dueDate: dueDate || null,

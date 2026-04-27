@@ -1,6 +1,6 @@
 export type ItemRow = {
   lineId?: number;
-  productId: number;
+  productId: string;
   unitCode: string;
   qty: number;
   unitPrice: string;

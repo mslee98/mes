@@ -59,6 +59,7 @@ import DatePicker from "../components/form/date-picker";
 import SearchableSelectWithCreate from "../components/form/SearchableSelectWithCreate";
 import { formatCurrency } from "../lib/formatCurrency";
 import { lineItemsToAmountSummaries } from "../lib/orderLineAmountSummary";
+import { fileTypeIconSrc } from "../lib/fileTypeIcon";
 import ApprovalDetailContent, {
   type ApprovalDocumentMock,
 } from "../components/approval/ApprovalDetailContent";
@@ -72,7 +73,7 @@ import {
   approvalCurrentStepSummary,
   approvalRequestStatusLabel,
 } from "../components/approval/approvalRequestDisplayUtils";
-import { ReactComponent as ArrowDownOnSquareIcon } from "../icons/arrow-down-on-square.svg?react";
+import { ReactComponent as ArrowDownTrayIcon } from "../icons/arrow-down-tray.svg?react";
 import {
   newApprovalDraftRowId,
   buildApprovalLinesFromDraft,
@@ -147,6 +148,13 @@ function formatDate(s: string | null | undefined): string {
   return s ?? "-";
 }
 
+function formatAttachmentDateTime(iso?: string): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString("ko-KR");
+}
+
 function buildFileDownloadUrl(filePath: string): string {
   const raw = String(filePath ?? "").trim();
   if (!raw) return "#";
@@ -181,7 +189,7 @@ async function forceDownloadFile(
 
 export default function OrderDetail() {
   const { orderId } = useParams();
-  const id = Number(orderId);
+  const id = String(orderId ?? "").trim();
   const queryClient = useQueryClient();
   const { user: authUser, accessToken, isLoading: isAuthLoading } = useAuth();
 
@@ -221,24 +229,24 @@ export default function OrderDetail() {
   const [approvalSubmitTitle, setApprovalSubmitTitle] = useState("발주 결재 요청");
   const [approvalSubmitRemark, setApprovalSubmitRemark] = useState("");
   const [rejectConfirmOpen, setRejectConfirmOpen] = useState(false);
-  const approvalDraftSeededForOrderRef = useRef<number | null>(null);
+  const approvalDraftSeededForOrderRef = useRef<string | null>(null);
 
   const { data: order, isLoading: orderLoading, error: orderError } = useQuery({
     queryKey: ["purchaseOrder", id],
     queryFn: () => getPurchaseOrder(id, accessToken!),
-    enabled: !!accessToken && !isAuthLoading && Number.isFinite(id),
+    enabled: !!accessToken && !isAuthLoading && id !== "",
   });
 
   const { data: files = [] } = useQuery({
     queryKey: ["purchaseOrderFiles", id],
     queryFn: () => getPurchaseOrderFiles(id, accessToken!),
-    enabled: !!accessToken && Number.isFinite(id),
+    enabled: !!accessToken && id !== "",
   });
 
   const { data: deliveries = [] } = useQuery({
     queryKey: ["purchaseOrderDeliveries", id],
     queryFn: () => getDeliveries(id, accessToken!),
-    enabled: !!accessToken && Number.isFinite(id),
+    enabled: !!accessToken && id !== "",
   });
 
   const deliveredByOrderItemId = useMemo(
@@ -1137,13 +1145,19 @@ export default function OrderDetail() {
                     ) : (
                       <ul className="space-y-2">
                         {(files as PurchaseOrderFile[]).map((f) => (
-                          <li key={f.id} className="flex items-center justify-between gap-3">
+                          <li key={f.id} className="flex items-center gap-2">
+                            <img
+                              src={fileTypeIconSrc(String(f.fileName ?? ""))}
+                              alt=""
+                              className="h-5 w-5 shrink-0"
+                              decoding="async"
+                            />
                             <span className="min-w-0 truncate text-gray-900 dark:text-gray-100">
                               {f.fileName}
                             </span>
-                            <div className="flex shrink-0 items-center gap-3">
+                            <div className="flex shrink-0 items-center gap-2">
                               <span className="text-theme-xs text-gray-500">
-                                {f.uploadedAt ?? ""}
+                                {formatAttachmentDateTime(f.uploadedAt ?? f.createdAt ?? "")}
                               </span>
                               <button
                                 type="button"
@@ -1166,7 +1180,7 @@ export default function OrderDetail() {
                                 aria-label="첨부파일 다운로드"
                                 className="inline-flex size-8 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-brand-50 hover:text-brand-600 dark:hover:bg-brand-500/10 dark:hover:text-brand-400"
                               >
-                                <ArrowDownOnSquareIcon className="size-4" aria-hidden />
+                                <ArrowDownTrayIcon className="size-4" aria-hidden />
                               </button>
                             </div>
                           </li>
@@ -1626,7 +1640,7 @@ export default function OrderDetail() {
                         line.itemName?.trim() ||
                         line.productNameSnapshot?.trim() ||
                         line.definitionNameSnapshot?.trim() ||
-                        (line.productId != null && line.productId > 0
+                        (line.productId != null && String(line.productId).trim() !== ""
                           ? `제품 #${line.productId}`
                           : `라인 #${line.id}`);
                       return (

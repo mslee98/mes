@@ -1,9 +1,12 @@
 /**
- * POST /api/auth/refresh — single-flight + 액세스 토큰 저장소 갱신.
- * @see 백엔드: credentials: 'include', 본문 없음, refresh_token HttpOnly 쿠키
+ * 액세스 토큰 갱신 single-flight 유틸.
+ * - Keycloak 모드: keycloak.updateToken() 사용
+ * - 레거시 모드: POST /api/auth/refresh 사용
  */
 import { refresh as apiRefresh, type RefreshResponse } from "../api/auth";
+import { isKeycloakAuthEnabled } from "../config/keycloakEnv";
 import { setAuthAccessToken } from "./authAccessStore";
+import { getOrCreateKeycloakClient } from "./keycloakClient";
 
 export type RefreshedUser = {
   employeeNo: number;
@@ -22,20 +25,38 @@ export function onRefreshUserPayload(cb: UserListener): () => void {
 
 let inFlight: Promise<string> | null = null;
 
+async function refreshAccessTokenByKeycloak(): Promise<string> {
+  const keycloak = getOrCreateKeycloakClient();
+  await keycloak.updateToken(30);
+  const token = keycloak.token;
+  if (!token || typeof token !== "string") {
+    throw new Error("Keycloak 세션 갱신 응답이 올바르지 않습니다.");
+  }
+  setAuthAccessToken(token);
+  return token;
+}
+
+async function refreshAccessTokenByLegacyApi(): Promise<string> {
+  const res = (await apiRefresh()) as RefreshResponse;
+  const token = res.access_token ?? res.accessToken;
+  if (!token || typeof token !== "string") {
+    throw new Error("세션 갱신 응답이 올바르지 않습니다.");
+  }
+  setAuthAccessToken(token);
+  const u = res.user as RefreshedUser | undefined;
+  if (u && u.employeeNo != null) {
+    userListeners.forEach((fn) => fn(u));
+  }
+  return token;
+}
+
 export function refreshAccessTokenSingle(): Promise<string> {
   if (!inFlight) {
     inFlight = (async () => {
-      const res = (await apiRefresh()) as RefreshResponse;
-      const token = res.access_token ?? res.accessToken;
-      if (!token || typeof token !== "string") {
-        throw new Error("세션 갱신 응답이 올바르지 않습니다.");
+      if (isKeycloakAuthEnabled()) {
+        return refreshAccessTokenByKeycloak();
       }
-      setAuthAccessToken(token);
-      const u = res.user as RefreshedUser | undefined;
-      if (u && u.employeeNo != null) {
-        userListeners.forEach((fn) => fn(u));
-      }
-      return token;
+      return refreshAccessTokenByLegacyApi();
     })().finally(() => {
       inFlight = null;
     });

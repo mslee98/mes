@@ -86,7 +86,7 @@ export default function Order() {
   /** 서버는 `?status=` 만 지원. `approvalStatus`는 아래 클라이언트 필터에서만 사용 */
   const listParams = useMemo(
     () => ({
-      partnerId: partnerId ? Number(partnerId) : undefined,
+      partnerId: partnerId || undefined,
       status: orderStatus || undefined,
     }),
     [partnerId, orderStatus]

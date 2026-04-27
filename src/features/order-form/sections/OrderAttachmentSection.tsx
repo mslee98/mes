@@ -1,6 +1,7 @@
 import FileUploadDropzone from "../../../components/form/FileUploadDropzone";
 import { TrashBinIcon } from "../../../icons";
 import type { PurchaseOrderFile } from "../../../api/purchaseOrder";
+import { fileTypeIconSrc } from "../../../lib/fileTypeIcon";
 
 type Props = {
   isNew: boolean;
@@ -12,9 +13,9 @@ type Props = {
   uploadingExistingFileNames: string[];
   recentlyUploadedFileNames: string[];
   onError: (message: string) => void;
-  onSelectCreateFile: (file: File) => void;
+  onSelectCreateFiles: (files: File[]) => void;
   onRemoveCreateFile: (index: number) => void;
-  onUploadExistingFile: (file: File) => void;
+  onUploadExistingFiles: (files: File[]) => void;
   onDeleteExistingFile: (fileId: number) => void;
 };
 
@@ -28,9 +29,9 @@ export default function OrderAttachmentSection({
   uploadingExistingFileNames,
   recentlyUploadedFileNames,
   onError,
-  onSelectCreateFile,
+  onSelectCreateFiles,
   onRemoveCreateFile,
-  onUploadExistingFile,
+  onUploadExistingFiles,
   onDeleteExistingFile,
 }: Props) {
   return (
@@ -38,10 +39,12 @@ export default function OrderAttachmentSection({
       {isNew ? (
         <>
           <FileUploadDropzone
-            onSelectFile={onSelectCreateFile}
+            onSelectFiles={onSelectCreateFiles}
             onError={onError}
             disabled={isPending}
             maxFileSizeMb={30}
+            maxFiles={10}
+            multiple
             buttonLabel="파일 선택"
             uploadGuideText="파일을 먼저 선택하면 등록 시 자동으로 함께 업로드됩니다."
           />
@@ -52,18 +55,28 @@ export default function OrderAttachmentSection({
               pendingFilesForCreate.map((file, index) => (
                 <li
                   key={`${file.name}-${file.size}-${index}`}
-                  className="flex items-center justify-between py-2"
+                  className="flex items-center py-2"
                 >
-                  <span className="truncate pr-3 text-gray-800 dark:text-gray-200">
-                    {file.name}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => onRemoveCreateFile(index)}
-                    className="rounded-lg border border-gray-300 px-2 py-1 text-theme-xs text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
-                  >
-                    제거
-                  </button>
+                  <div className="flex min-w-0 items-center gap-1.5">
+                    <img
+                      src={fileTypeIconSrc(file.name)}
+                      alt=""
+                      className="h-5 w-5 shrink-0"
+                      decoding="async"
+                    />
+                    <span className="truncate text-gray-800 dark:text-gray-200">
+                      {file.name}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => onRemoveCreateFile(index)}
+                      title="첨부파일 제거"
+                      aria-label="첨부파일 제거"
+                      className="inline-flex size-6 shrink-0 items-center justify-center rounded-md text-error-600 transition-colors hover:bg-error-50 dark:text-error-400 dark:hover:bg-error-500/15"
+                    >
+                      <TrashBinIcon className="h-3.5 w-3.5" aria-hidden />
+                    </button>
+                  </div>
                 </li>
               ))
             )}
@@ -72,10 +85,12 @@ export default function OrderAttachmentSection({
       ) : (
         <>
           <FileUploadDropzone
-            onSelectFile={onUploadExistingFile}
+            onSelectFiles={onUploadExistingFiles}
             onError={onError}
             disabled={isFileUploadPending}
             maxFileSizeMb={30}
+            maxFiles={10}
+            multiple
             buttonLabel="파일 선택"
             uploadGuideText="아래 버튼을 눌러 파일을 업로드하세요."
           />
@@ -99,30 +114,36 @@ export default function OrderAttachmentSection({
               <li className="py-2 text-gray-500">첨부파일이 없습니다.</li>
             ) : (
               files.map((f) => (
-                <li key={f.id} className="flex items-center justify-between py-2">
+                <li key={f.id} className="flex items-center py-2">
                   <div className="flex min-w-0 items-center gap-2">
+                    <img
+                      src={fileTypeIconSrc(String(f.fileName ?? ""))}
+                      alt=""
+                      className="h-5 w-5 shrink-0"
+                      decoding="async"
+                    />
                     <span className="truncate text-gray-800 dark:text-gray-200">
                       {f.fileName ?? "-"}
                     </span>
-                    {f.fileName &&
-                    recentlyUploadedFileNames.includes(f.fileName) ? (
-                      <span className="shrink-0 rounded-md bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300">
-                        업로드 완료
-                      </span>
-                    ) : null}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-gray-500">{f.uploadedAt ?? f.createdAt ?? ""}</span>
                     <button
                       type="button"
                       onClick={() => onDeleteExistingFile(f.id)}
                       disabled={isFileDeletePending}
                       title="첨부파일 삭제"
                       aria-label="첨부파일 삭제"
-                      className="inline-flex size-8 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 disabled:pointer-events-none disabled:opacity-40 dark:hover:bg-red-500/10 dark:hover:text-red-400"
+                      className="inline-flex size-6 shrink-0 items-center justify-center rounded-md text-error-600 transition-colors hover:bg-error-50 disabled:pointer-events-none disabled:opacity-40 dark:text-error-400 dark:hover:bg-error-500/15"
                     >
-                      <TrashBinIcon className="size-4" aria-hidden />
+                      <TrashBinIcon className="h-3.5 w-3.5" aria-hidden />
                     </button>
+                    {f.fileName &&
+                    recentlyUploadedFileNames.includes(f.fileName) ? (
+                      <span className="shrink-0 rounded-md bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300">
+                        업로드 완료
+                      </span>
+                    ) : null}
+                    <span className="shrink-0 text-gray-500">
+                      {f.uploadedAt ?? f.createdAt ?? ""}
+                    </span>
                   </div>
                 </li>
               ))

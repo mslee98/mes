@@ -35,7 +35,7 @@ type Props = {
   isLineDeletePending: boolean;
   recentlySavedLineIds: number[];
   onAddItemRow: () => void;
-  onSetLineProductId: (index: number, value: number) => void;
+  onSetLineProductId: (index: number, value: string) => void;
   onUpdateItemRow: (
     index: number,
     key: keyof ItemRow,
@@ -156,8 +156,8 @@ export default function OrderLineEditorSection({
                       <div className="flex w-full min-w-0 justify-center">
                         <SearchableSelectWithCreate
                           id={`order-product-${index}`}
-                          value={row.productId ? String(row.productId) : ""}
-                          onChange={(v) => onSetLineProductId(index, Number(v) || 0)}
+                          value={row.productId}
+                          onChange={(v) => onSetLineProductId(index, v)}
                           options={productSelectOptions}
                           placeholder="제품"
                           addTrigger="none"

@@ -107,7 +107,7 @@ export function ApprovalRequestDetailBody({
   omitCompactSummary = false,
 }: {
   request: ApprovalRequestDetail;
-  orderId: number;
+  orderId: string;
   orderNo: string;
   compact?: boolean;
   /** true면 상단 요약 줄을 렌더하지 않음 — 부모(승인 모달 헤더)에서 고정 표시할 때 */
@@ -120,7 +120,7 @@ export function ApprovalRequestDetailBody({
     (pendingLine?.approverUserId != null ? "결재자 확인 필요" : "—");
   const elapsedLabel = elapsedSinceLabel(request.requestedAt ?? request.submittedAt ?? null);
   const targetOk =
-    request.targetId == null || request.targetId === orderId;
+    request.targetId == null || String(request.targetId) === orderId;
 
   return (
     <>
@@ -328,7 +328,7 @@ export default function CurrentApprovalRequestSection({
   orderNo,
 }: {
   request: ApprovalRequestDetail;
-  orderId: number;
+  orderId: string;
   orderNo: string;
 }) {
   return (

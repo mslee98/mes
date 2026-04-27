@@ -97,12 +97,11 @@ export default function Delivery() {
 
   const listParams = useMemo(() => {
     const oid = orderIdFilter.trim();
-    const orderIdParsed = oid ? Number(oid) : NaN;
     return {
       page,
       pageSize,
-      partnerId: partnerId ? Number(partnerId) : undefined,
-      orderId: Number.isFinite(orderIdParsed) ? orderIdParsed : undefined,
+      partnerId: partnerId || undefined,
+      orderId: oid || undefined,
       status: deliveryStatus || undefined,
     };
   }, [page, pageSize, partnerId, orderIdFilter, deliveryStatus]);
@@ -233,7 +232,7 @@ export default function Delivery() {
                   placeholder="전체"
                   value={orderIdFilter}
                   onChange={(e) => {
-                    setOrderIdFilter(e.target.value.replace(/[^\d]/g, ""));
+                    setOrderIdFilter(e.target.value);
                     setPage(1);
                   }}
                   className="h-9"

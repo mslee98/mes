@@ -91,7 +91,7 @@ export function OrderDetailLinesCard({
                         {item.itemName?.trim() ||
                           item.productNameSnapshot?.trim() ||
                           item.definitionNameSnapshot?.trim() ||
-                          (item.productId != null && item.productId > 0
+                          (item.productId != null && String(item.productId).trim() !== ""
                             ? `제품 #${item.productId}`
                             : "-")}
                       </TableCell>

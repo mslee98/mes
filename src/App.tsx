@@ -20,6 +20,12 @@ import CommonCode from "./pages/CommonCode";
 import Products from "./pages/Products";
 import ProductForm from "./pages/ProductForm";
 import ProductDetail from "./pages/ProductDetail";
+import Lenses from "./pages/Lenses";
+import LensForm from "./pages/LensForm";
+import LensDetail from "./pages/LensDetail";
+import Partners from "./pages/Partners";
+import PartnerForm from "./pages/PartnerForm";
+import PartnerDetail from "./pages/PartnerDetail";
 import Rma from "./pages/Rma";
 import ApiFeedbackProvider from "./context/ApiFeedbackContext";
 import { useAuth } from "./hooks/useAuth";
@@ -97,8 +103,17 @@ function App() {
                 path="products/:productId/edit"
                 element={<ProductForm />}
               />
+              <Route path="products/new" element={<ProductForm />} />
               <Route path="products/:productId" element={<ProductDetail />} />
               <Route path="products" element={<Products />} />
+              <Route path="lenses/:lensId/edit" element={<LensForm />} />
+              <Route path="lenses/new" element={<LensForm />} />
+              <Route path="lenses/:lensId" element={<LensDetail />} />
+              <Route path="lenses" element={<Lenses />} />
+              <Route path="partners" element={<Partners />} />
+              <Route path="partners/new" element={<PartnerForm />} />
+              <Route path="partners/:partnerId" element={<PartnerDetail />} />
+              <Route path="partners/:partnerId/edit" element={<PartnerForm />} />
 
               <Route path="order" element={<Order />} />
               <Route path="order/new" element={<OrderForm />} />
