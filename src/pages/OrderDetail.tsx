@@ -38,6 +38,7 @@ import {
   type PurchaseOrderDetail,
   type PurchaseOrderFile,
   type PurchaseOrderItem,
+  type PurchaseOrderLensLine,
   type Delivery,
   type DeliveryCreatePayload,
   type DeliveryCreateLinePayload,
@@ -131,6 +132,17 @@ function deliveryManagerUserIdFromSelect(selectValue: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+function deliveryInputKey(lineType: "PRODUCT" | "LENS", lineId: number): string {
+  return `${lineType}:${lineId}`;
+}
+
+function orderLensDisplayName(line: PurchaseOrderLensLine): string {
+  const lensName =
+    line.lens?.lensName?.trim() || line.lensNameSnapshot?.trim() || "";
+  if (lensName) return lensName;
+  return line.lensId?.trim() ? `렌즈 #${line.lensId}` : `렌즈 라인 #${line.id}`;
+}
+
 /**
  * 결재(상신·승인) / 납품 — API 흐름 요약
  * -----------------------------------------------------------------
@@ -203,9 +215,9 @@ export default function OrderDetail() {
     useState("");
   const [deliveryManagerUserSelectValue, setDeliveryManagerUserSelectValue] =
     useState("");
-  /** 품목 행 id → 이번 납품 수량 입력 문자열 */
+  /** 납품 라인 key(PRODUCT:{id}|LENS:{id}) → 이번 납품 수량 입력 문자열 */
   const [deliveryLineQtyInput, setDeliveryLineQtyInput] = useState<
-    Record<number, string>
+    Record<string, string>
   >({});
   const resetDeliveryModalForm = useCallback(() => {
     setDeliveryTitle("");
@@ -742,11 +754,16 @@ export default function OrderDetail() {
   const requestDeptLabel = getPurchaseOrderRequestDepartmentLabel(po);
   /** GET 상세의 orderItems(매퍼가 items와 동일 배열로 정규화) */
   const orderLines = (po.orderItems ?? po.items ?? []) as PurchaseOrderItem[];
+  const orderLenses = po.orderLenses ?? [];
+  const hasDeliveryTargets = orderLines.length > 0 || orderLenses.length > 0;
 
   const openDeliveryRegistrationModal = () => {
-    const init: Record<number, string> = {};
+    const init: Record<string, string> = {};
     for (const line of orderLines) {
-      init[line.id] = "";
+      init[deliveryInputKey("PRODUCT", line.id)] = "";
+    }
+    for (const lensLine of orderLenses) {
+      init[deliveryInputKey("LENS", lensLine.id)] = "";
     }
     setDeliveryLineQtyInput(init);
     const phase = (deliveries as Delivery[]).length + 1;
@@ -844,6 +861,15 @@ export default function OrderDetail() {
   const orderSummaryTd = "px-3 py-2.5 text-sm text-gray-900 dark:text-gray-100";
 
   const canSubmitApprovalLines = resolvedSubmitApprovalLines.length > 0;
+  /*
+   * ============================================================
+   *  APPROVAL DISPLAY TOGGLE (섹션 숨김 전용)
+   *  - 상단 상신/승인 버튼 + 결재 모달: 항상 표시/동작 유지
+   *  - 하단 결재 섹션(결재 요청/결재 카드): 필요 시만 노출
+   *  - 복구할 때는 아래 값을 true 로 변경
+   * ============================================================
+   */
+  const showApprovalSections = false;
 
   /** 상신 탭: 결재선에 1명 이상 지정 + 사용자 목록 준비됨 */
   const isApprovalSubmitBlocked =
@@ -1199,6 +1225,7 @@ export default function OrderDetail() {
 
         <OrderDetailLinesCard
           orderLines={orderLines}
+          orderLenses={orderLenses}
           defaultCurrencyCode={po.currencyCode ?? "KRW"}
           orderLineSummaries={orderLineSummaries}
         />
@@ -1211,22 +1238,22 @@ export default function OrderDetail() {
           deliveryStatusDisplayName={deliveryStatusDisplayName}
         />
 
-        {po.currentApprovalRequest ? (
+        {showApprovalSections && po.currentApprovalRequest ? (
           <CurrentApprovalRequestSection
             request={po.currentApprovalRequest}
             orderId={id}
             orderNo={po.orderNo}
           />
-        ) : (
+        ) : showApprovalSections ? (
           <ComponentCard title="결재 요청">
             <PageNotice variant="neutral" className="text-theme-sm">
               아직 결재 요청이 없습니다. 헤더의 <strong>상신</strong> 버튼에서 결재선을 지정해 결재를 시작할 수
               있습니다.
             </PageNotice>
           </ComponentCard>
-        )}
+        ) : null}
 
-        {canShowSubmitButton ? (
+        {showApprovalSections && canShowSubmitButton ? (
           <ComponentCard
             title="결재"
             desc="발주 정보 저장과 결재 상신은 별도 단계로 진행됩니다."
@@ -1606,17 +1633,20 @@ export default function OrderDetail() {
             <p className="text-theme-sm font-medium text-gray-800 dark:text-gray-200">
               품목별 납품 수량
             </p>
-            {orderLines.length === 0 ? (
+            {!hasDeliveryTargets ? (
               <p className="mt-2 text-theme-sm text-amber-700 dark:text-amber-400">
-                발주 품목이 없어 납품을 등록할 수 없습니다.
+                납품 등록 가능한 제품/렌즈 라인이 없습니다.
               </p>
             ) : (
               <div className="mt-2 overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-600">
                 <table className="min-w-full divide-y divide-gray-200 text-theme-sm dark:divide-gray-600">
                   <thead className="bg-gray-50 dark:bg-gray-800/80">
                     <tr>
+                      <th className="w-20 px-2 py-2 text-left font-medium text-gray-600 dark:text-gray-400">
+                        구분
+                      </th>
                       <th className="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400">
-                        품목
+                        라인
                       </th>
                       <th className="w-24 px-2 py-2 text-right font-medium text-gray-600 dark:text-gray-400">
                         발주
@@ -1636,15 +1666,30 @@ export default function OrderDetail() {
                     {orderLines.map((line) => {
                       const prev = deliveredByOrderItemId.get(line.id) ?? 0;
                       const remaining = Math.max(0, line.qty - prev);
-                      const label =
+                      const baseLabel =
                         line.itemName?.trim() ||
                         line.productNameSnapshot?.trim() ||
                         line.definitionNameSnapshot?.trim() ||
                         (line.productId != null && String(line.productId).trim() !== ""
                           ? `제품 #${line.productId}`
                           : `라인 #${line.id}`);
+                      const lineCode =
+                        line.businessName?.trim() ||
+                        line.businessNameSnapshot?.trim() ||
+                        line.versionSnapshot?.trim() ||
+                        "";
+                      const label =
+                        !lineCode ||
+                        baseLabel.includes(`(${lineCode})`) ||
+                        baseLabel.startsWith("제품 #") ||
+                        baseLabel.startsWith("라인 #")
+                          ? baseLabel
+                          : `${baseLabel} (${lineCode})`;
                       return (
-                        <tr key={line.id}>
+                        <tr key={`product-${line.id}`}>
+                          <td className="px-2 py-2 text-left text-gray-700 dark:text-gray-300">
+                            제품
+                          </td>
                           <td className="px-3 py-2 text-gray-900 dark:text-gray-100">
                             {label}
                           </td>
@@ -1662,11 +1707,59 @@ export default function OrderDetail() {
                               type="text"
                               inputMode="decimal"
                               placeholder="0"
-                              value={deliveryLineQtyInput[line.id] ?? ""}
+                              value={
+                                deliveryLineQtyInput[
+                                  deliveryInputKey("PRODUCT", line.id)
+                                ] ?? ""
+                              }
                               onChange={(e) =>
                                 setDeliveryLineQtyInput((prev) => ({
                                   ...prev,
-                                  [line.id]: e.target.value,
+                                  [deliveryInputKey("PRODUCT", line.id)]: e.target.value,
+                                }))
+                              }
+                              className="w-full min-w-[4rem] rounded-md border border-gray-300 bg-white px-2 py-1.5 text-right tabular-nums text-theme-sm disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                            />
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {orderLenses.map((lensLine) => {
+                      const prev = Number(lensLine.deliveredQty ?? 0);
+                      const total = Number(lensLine.qty ?? 0);
+                      const remaining = Math.max(0, total - prev);
+                      return (
+                        <tr key={`lens-${lensLine.id}`}>
+                          <td className="px-2 py-2 text-left text-gray-700 dark:text-gray-300">
+                            렌즈
+                          </td>
+                          <td className="px-3 py-2 text-gray-900 dark:text-gray-100">
+                            {orderLensDisplayName(lensLine)}
+                          </td>
+                          <td className="px-2 py-2 text-right tabular-nums text-gray-700 dark:text-gray-300">
+                            {total}
+                          </td>
+                          <td className="px-2 py-2 text-right tabular-nums text-gray-600 dark:text-gray-400">
+                            {prev}
+                          </td>
+                          <td className="px-2 py-2 text-right tabular-nums text-gray-700 dark:text-gray-300">
+                            {remaining}
+                          </td>
+                          <td className="px-2 py-2 text-right">
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              placeholder="0"
+                              value={
+                                deliveryLineQtyInput[
+                                  deliveryInputKey("LENS", lensLine.id)
+                                ] ?? ""
+                              }
+                              onChange={(e) =>
+                                setDeliveryLineQtyInput((prev) => ({
+                                  ...prev,
+                                  [deliveryInputKey("LENS", lensLine.id)]:
+                                    e.target.value,
                                 }))
                               }
                               className="w-full min-w-[4rem] rounded-md border border-gray-300 bg-white px-2 py-1.5 text-right tabular-nums text-theme-sm disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
@@ -1699,14 +1792,17 @@ export default function OrderDetail() {
                 toast.error("납품일을 입력하세요.");
                 return;
               }
-              if (orderLines.length === 0) {
-                toast.error("등록할 품목이 없습니다.");
+              if (!hasDeliveryTargets) {
+                toast.error("등록할 제품/렌즈 라인이 없습니다.");
                 return;
               }
               const QTY_EPS = 1e-9;
               const linesPayload: DeliveryCreateLinePayload[] = [];
               for (const line of orderLines) {
-                const raw = (deliveryLineQtyInput[line.id] ?? "").trim();
+                const raw =
+                  (deliveryLineQtyInput[
+                    deliveryInputKey("PRODUCT", line.id)
+                  ] ?? "").trim();
                 if (!raw) continue;
                 const n = Number(raw);
                 if (!Number.isFinite(n) || n <= 0) {
@@ -1722,7 +1818,33 @@ export default function OrderDetail() {
                   return;
                 }
                 linesPayload.push({
-                  orderItemId: line.id,
+                  lineType: "PRODUCT",
+                  lineId: line.id,
+                  quantity: n,
+                });
+              }
+              for (const lensLine of orderLenses) {
+                const raw =
+                  (deliveryLineQtyInput[
+                    deliveryInputKey("LENS", lensLine.id)
+                  ] ?? "").trim();
+                if (!raw) continue;
+                const n = Number(raw);
+                if (!Number.isFinite(n) || n <= 0) {
+                  toast.error("수량은 0보다 큰 숫자로 입력하세요.");
+                  return;
+                }
+                const prev = Number(lensLine.deliveredQty ?? 0);
+                const remaining = Math.max(0, Number(lensLine.qty ?? 0) - prev);
+                if (n - remaining > QTY_EPS) {
+                  toast.error(
+                    `잔량을 초과했습니다. (${orderLensDisplayName(lensLine)} · 잔여 ${remaining})`
+                  );
+                  return;
+                }
+                linesPayload.push({
+                  lineType: "LENS",
+                  lineId: lensLine.id,
                   quantity: n,
                 });
               }
@@ -1743,7 +1865,7 @@ export default function OrderDetail() {
               deliveryMutation.mutate(payload);
             }}
             disabled={
-              deliveryMutation.isPending || orderLines.length === 0
+              deliveryMutation.isPending || !hasDeliveryTargets
             }
             className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white hover:bg-brand-600 disabled:opacity-50"
           >

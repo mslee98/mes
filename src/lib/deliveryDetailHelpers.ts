@@ -34,6 +34,14 @@ export function pickNestedOrderItemFromLine(
   return asDeliveryDetailRecord(r.orderItem) ?? asDeliveryDetailRecord(r.order_item);
 }
 
+export function pickNestedOrderLensFromLine(
+  line: unknown
+): DeliveryDetailUnknownRecord | null {
+  const r = asDeliveryDetailRecord(line);
+  if (!r) return null;
+  return asDeliveryDetailRecord(r.orderLens) ?? asDeliveryDetailRecord(r.order_lens);
+}
+
 export function resolveOrderItemForDeliveryLine(
   line: unknown,
   order: DeliveryOrderWithDetail | undefined
@@ -284,7 +292,7 @@ export function formatDeliveryDetailDateTimeKo(
 }
 
 export function deliveryLinesFromDelivery(d: Delivery) {
-  return d.deliveryItems ?? d.items ?? [];
+  return d.lines ?? d.deliveryItems ?? d.items ?? [];
 }
 
 const DELIVERY_STATUS_SIM_PREFIX = "deliveryStatusSim";

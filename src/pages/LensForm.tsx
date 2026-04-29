@@ -343,7 +343,7 @@ export default function LensForm() {
                       }
                       onError={toast.error}
                       disabled={pending}
-                      maxFileSizeMb={30}
+                      maxFileSizeMb={50}
                       maxFiles={10}
                       multiple
                       buttonLabel="파일 선택"
@@ -396,7 +396,7 @@ export default function LensForm() {
                       onSelectFiles={(selected) => fileUploadMutation.mutate(selected)}
                       onError={toast.error}
                       disabled={fileUploadMutation.isPending || fileDeleteMutation.isPending}
-                      maxFileSizeMb={30}
+                      maxFileSizeMb={50}
                       maxFiles={10}
                       multiple
                       buttonLabel="파일 선택"

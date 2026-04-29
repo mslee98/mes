@@ -138,15 +138,15 @@ export default function LensDetail() {
         description="렌즈 정보"
       />
       <PageBreadcrumb pageTitle="렌즈 상세" />
-      <ComponentCard title="렌즈 기본 정보" desc="렌즈 마스터 상세 정보입니다.">
+      <ComponentCard title="렌즈 기본 정보" desc="렌즈 상세 정보입니다.">
         <dl className="min-w-0 flex-1">
           <DetailRow
             label="제조사"
             value={l.manufacturerName || `업체 #${l.manufacturerId}`}
           />
           <DetailRow label="렌즈명" value={l.lensName?.trim() || "-"} />
-          <DetailRow label="F Number" value={l.fNumber || "-"} />
-          <DetailRow label="초점 거리" value={l.focalLength || "-"} />
+          <DetailRow label="F Number" value={`F/${l.fNumber || "-"}`} />
+          <DetailRow label="초점 거리" value={`${l.focalLength || "-" }mm`} />
           <DetailRow
             label="상태"
             value={

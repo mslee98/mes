@@ -6,8 +6,10 @@
   "scripts": {
     "dev": "vite --mode development",
     "build": "node scripts/print-build-env.mjs production && tsc -b && vite build --mode production",
+    "build:staging": "node scripts/print-build-env.mjs staging && tsc -b && vite build --mode staging",
     "lint": "eslint .",
     "preview": "vite preview",
+    "preview:staging": "vite preview --mode staging",
     "dist:add-txt": "node scripts/toggle-txt-extension.js add",
     "dist:remove-txt": "node scripts/toggle-txt-extension.js remove"
   },

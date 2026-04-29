@@ -28,7 +28,6 @@ type DeliveryDetailOverviewTabProps = {
   purchaseOrderId: number | undefined;
   partnerLabel: ReactNode;
   effectiveDeliveryStatus: string | null | undefined;
-  deliveryStatusSimCode: string | null;
   statusName: (code: string | undefined) => string;
   statusStepTotal: number;
   statusProgressIndex: number;
@@ -48,7 +47,6 @@ export function DeliveryDetailOverviewTab({
   purchaseOrderId,
   partnerLabel,
   effectiveDeliveryStatus,
-  deliveryStatusSimCode,
   statusName,
   statusStepTotal,
   statusProgressIndex,
@@ -91,11 +89,6 @@ export function DeliveryDetailOverviewTab({
             >
               {statusName(effectiveDeliveryStatus ?? undefined)}
             </Badge>
-            {deliveryStatusSimCode?.trim() ? (
-              <span className="text-theme-xs text-amber-700 dark:text-amber-300">
-                납품 상태 시연 오버레이
-              </span>
-            ) : null}
           </div>
         </div>
         <div className="mt-4">
@@ -183,42 +176,26 @@ export function DeliveryDetailOverviewTab({
           {nextDeliveryStatusHint.type === "empty" ? (
             "납품 상태 공통코드를 불러오면 다음 단계 안내가 표시됩니다."
           ) : nextDeliveryStatusHint.type === "unknown" ? (
-            <>
-              현재 코드가 공통코드 목록에 없습니다. 서버 상태:{" "}
-              <span className="font-mono text-theme-xs">{d.status ?? "—"}</span>
-            </>
+            "현재 상태를 기준으로 다음 단계를 확인할 수 없습니다."
           ) : nextDeliveryStatusHint.type === "last" ? (
             "공통코드 기준 마지막 단계에 도달했습니다."
           ) : (
             <>
               다음 단계:{" "}
               <strong className="font-medium">{nextDeliveryStatusHint.label}</strong>
-              <span className="ml-1 font-mono text-theme-xs text-gray-500 dark:text-gray-400">
-                ({nextDeliveryStatusHint.code})
-              </span>
             </>
           )}
         </p>
         <p className="mt-2 text-theme-xs text-gray-600 dark:text-gray-300">
-          <strong className="font-medium text-gray-800 dark:text-gray-200">납품 진행 단계</strong>{" "}
-          시연(공통코드 순)과{" "}
-          <strong className="font-medium text-gray-800 dark:text-gray-200">계획·결재</strong> 와이어 시연은{" "}
+          진행 단계 전체는{" "}
           <button
             type="button"
             onClick={() => onNavigateTab("progress")}
             className="font-medium text-brand-600 underline hover:no-underline dark:text-brand-400"
           >
-            진행
+            진행 상태 탭
           </button>
-          ·{" "}
-          <button
-            type="button"
-            onClick={() => onNavigateTab("approval")}
-            className="font-medium text-brand-600 underline hover:no-underline dark:text-brand-400"
-          >
-            결재
-          </button>
-          탭에서 연동·조작할 수 있습니다.
+          에서 확인할 수 있습니다.
         </p>
       </div>
 
@@ -245,6 +222,17 @@ export function DeliveryDetailOverviewTab({
       </ComponentCard>
 
       <ComponentCard title="납품 상세 정보" collapsible defaultCollapsed>
+        {purchaseOrderId != null ? (
+          <p className="mt-4 text-theme-sm">
+            <Link
+              to={`/order/${purchaseOrderId}`}
+              className="font-medium text-brand-600 hover:underline dark:text-brand-400"
+            >
+              발주 상세 바로가기 →
+            </Link>
+          </p>
+        ) : null}
+
         <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
           <div>
             <dt className="text-theme-xs text-gray-500 dark:text-gray-400">납품 번호</dt>
@@ -276,7 +264,6 @@ export function DeliveryDetailOverviewTab({
             <dt className="text-theme-xs text-gray-500 dark:text-gray-400">상태</dt>
             <dd className="mt-0.5 space-y-1">
               <div>
-                <span className="text-theme-xs text-gray-500 dark:text-gray-400">서버</span>{" "}
                 <Badge
                   size="sm"
                   color={badgeColorFromKoStatusLabel(
@@ -285,23 +272,7 @@ export function DeliveryDetailOverviewTab({
                 >
                   {labelForSortedDeliveryStatus(sortedDeliveryStatusCodes, d.status)}
                 </Badge>
-                {d.status?.trim() ? (
-                  <span className="ml-1 font-mono text-theme-xs text-gray-500">
-                    {d.status.trim()}
-                  </span>
-                ) : null}
               </div>
-              {deliveryStatusSimCode?.trim() ? (
-                <div>
-                  <span className="text-theme-xs text-gray-500 dark:text-gray-400">화면 반영</span>{" "}
-                  <Badge
-                    size="sm"
-                    color={badgeColorFromKoStatusLabel(statusName(effectiveDeliveryStatus ?? undefined))}
-                  >
-                    {statusName(effectiveDeliveryStatus ?? undefined)}
-                  </Badge>
-                </div>
-              ) : null}
             </dd>
           </div>
           <div>

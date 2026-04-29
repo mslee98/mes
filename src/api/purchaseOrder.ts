@@ -167,6 +167,21 @@ export interface PurchaseOrderItemPayload {
   note?: string | null;
 }
 
+export interface PurchaseOrderLensLinePayload {
+  /** 수정 시 기존 렌즈 라인 식별 (서버가 허용할 때만) */
+  id?: number;
+  lensId: string;
+  qty: number;
+  unitPrice: number;
+  unit?: string | null;
+  quantityUnitCode?: string | null;
+  currencyCode?: string | null;
+  requestDeliveryDate?: string | null;
+  requestedDueDate?: string | null;
+  remark?: string | null;
+  note?: string | null;
+}
+
 export interface PurchaseOrderLinePatchPayload {
   productId?: string | null;
   qty?: number;
@@ -178,6 +193,27 @@ export interface PurchaseOrderLinePatchPayload {
   requestDeliveryDate?: string | null;
   requestedDueDate?: string | null;
   remark?: string | null;
+  note?: string | null;
+}
+
+/** `POST /purchase-orders/:id/lenses` 본문 — 서버 필드명 `quantity`, `requestedDueDate` */
+export interface PurchaseOrderLensLineCreateBody {
+  lensId: string;
+  quantity: number;
+  quantityUnitCode?: string | null;
+  unitPrice: number;
+  currencyCode?: string | null;
+  requestedDueDate?: string | null;
+  note?: string | null;
+}
+
+/** `PATCH /purchase-orders/:id/lenses/:lensLineId` — 부분 수정(필드 null로 비우기 가능) */
+export interface PurchaseOrderLensLinePatchBody {
+  quantity?: number;
+  quantityUnitCode?: string | null;
+  unitPrice?: number | null;
+  currencyCode?: string | null;
+  requestedDueDate?: string | null;
   note?: string | null;
 }
 
@@ -208,7 +244,14 @@ export interface PurchaseOrderCreatePayload {
   exchangeRate?: number | string | null;
   /** 환율 기준일 — 보통 발주일과 동일 (orders.exchange_rate_date) */
   exchangeRateDate?: string | null;
+  /** 하위호환 key */
   items: PurchaseOrderItemPayload[];
+  /** 서버 신규 key */
+  lines?: PurchaseOrderItemPayload[];
+  /** 서버 신규 key: 렌즈 독립 라인 */
+  lensLines?: PurchaseOrderLensLinePayload[];
+  /** 서버 하위호환 key */
+  lensItems?: PurchaseOrderLensLinePayload[];
 }
 
 export interface PurchaseOrderUpdatePayload {
@@ -234,6 +277,9 @@ export interface PurchaseOrderUpdatePayload {
   exchangeRateDate?: string | null;
   /** 수정 시 품목 라인 전체 갱신 */
   items?: PurchaseOrderItemPayload[];
+  lines?: PurchaseOrderItemPayload[];
+  lensLines?: PurchaseOrderLensLinePayload[];
+  lensItems?: PurchaseOrderLensLinePayload[];
 }
 
 export interface PurchaseOrderListItem {
@@ -260,9 +306,12 @@ export interface PurchaseOrderItem {
   productId: string;
   /** 발주 시점 스냅샷 */
   productNameSnapshot?: string | null;
+  businessNameSnapshot?: string | null;
   definitionNameSnapshot?: string | null;
   versionSnapshot?: string | null;
   orderTypeSnapshot?: string | null;
+  /** 발주 상세/라인 응답 평면 필드 */
+  businessName?: string | null;
   itemName?: string;
   spec?: string;
   unit?: string;
@@ -273,6 +322,32 @@ export interface PurchaseOrderItem {
   deliveredQty?: number;
   requestDeliveryDate?: string | null;
   remark?: string | null;
+}
+
+/** 발주에 종속된 렌즈 독립 라인 (GET 상세 `orderLenses`) */
+export interface PurchaseOrderLensLine {
+  id: number;
+  orderId?: string;
+  lensId: string;
+  qty: number;
+  deliveredQty?: number;
+  unitPrice: number;
+  amount?: number;
+  /** 공통코드 UNIT */
+  unit?: string;
+  quantityUnitCode?: string;
+  currencyCode?: string | null;
+  requestDeliveryDate?: string | null;
+  remark?: string | null;
+  note?: string | null;
+  lensNameSnapshot?: string | null;
+  lens?: {
+    id?: string;
+    lensName?: string | null;
+    fNumber?: string | null;
+    focalLength?: string | null;
+    isActive?: boolean;
+  } | null;
 }
 
 export interface PurchaseOrderStatusHistoryEntry {
@@ -309,6 +384,8 @@ export interface PurchaseOrderDetail extends PurchaseOrderListItem {
   attachments?: unknown[];
   /** GET /purchase-orders/:id 응답의 품목 라인 (item 관계 포함) */
   orderItems?: PurchaseOrderItem[];
+  /** 렌즈 독립 라인 */
+  orderLenses?: PurchaseOrderLensLine[];
   /** 레거시·내부 호환용 — 매퍼에서 orderItems와 동일 배열로 채움 */
   items?: PurchaseOrderItem[];
   /** 제품 공급가액(부가세 제외) */
@@ -343,16 +420,21 @@ export interface PurchaseOrderFile {
 }
 
 
-/** POST /purchase-orders/:id/deliveries — 본문 `lines` 한 줄 (order_items.id = orderItemId) */
+export type DeliveryLineType = "PRODUCT" | "LENS";
+
+/** POST /purchase-orders/:id/deliveries — 제품/렌즈 혼합 입력 */
 export interface DeliveryCreateLinePayload {
-  orderItemId: number;
+  lineType?: DeliveryLineType;
+  lineId?: number;
+  orderItemId?: number;
+  orderLensId?: number;
   quantity: number;
 }
 
 /** POST /purchase-orders/:id/deliveries */
 export interface DeliveryCreatePayload {
   deliveryDate: string;
-  /** 필수, 최소 1건. 동일 orderItemId 중복 불가 */
+  /** 필수, 최소 1건. 동일 line(제품/렌즈) 중복 불가 */
   lines: DeliveryCreateLinePayload[];
   title?: string | null;
   plannedDeliveryDate?: string | null;
@@ -385,15 +467,20 @@ export interface DeliveryItem {
 export interface DeliveryRecordLine {
   id?: number;
   deliveryId?: number;
+  lineType?: DeliveryLineType;
+  lineId?: number;
   orderItemId?: number;
+  orderLensId?: number;
   purchaseOrderItemId?: number;
   /** decimal 문자열일 수 있음 */
   quantity?: number | string;
   deliveryQty?: number | string;
   itemId?: number;
   itemName?: string;
+  lineName?: string;
   /** 관계 로드 시 중첩 발주 라인 */
   orderItem?: unknown;
+  orderLens?: unknown;
 }
 
 /** GET `/deliveries`·관계 로드 시 포함되는 발주 헤더 요약 */
@@ -464,6 +551,8 @@ export interface Delivery {
   updateReason?: string | null;
   createdAt?: string;
   updatedAt?: string;
+  /** 제품/렌즈 통합 라인 (신규 스펙) */
+  lines?: DeliveryRecordLine[];
   deliveryItems?: DeliveryRecordLine[];
   /** 레거시 매핑 */
   items?: DeliveryItem[];
@@ -495,9 +584,11 @@ export function aggregateDeliveredQtyByOrderItemId(
 ): Map<number, number> {
   const m = new Map<number, number>();
   for (const d of deliveries) {
-    const raw = d.deliveryItems ?? d.items ?? [];
+    const raw = d.lines ?? d.deliveryItems ?? d.items ?? [];
     for (const row of raw) {
       const rec = row as DeliveryRecordLine & DeliveryItem;
+      const lineType = String(rec.lineType ?? "").trim().toUpperCase();
+      if (lineType === "LENS") continue;
       const oidRaw =
         rec.orderItemId ?? rec.purchaseOrderItemId ?? undefined;
       const oid =
@@ -535,6 +626,7 @@ type ApiOrderDetailRaw = PurchaseOrderDetail & {
   requestDepartment?: string | null;
   orderedAt?: string | null;
   order_items?: unknown[];
+  order_lenses?: unknown[];
   status?: string | null;
   createdBy?: unknown;
   statusHistories?: unknown[];
@@ -623,6 +715,8 @@ function mapApiOrderLineToPurchaseOrderItem(
 
   const productNameSnapshot =
     typeof x.productNameSnapshot === "string" ? x.productNameSnapshot : null;
+  const businessNameSnapshot =
+    typeof x.businessNameSnapshot === "string" ? x.businessNameSnapshot : null;
   const definitionNameSnapshot =
     typeof x.definitionNameSnapshot === "string"
       ? x.definitionNameSnapshot
@@ -636,6 +730,9 @@ function mapApiOrderLineToPurchaseOrderItem(
     (productNameSnapshot?.trim() ? productNameSnapshot : undefined) ??
     (definitionNameSnapshot?.trim() ? definitionNameSnapshot : undefined) ??
     (typeof x.itemName === "string" ? x.itemName : undefined);
+  const businessName =
+    (typeof x.businessName === "string" && x.businessName) ||
+    businessNameSnapshot;
 
   const currencyCode =
     typeof x.currencyCode === "string" ? x.currencyCode : null;
@@ -656,9 +753,11 @@ function mapApiOrderLineToPurchaseOrderItem(
     id,
     productId: lineProductId,
     ...(productNameSnapshot != null ? { productNameSnapshot } : {}),
+    ...(businessNameSnapshot != null ? { businessNameSnapshot } : {}),
     ...(definitionNameSnapshot != null ? { definitionNameSnapshot } : {}),
     ...(versionSnapshot != null ? { versionSnapshot } : {}),
     ...(orderTypeSnapshot != null ? { orderTypeSnapshot } : {}),
+    ...(businessName != null ? { businessName } : {}),
     ...(itemName ? { itemName } : {}),
     spec: typeof x.spec === "string" ? x.spec : undefined,
     unit,
@@ -677,6 +776,121 @@ function mapOrderLinesFromApi(rawLines: unknown): PurchaseOrderItem[] {
   return rawLines
     .map(mapApiOrderLineToPurchaseOrderItem)
     .filter((x): x is PurchaseOrderItem => x != null);
+}
+
+/** 발주 렌즈 라인 (독립 컬렉션) */
+function mapApiOrderLensLineToPurchaseOrderLens(
+  raw: unknown
+): PurchaseOrderLensLine | null {
+  if (!raw || typeof raw !== "object") return null;
+  const x = raw as Record<string, unknown>;
+  const id = typeof x.id === "number" ? x.id : Number(x.id);
+  if (!Number.isFinite(id)) return null;
+
+  const lensIdRaw = x.lensId ?? x.lens_id;
+  const lensId = lensIdRaw == null ? "" : String(lensIdRaw).trim();
+  if (!lensId) return null;
+
+  const qty = parseDecimalLike(x.quantity ?? x.qty);
+  const unitPrice = parseDecimalLike(x.unitPrice);
+  if (!Number.isFinite(qty) || !Number.isFinite(unitPrice)) return null;
+
+  const unit =
+    (typeof x.quantityUnitCode === "string" && x.quantityUnitCode) ||
+    (typeof x.unit === "string" && x.unit) ||
+    undefined;
+  const quantityUnitCode =
+    typeof x.quantityUnitCode === "string" ? x.quantityUnitCode : undefined;
+
+  const requestDeliveryDate =
+    (typeof x.requestedDueDate === "string" && x.requestedDueDate) ||
+    (typeof x.requestDeliveryDate === "string" && x.requestDeliveryDate) ||
+    null;
+
+  const remark =
+    (typeof x.note === "string" ? x.note : null) ??
+    (typeof x.remark === "string" ? x.remark : null);
+
+  const currencyCode =
+    typeof x.currencyCode === "string" ? x.currencyCode : null;
+
+  const amount =
+    typeof x.amount === "number" && Number.isFinite(x.amount)
+      ? x.amount
+      : Math.round(qty * unitPrice * 10000) / 10000;
+  const deliveredQty = parseDecimalLike(x.deliveredQty ?? x.delivered_qty);
+
+  const orderIdRaw = x.orderId ?? x.order_id;
+  const orderId =
+    orderIdRaw == null || orderIdRaw === ""
+      ? undefined
+      : String(orderIdRaw).trim();
+
+  const lensNameSnapshot =
+    typeof x.lensNameSnapshot === "string"
+      ? x.lensNameSnapshot
+      : typeof x.lens_name_snapshot === "string"
+        ? x.lens_name_snapshot
+        : null;
+
+  const lensRaw =
+    x.lens && typeof x.lens === "object"
+      ? (x.lens as Record<string, unknown>)
+      : null;
+  const lens = lensRaw
+    ? {
+        id:
+          typeof lensRaw.id === "string"
+            ? lensRaw.id
+            : lensRaw.id != null
+              ? String(lensRaw.id)
+              : undefined,
+        lensName:
+          typeof lensRaw.lensName === "string"
+            ? lensRaw.lensName
+            : typeof lensRaw.lens_name === "string"
+              ? lensRaw.lens_name
+              : null,
+        fNumber:
+          typeof lensRaw.fNumber === "string"
+            ? lensRaw.fNumber
+            : typeof lensRaw.f_number === "string"
+              ? lensRaw.f_number
+              : null,
+        focalLength:
+          typeof lensRaw.focalLength === "string"
+            ? lensRaw.focalLength
+            : typeof lensRaw.focal_length === "string"
+              ? lensRaw.focal_length
+              : null,
+        isActive:
+          typeof lensRaw.isActive === "boolean" ? lensRaw.isActive : undefined,
+      }
+    : null;
+
+  return {
+    id,
+    ...(orderId ? { orderId } : {}),
+    lensId,
+    qty,
+    ...(Number.isFinite(deliveredQty) ? { deliveredQty } : {}),
+    unitPrice,
+    amount,
+    ...(unit ? { unit } : {}),
+    ...(quantityUnitCode ? { quantityUnitCode } : {}),
+    currencyCode,
+    requestDeliveryDate,
+    remark,
+    lensNameSnapshot,
+    lens,
+  };
+}
+
+function mapOrderLensesFromApi(rawLines: unknown): PurchaseOrderLensLine[] {
+  if (!Array.isArray(rawLines)) return [];
+  return rawLines
+    .map(mapApiOrderLensLineToPurchaseOrderLens)
+    .filter((x): x is PurchaseOrderLensLine => x != null);
 }
 
 /** GET /purchase-orders 목록 1건 — 상세와 동일하게 orderedAt·status·snake_case 등 정규화 */
@@ -771,6 +985,9 @@ function mapPurchaseOrderDetail(raw: unknown): PurchaseOrderDetail {
   const rawLines =
     data.orderItems ?? data.order_items ?? data.items ?? [];
   const lines = mapOrderLinesFromApi(rawLines);
+  const rawLensLines =
+    data.orderLenses ?? data.order_lenses ?? [];
+  const lensLines = mapOrderLensesFromApi(rawLensLines);
 
   const orderDate =
     (typeof data.orderDate === "string" && data.orderDate) ||
@@ -848,6 +1065,7 @@ function mapPurchaseOrderDetail(raw: unknown): PurchaseOrderDetail {
     orderStatus,
     orderItems: lines,
     items: lines,
+    orderLenses: lensLines,
     requesterDepartment,
     requesterName,
     requestDepartment:
@@ -1067,6 +1285,114 @@ export async function deletePurchaseOrderLine(
   );
   if (!res.ok) {
     throw await createApiError(res, "발주 라인을 삭제하지 못했습니다.");
+  }
+}
+
+// --- 발주 라인(렌즈) ---
+
+/** `GET /purchase-orders/:id/lenses` */
+export async function getPurchaseOrderLenses(
+  orderId: string,
+  accessToken: string
+): Promise<PurchaseOrderLensLine[]> {
+  const res = await fetchAuthorized(
+    `${API_BASE}/purchase-orders/${orderId}/lenses`,
+    {
+      headers: authHeaders(accessToken),
+      credentials: "include",
+    },
+    accessToken
+  );
+  if (!res.ok) {
+    throw await createApiError(res, "렌즈 라인을 불러오지 못했습니다.");
+  }
+  const data = await res.json();
+  const list = Array.isArray(data)
+    ? data
+    : data?.data ?? data?.orderLenses ?? data?.order_lenses ?? [];
+  return mapOrderLensesFromApi(Array.isArray(list) ? list : []);
+}
+
+/** `POST /purchase-orders/:orderId/lenses` */
+export async function createPurchaseOrderLensLine(
+  orderId: string,
+  payload: PurchaseOrderLensLineCreateBody,
+  accessToken: string
+): Promise<PurchaseOrderLensLine> {
+  const res = await fetchAuthorized(
+    `${API_BASE}/purchase-orders/${orderId}/lenses`,
+    {
+      method: "POST",
+      headers: jsonHeaders(accessToken),
+      body: JSON.stringify(payload),
+      credentials: "include",
+    },
+    accessToken
+  );
+  if (!res.ok) {
+    throw await createApiError(res, "렌즈 라인을 추가하지 못했습니다.");
+  }
+  const raw = await res.json();
+  const row =
+    raw && typeof raw === "object" && "data" in raw && (raw as { data?: unknown }).data
+      ? (raw as { data: unknown }).data
+      : raw;
+  const mapped = mapApiOrderLensLineToPurchaseOrderLens(row);
+  if (!mapped) {
+    throw new Error("렌즈 라인 응답을 해석하지 못했습니다.");
+  }
+  return mapped;
+}
+
+/** `PATCH /purchase-orders/:orderId/lenses/:lensLineId` */
+export async function updatePurchaseOrderLensLine(
+  orderId: string,
+  lensLineId: number,
+  payload: PurchaseOrderLensLinePatchBody,
+  accessToken: string
+): Promise<PurchaseOrderLensLine> {
+  const res = await fetchAuthorized(
+    `${API_BASE}/purchase-orders/${orderId}/lenses/${lensLineId}`,
+    {
+      method: "PATCH",
+      headers: jsonHeaders(accessToken),
+      body: JSON.stringify(payload),
+      credentials: "include",
+    },
+    accessToken
+  );
+  if (!res.ok) {
+    throw await createApiError(res, "렌즈 라인을 수정하지 못했습니다.");
+  }
+  const raw = await res.json();
+  const row =
+    raw && typeof raw === "object" && "data" in raw && (raw as { data?: unknown }).data
+      ? (raw as { data: unknown }).data
+      : raw;
+  const mapped = mapApiOrderLensLineToPurchaseOrderLens(row);
+  if (!mapped) {
+    throw new Error("렌즈 라인 응답을 해석하지 못했습니다.");
+  }
+  return mapped;
+}
+
+/** `DELETE /purchase-orders/:orderId/lenses/:lensLineId` */
+export async function deletePurchaseOrderLensLine(
+  orderId: string,
+  lensLineId: number,
+  accessToken: string
+): Promise<void> {
+  const res = await fetchAuthorized(
+    `${API_BASE}/purchase-orders/${orderId}/lenses/${lensLineId}`,
+    {
+      method: "DELETE",
+      headers: authHeaders(accessToken),
+      credentials: "include",
+    },
+    accessToken
+  );
+  if (!res.ok) {
+    throw await createApiError(res, "렌즈 라인을 삭제하지 못했습니다.");
   }
 }
 

@@ -3,6 +3,13 @@ import { TrashBinIcon } from "../../../icons";
 import type { PurchaseOrderFile } from "../../../api/purchaseOrder";
 import { fileTypeIconSrc } from "../../../lib/fileTypeIcon";
 
+function formatAttachmentDateTime(iso?: string) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString("ko-KR");
+}
+
 type Props = {
   isNew: boolean;
   isPending: boolean;
@@ -42,7 +49,7 @@ export default function OrderAttachmentSection({
             onSelectFiles={onSelectCreateFiles}
             onError={onError}
             disabled={isPending}
-            maxFileSizeMb={30}
+            maxFileSizeMb={50}
             maxFiles={10}
             multiple
             buttonLabel="파일 선택"
@@ -88,7 +95,7 @@ export default function OrderAttachmentSection({
             onSelectFiles={onUploadExistingFiles}
             onError={onError}
             disabled={isFileUploadPending}
-            maxFileSizeMb={30}
+            maxFileSizeMb={50}
             maxFiles={10}
             multiple
             buttonLabel="파일 선택"
@@ -142,7 +149,7 @@ export default function OrderAttachmentSection({
                       </span>
                     ) : null}
                     <span className="shrink-0 text-gray-500">
-                      {f.uploadedAt ?? f.createdAt ?? ""}
+                      {formatAttachmentDateTime(f.uploadedAt ?? f.createdAt ?? "")}
                     </span>
                   </div>
                 </li>

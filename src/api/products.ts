@@ -264,7 +264,7 @@ export async function getProduct(
   }
   return mapProductDetail(await res.json());
 }
-
+ 
 /** PATCH /api/products/:id (product.manage) */
 export async function updateProduct(
   id: string,

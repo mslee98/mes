@@ -342,7 +342,7 @@ export default function Lenses() {
                 onSelectFiles={addPendingFilesForCreate}
                 onError={toast.error}
                 disabled={createMutation.isPending}
-                maxFileSizeMb={30}
+                maxFileSizeMb={50}
                 maxFiles={10}
                 multiple
                 buttonLabel="파일 선택"

@@ -29,6 +29,7 @@ const rawFile = fs.existsSync(envFilePath) ? fs.readFileSync(envFilePath, "utf8"
 const fileEnv = parseEnvFile(rawFile);
 
 const checks = [
+  "VITE_AUTH_BASE_URL",
   "VITE_KEYCLOAK_ENABLED",
   "VITE_KEYCLOAK_URL",
   "VITE_KEYCLOAK_REALM",

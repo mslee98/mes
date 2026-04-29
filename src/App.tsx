@@ -34,6 +34,7 @@ import NotFound from "./pages/NotFound";
 import Delivery from "./pages/Delivery";
 import DeliveryDetail from "./pages/DeliveryDetail";
 import UIPlayground from "./pages/UIPlayground";
+import BugBoard from "./pages/BugBoard";
 // import DashboardMaterial from "./pages/DashboardMaterial";
 // import DashboardExecutive from "./pages/DashboardExecutive";
 // import DashboardTeamLead from "./pages/DashboardTeamLead";
@@ -122,6 +123,7 @@ function App() {
 
               <Route path="delivery" element={<Delivery />} />
               <Route path="delivery/:deliveryId" element={<DeliveryDetail />} />
+              <Route path="bug-board" element={<BugBoard />} />
 
               <Route path="rma" element={<Rma />} />
 

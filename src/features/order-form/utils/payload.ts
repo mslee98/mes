@@ -1,9 +1,10 @@
 import type {
   PurchaseOrderCreatePayload,
   PurchaseOrderItemPayload,
+  PurchaseOrderLensLinePayload,
   PurchaseOrderUpdatePayload,
 } from "../../../api/purchaseOrder";
-import type { ItemRow } from "../types";
+import type { ItemRow, LensItemRow } from "../types";
 
 type BuildCreatePayloadParams = {
   title: string;
@@ -24,6 +25,7 @@ type BuildCreatePayloadParams = {
   /** 입력란 값 → null 이면 미전송에 가깝게 null */
   exchangeRate: number | null;
   validItems: ItemRow[];
+  validLensItems: LensItemRow[];
   parseLineUnitPrice: (display: string) => number;
 };
 
@@ -45,8 +47,31 @@ export function buildCreatePayload({
   supplyAmount,
   exchangeRate,
   validItems,
+  validLensItems,
   parseLineUnitPrice,
 }: BuildCreatePayloadParams): PurchaseOrderCreatePayload {
+  const lines = validItems.map(
+    (row): PurchaseOrderItemPayload => ({
+      productId: row.productId.trim(),
+      qty: row.qty,
+      unitPrice: parseLineUnitPrice(row.unitPrice),
+      unit: row.unitCode.trim() || null,
+      currencyCode: row.currencyCode.trim() || "KRW",
+      remark: row.remark.trim() || null,
+    })
+  );
+  const lensLines = validLensItems.map(
+    (row): PurchaseOrderLensLinePayload => ({
+      ...(row.lineId ? { id: row.lineId } : {}),
+      lensId: row.lensId.trim(),
+      qty: row.qty,
+      unitPrice: parseLineUnitPrice(row.unitPrice),
+      unit: row.unitCode.trim() || null,
+      currencyCode: row.currencyCode.trim() || "KRW",
+      requestDeliveryDate: row.requestDeliveryDate.trim() || null,
+      remark: row.remark.trim() || null,
+    })
+  );
   return {
     title: title.trim(),
     partnerId: partnerId.trim(),
@@ -66,16 +91,14 @@ export function buildCreatePayload({
     supplyAmount,
     exchangeRate,
     exchangeRateDate: orderDate || null,
-    items: validItems.map(
-      (row): PurchaseOrderItemPayload => ({
-        productId: row.productId.trim(),
-        qty: row.qty,
-        unitPrice: parseLineUnitPrice(row.unitPrice),
-        unit: row.unitCode.trim() || null,
-        currencyCode: row.currencyCode.trim() || "KRW",
-        remark: row.remark.trim() || null,
-      })
-    ),
+    items: lines,
+    lines,
+    ...(lensLines.length > 0
+      ? {
+          lensLines,
+          lensItems: lensLines,
+        }
+      : {}),
   };
 }
 
@@ -96,6 +119,10 @@ type BuildUpdatePayloadParams = {
   headerCurrency: string;
   supplyAmount: number;
   exchangeRate: number | null;
+  /** 서버가 허용하면 발주 수정 시 라인 전체 갱신용 */
+  validItems?: ItemRow[];
+  validLensItems?: LensItemRow[];
+  parseLineUnitPrice?: (display: string) => number;
 };
 
 export function buildUpdatePayload({
@@ -115,7 +142,46 @@ export function buildUpdatePayload({
   headerCurrency,
   supplyAmount,
   exchangeRate,
+  validItems,
+  validLensItems,
+  parseLineUnitPrice,
 }: BuildUpdatePayloadParams): PurchaseOrderUpdatePayload {
+  const parsePrice =
+    parseLineUnitPrice ??
+    ((display: string) => {
+      const n = Number(display.replace(/,/g, "").trim());
+      return Number.isFinite(n) ? n : 0;
+    });
+
+  const lines =
+    validItems?.map(
+      (row): PurchaseOrderItemPayload => ({
+        productId: row.productId.trim(),
+        qty: row.qty,
+        unitPrice: parsePrice(row.unitPrice),
+        unit: row.unitCode.trim() || null,
+        currencyCode: row.currencyCode.trim() || "KRW",
+        remark: row.remark.trim() || null,
+      })
+    ) ?? undefined;
+
+  const lensLines =
+    validLensItems != null
+      ? validLensItems.map(
+          (row): PurchaseOrderLensLinePayload => ({
+            ...(row.lineId ? { id: row.lineId } : {}),
+            lensId: row.lensId.trim(),
+            qty: row.qty,
+            unitPrice: parsePrice(row.unitPrice),
+            unit: row.unitCode.trim() || null,
+            currencyCode: row.currencyCode.trim() || "KRW",
+            requestDeliveryDate: row.requestDeliveryDate.trim() || null,
+            remark: row.remark.trim() || null,
+          })
+        )
+      : undefined;
+  const hasLensLinesPatch = validLensItems != null;
+
   return {
     title: title.trim(),
     partnerId: partnerId ? partnerId.trim() : undefined,
@@ -134,5 +200,12 @@ export function buildUpdatePayload({
     supplyAmount,
     exchangeRate,
     exchangeRateDate: orderDate || null,
+    ...(lines && lines.length > 0 ? { items: lines, lines } : {}),
+    ...(hasLensLinesPatch
+      ? {
+          lensLines,
+          lensItems: lensLines,
+        }
+      : {}),
   };
 }

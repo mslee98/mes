@@ -22,7 +22,7 @@ export default function FileUploadDropzone({
   onError,
   accept,
   disabled = false,
-  maxFileSizeMb = 30,
+  maxFileSizeMb = 50,
   maxFiles = 10,
   multiple = true,
   buttonLabel = "파일 선택",

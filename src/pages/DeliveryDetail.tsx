@@ -11,7 +11,6 @@ import {
   getDeliveryById,
   type Partner,
 } from "../api/purchaseOrder";
-import { DeliveryPlanApprovalDemoPanel } from "../components/delivery/DeliveryPlanApprovalDemoPanel";
 import {
   buildDeliveryStepperDetailsFromCodes,
   computeDeliveryStatusCompletedCount,
@@ -21,8 +20,6 @@ import {
 import {
   COMMON_CODE_GROUP_DELIVERY_STATUS,
   COMMON_CODE_GROUP_COUNTRY,
-  COMMON_CODE_GROUP_PURCHASE_ORDER_STATUS,
-  COMMON_CODE_GROUP_PURCHASE_ORDER_TYPE,
   labelForCommonCode,
 } from "../api/commonCode";
 import { partnerSelectLabel } from "../lib/partnerDisplay";
@@ -33,14 +30,14 @@ import {
 } from "../components/delivery/deliveryDetailTabTypes";
 import { DeliveryDetailOverviewTab } from "../components/delivery/DeliveryDetailOverviewTab";
 import { DeliveryDetailLinesTab } from "../components/delivery/DeliveryDetailLinesTab";
-import { DeliveryDetailOrderTab } from "../components/delivery/DeliveryDetailOrderTab";
+import { DeliveryDetailProgressTab } from "../components/delivery/DeliveryDetailProgressTab";
+import { DeliveryDetailSummaryTab } from "../components/delivery/DeliveryDetailSummaryTab";
 import {
   asDeliveryDetailRecord,
   deliveryLinesFromDelivery,
   deliveryStatusSimStorageKey,
   formatDeliveryDetailDateYmd,
   labelForSortedDeliveryStatus,
-  pickOrderItemsFromDeliveryOrder,
 } from "../lib/deliveryDetailHelpers";
 
 const COMMON_CODE_GROUP_UNIT = "UNIT";
@@ -87,7 +84,6 @@ export default function DeliveryDetail() {
     () => sortDeliveryStatusCodes(deliveryStatusCodes),
     [deliveryStatusCodes]
   );
-
   const [deliveryStatusSimCode, setDeliveryStatusSimCode] = useState<string | null>(null);
 
   useEffect(() => {
@@ -103,7 +99,7 @@ export default function DeliveryDetail() {
   useEffect(() => {
     if (!idOk) return;
     try {
-      if (deliveryStatusSimCode == null || deliveryStatusSimCode === "") {
+      if (!deliveryStatusSimCode?.trim()) {
         sessionStorage.removeItem(deliveryStatusSimStorageKey(id));
       } else {
         sessionStorage.setItem(deliveryStatusSimStorageKey(id), deliveryStatusSimCode);
@@ -115,18 +111,6 @@ export default function DeliveryDetail() {
 
   const { data: countryCodes = [] } = useCommonCodesByGroup(
     COMMON_CODE_GROUP_COUNTRY,
-    accessToken,
-    { enabled: !!accessToken && !isAuthLoading }
-  );
-
-  const { data: poStatusCodes = [] } = useCommonCodesByGroup(
-    COMMON_CODE_GROUP_PURCHASE_ORDER_STATUS,
-    accessToken,
-    { enabled: !!accessToken && !isAuthLoading }
-  );
-
-  const { data: poTypeCodes = [] } = useCommonCodesByGroup(
-    COMMON_CODE_GROUP_PURCHASE_ORDER_TYPE,
     accessToken,
     { enabled: !!accessToken && !isAuthLoading }
   );
@@ -189,10 +173,6 @@ export default function DeliveryDetail() {
   }, [effectiveDeliveryStatus, sortedDeliveryStatusCodes]);
 
   const lines = delivery ? deliveryLinesFromDelivery(delivery) : [];
-  const orderItemsAll = useMemo(
-    () => pickOrderItemsFromDeliveryOrder(order),
-    [order]
-  );
 
   const [activeTab, setActiveTab] = useState<DeliveryDetailTab>("overview");
 
@@ -286,7 +266,6 @@ export default function DeliveryDetail() {
                 purchaseOrderId={purchaseOrderId}
                 partnerLabel={partnerLabel}
                 effectiveDeliveryStatus={effectiveDeliveryStatus}
-                deliveryStatusSimCode={deliveryStatusSimCode}
                 statusName={statusName}
                 statusStepTotal={statusStepTotal}
                 statusProgressIndex={statusProgressIndex}
@@ -308,39 +287,40 @@ export default function DeliveryDetail() {
                 orderCurrency={orderCurrency}
               />
             ) : null}
-            {activeTab === "order" ? (
-              <DeliveryDetailOrderTab
-                order={order}
-                partnerLabel={partnerLabel}
-                orderCurrency={orderCurrency}
-                purchaseOrderId={purchaseOrderId}
-                poStatusCodes={poStatusCodes}
-                poTypeCodes={poTypeCodes}
-                orderItemsAll={orderItemsAll}
-                deliveryLinesForMatch={lines}
-                unitLabel={unitLabel}
-              />
-            ) : null}
             {activeTab === "progress" ? (
-              <DeliveryPlanApprovalDemoPanel
-                deliveryId={id}
-                sortedCodes={sortedDeliveryStatusCodes}
-                codesLoading={deliveryStatusCodesLoading}
-                serverStatus={d.status}
-                simCode={deliveryStatusSimCode}
-                onSimChange={setDeliveryStatusSimCode}
-                section="progress"
+              <DeliveryDetailProgressTab
+                sortedDeliveryStatusCodes={sortedDeliveryStatusCodes}
+                deliveryStatusCodesLoading={deliveryStatusCodesLoading}
+                effectiveDeliveryStatus={effectiveDeliveryStatus}
+                statusName={statusName}
+                statusProgressIndex={statusProgressIndex}
+                stepLabels={stepLabels}
+                stepperCompleted={stepperCompleted}
+                stepperDetails={stepperDetails}
+                onPreviousStatus={() => {
+                  if (statusProgressIndex <= 0) return;
+                  setDeliveryStatusSimCode(sortedDeliveryStatusCodes[statusProgressIndex - 1].code);
+                }}
+                onNextStatus={() => {
+                  if (statusProgressIndex < 0) {
+                    if (sortedDeliveryStatusCodes.length > 0) {
+                      setDeliveryStatusSimCode(sortedDeliveryStatusCodes[0].code);
+                    }
+                    return;
+                  }
+                  if (statusProgressIndex >= sortedDeliveryStatusCodes.length - 1) return;
+                  setDeliveryStatusSimCode(sortedDeliveryStatusCodes[statusProgressIndex + 1].code);
+                }}
+                onResetStatus={() => setDeliveryStatusSimCode(null)}
               />
             ) : null}
-            {activeTab === "approval" ? (
-              <DeliveryPlanApprovalDemoPanel
-                deliveryId={id}
-                sortedCodes={sortedDeliveryStatusCodes}
-                codesLoading={deliveryStatusCodesLoading}
-                serverStatus={d.status}
-                simCode={deliveryStatusSimCode}
-                onSimChange={setDeliveryStatusSimCode}
-                section="approval"
+            {activeTab === "summary" ? (
+              <DeliveryDetailSummaryTab
+                delivery={d}
+                order={order}
+                purchaseOrderId={purchaseOrderId}
+                sortedDeliveryStatusCodes={sortedDeliveryStatusCodes}
+                statusName={statusName}
               />
             ) : null}
           </div>
