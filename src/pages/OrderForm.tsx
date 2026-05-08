@@ -12,7 +12,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { useParams, useNavigate } from "react-router";
-import toast from "react-hot-toast";
+import { notify } from "../lib/notify";
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import ComponentCard from "../components/common/ComponentCard";
@@ -330,7 +330,7 @@ export default function OrderForm() {
     if (isNew || !order) return;
     if (canEditExistingOrder) return;
     if (!blockedEditToastShownRef.current) {
-      toast.error("작성자만 수정할 수 있으며, 종결된 발주는 수정할 수 없습니다.");
+      notify.error("작성자만 수정할 수 있으며, 종결된 발주는 수정할 수 없습니다.");
       blockedEditToastShownRef.current = true;
     }
     navigate(`/order/${id}`, { replace: true });
@@ -680,37 +680,37 @@ export default function OrderForm() {
           failedCount = Math.max(pendingFilesForCreate.length - uploadedCount, 0);
         } catch (error) {
           failedCount = pendingFilesForCreate.length;
-          toast.error(uploadErrorMessage(error));
+          notify.error(uploadErrorMessage(error));
         }
         if (uploadedCount > 0) {
-          toast.success(
+          notify.success(
             `발주가 등록되었고 첨부파일 ${uploadedCount}건이 업로드되었습니다.`
           );
         } else {
-          toast.success("발주가 등록되었습니다.");
+          notify.success("발주가 등록되었습니다.");
         }
         if (failedCount > 0) {
-          toast.error(`첨부파일 ${failedCount}건 업로드에 실패했습니다.`);
+          notify.error(`첨부파일 ${failedCount}건 업로드에 실패했습니다.`);
         }
         setPendingFilesForCreate([]);
       } else {
-        toast.success("발주가 등록되었습니다.");
+        notify.success("발주가 등록되었습니다.");
       }
       navigate(`/order/${data.id}`);
     },
-    onError: (e: Error) => toast.error(e.message || "등록에 실패했습니다."),
+    onError: (e: Error) => notify.error(e.message || "등록에 실패했습니다."),
   });
 
   const updateMutation = useMutation({
     mutationFn: (payload: PurchaseOrderUpdatePayload) =>
       updatePurchaseOrder(id, payload, accessToken!),
     onSuccess: () => {
-      toast.success("발주가 수정되었습니다.");
+      notify.success("발주가 수정되었습니다.");
       queryClient.invalidateQueries({ queryKey: ["purchaseOrders"] });
       queryClient.invalidateQueries({ queryKey: ["purchaseOrder", id] });
       navigate(`/order/${id}`);
     },
-    onError: (e: Error) => toast.error(e.message || "수정에 실패했습니다."),
+    onError: (e: Error) => notify.error(e.message || "수정에 실패했습니다."),
   });
 
   const lineUpdateMutation = useMutation({
@@ -722,12 +722,12 @@ export default function OrderForm() {
       payload: PurchaseOrderLinePatchPayload;
     }) => updatePurchaseOrderLine(id, lineId, payload, accessToken!),
     onSuccess: () => {
-      toast.success("발주 라인이 수정되었습니다.");
+      notify.success("발주 라인이 수정되었습니다.");
       queryClient.invalidateQueries({ queryKey: ["purchaseOrder", id] });
       queryClient.invalidateQueries({ queryKey: ["purchaseOrder", id, "lineItems"] });
     },
     onError: (e: Error) =>
-      toast.error(e.message || "발주 라인 수정에 실패했습니다."),
+      notify.error(e.message || "발주 라인 수정에 실패했습니다."),
   });
 
   const lineCreateMutation = useMutation({
@@ -738,7 +738,7 @@ export default function OrderForm() {
       payload: PurchaseOrderItemPayload;
     }) => createPurchaseOrderLine(id, payload, accessToken!),
     onSuccess: (created, { index }) => {
-      toast.success("발주 라인이 추가되었습니다.");
+      notify.success("발주 라인이 추가되었습니다.");
       queryClient.invalidateQueries({ queryKey: ["purchaseOrder", id] });
       queryClient.invalidateQueries({ queryKey: ["purchaseOrder", id, "lineItems"] });
       if (created) {
@@ -764,38 +764,38 @@ export default function OrderForm() {
       }
     },
     onError: (e: Error) =>
-      toast.error(e.message || "발주 라인 추가에 실패했습니다."),
+      notify.error(e.message || "발주 라인 추가에 실패했습니다."),
   });
 
   const lineDeleteMutation = useMutation({
     mutationFn: (lineId: number) => deletePurchaseOrderLine(id, lineId, accessToken!),
     onSuccess: () => {
-      toast.success("발주 라인이 삭제되었습니다.");
+      notify.success("발주 라인이 삭제되었습니다.");
       queryClient.invalidateQueries({ queryKey: ["purchaseOrder", id] });
       queryClient.invalidateQueries({ queryKey: ["purchaseOrder", id, "lineItems"] });
     },
     onError: (e: Error) =>
-      toast.error(e.message || "발주 라인 삭제에 실패했습니다."),
+      notify.error(e.message || "발주 라인 삭제에 실패했습니다."),
   });
 
   const fileUploadMutation = useMutation({
     mutationFn: (files: File[]) => uploadPurchaseOrderFile(id, files, accessToken!),
     onSuccess: () => {
-      toast.success("파일이 업로드되었습니다.");
+      notify.success("파일이 업로드되었습니다.");
       queryClient.invalidateQueries({ queryKey: ["purchaseOrderFiles", id] });
     },
-    onError: (e: Error) => toast.error(uploadErrorMessage(e)),
+    onError: (e: Error) => notify.error(uploadErrorMessage(e)),
   });
 
   const fileDeleteMutation = useMutation({
     mutationFn: (fileLinkId: number) =>
       deletePurchaseOrderFile(id, fileLinkId, accessToken!),
     onSuccess: () => {
-      toast.success("첨부파일이 삭제되었습니다.");
+      notify.success("첨부파일이 삭제되었습니다.");
       queryClient.invalidateQueries({ queryKey: ["purchaseOrderFiles", id] });
       queryClient.invalidateQueries({ queryKey: ["purchaseOrder", id] });
     },
-    onError: (e: Error) => toast.error(e.message || "삭제에 실패했습니다."),
+    onError: (e: Error) => notify.error(e.message || "삭제에 실패했습니다."),
   });
 
   const markLineSaved = useCallback((lineId?: number) => {
@@ -841,7 +841,7 @@ export default function OrderForm() {
 
   const addItemRow = () => {
     if (!isNew && !canEditExistingOrder) {
-      toast.error("수정 권한이 없습니다.");
+      notify.error("수정 권한이 없습니다.");
       return;
     }
     setItems((prev) => [
@@ -855,7 +855,7 @@ export default function OrderForm() {
   };
   const removeItemRow = (index: number) => {
     if (!isNew && !canEditExistingOrder) {
-      toast.error("수정 권한이 없습니다.");
+      notify.error("수정 권한이 없습니다.");
       return;
     }
     setItems((prev) =>
@@ -866,7 +866,7 @@ export default function OrderForm() {
   const addPendingFileForCreate = (files: File[]) => {
     if (files.length === 0) return;
     setPendingFilesForCreate((prev) => [...prev, ...files]);
-    toast.success(`첨부 대기 목록에 ${files.length}건 추가되었습니다.`);
+    notify.success(`첨부 대기 목록에 ${files.length}건 추가되었습니다.`);
   };
 
   const removePendingFileForCreate = (targetIndex: number) => {
@@ -906,7 +906,7 @@ export default function OrderForm() {
 
   const beginLineEdit = (lineId?: number) => {
     if (!isNew && !canEditExistingOrder) {
-      toast.error("수정 권한이 없습니다.");
+      notify.error("수정 권한이 없습니다.");
       return;
     }
     if (!lineId) return;
@@ -922,26 +922,26 @@ export default function OrderForm() {
 
   const saveLine = (index: number) => {
     if (!isNew && !canEditExistingOrder) {
-      toast.error("수정 권한이 없습니다.");
+      notify.error("수정 권한이 없습니다.");
       return;
     }
     const row = items[index];
     if (!row) return;
     if (!row.productId.trim()) {
-      toast.error("대표 제품을 선택하세요.");
+      notify.error("대표 제품을 선택하세요.");
       return;
     }
     if (!row.unitCode.trim()) {
-      toast.error("단위를 선택하세요.");
+      notify.error("단위를 선택하세요.");
       return;
     }
     if (row.qty <= 0) {
-      toast.error("수량은 0보다 커야 합니다.");
+      notify.error("수량은 0보다 커야 합니다.");
       return;
     }
     const unitPrice = parseLineUnitPrice(row.unitPrice);
     if (!Number.isFinite(unitPrice) || unitPrice < 0) {
-      toast.error("단가를 확인하세요.");
+      notify.error("단가를 확인하세요.");
       return;
     }
 
@@ -993,7 +993,7 @@ export default function OrderForm() {
    */
   const removeLine = (index: number) => {
     if (!isNew && !canEditExistingOrder) {
-      toast.error("수정 권한이 없습니다.");
+      notify.error("수정 권한이 없습니다.");
       return;
     }
     const row = items[index];
@@ -1054,11 +1054,11 @@ export default function OrderForm() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!isNew && !canEditExistingOrder) {
-      toast.error("작성자만 수정할 수 있으며, 종결된 발주는 수정할 수 없습니다.");
+      notify.error("작성자만 수정할 수 있으며, 종결된 발주는 수정할 수 없습니다.");
       return;
     }
     if (hasUnsavedWorkingLine) {
-      toast.error("작업중인 행이 있습니다. 행 저장 후 다시 시도하세요.");
+      notify.error("작업중인 행이 있습니다. 행 저장 후 다시 시도하세요.");
       return;
     }
     if (
@@ -1069,20 +1069,20 @@ export default function OrderForm() {
           { value: dueDate, message: "고객요청납기일을 입력하세요." },
           { value: requesterUserSelectValue, message: "영업담당자를 선택하세요." },
         ],
-        toast.error
+        notify.error
       )
     ) {
       return;
     }
 
     if (!isOrderDateRangeValid(orderDate, dueDate)) {
-      toast.error("고객요청납기일은 발주일자보다 빠를 수 없고, 발주일자는 고객요청납기일보다 클 수 없습니다.");
+      notify.error("고객요청납기일은 발주일자보다 빠를 수 없고, 발주일자는 고객요청납기일보다 클 수 없습니다.");
       return;
     }
 
     if (isNew) {
       if (items.some((row) => isPartialProductRow(row))) {
-        toast.error("제품 라인을 확인하세요. (대표 제품·단위·수량·단가)");
+        notify.error("제품 라인을 확인하세요. (대표 제품·단위·수량·단가)");
         return;
       }
       const validItems = items.filter(
@@ -1093,7 +1093,7 @@ export default function OrderForm() {
           parseLineUnitPrice(row.unitPrice) >= 0
       );
       if (validItems.length === 0) {
-        toast.error(
+        notify.error(
           "대표 제품·단위·수량·단가를 모두 입력한 라인을 1건 이상 등록하세요."
         );
         return;
@@ -1102,7 +1102,7 @@ export default function OrderForm() {
         purchaseOrderTypeCodes.length > 0 &&
         !effectiveOrderTypeCode.trim()
       ) {
-        toast.error("발주 유형을 선택하세요.");
+        notify.error("발주 유형을 선택하세요.");
         return;
       }
       const headerCurrency =
@@ -1139,7 +1139,7 @@ export default function OrderForm() {
     }
 
     if (items.some((row) => isPartialProductRow(row))) {
-      toast.error("제품 라인을 확인하세요. (대표 제품·단위·수량·단가)");
+      notify.error("제품 라인을 확인하세요. (대표 제품·단위·수량·단가)");
       return;
     }
 
@@ -1159,7 +1159,7 @@ export default function OrderForm() {
       purchaseOrderTypeCodes.length > 0 &&
       !effectiveOrderTypeCode.trim()
     ) {
-      toast.error("발주 유형을 선택하세요.");
+      notify.error("발주 유형을 선택하세요.");
       return;
     }
 
@@ -1440,7 +1440,7 @@ export default function OrderForm() {
                 isFileDeletePending={fileDeleteMutation.isPending}
                 uploadingExistingFileNames={uploadingExistingFileNames}
                 recentlyUploadedFileNames={recentlyUploadedFileNames}
-                onError={(message) => toast.error(message)}
+                onError={(message) => notify.error(message)}
                 onSelectCreateFiles={addPendingFileForCreate}
                 onRemoveCreateFile={removePendingFileForCreate}
                 onUploadExistingFiles={(incomingFiles) => {

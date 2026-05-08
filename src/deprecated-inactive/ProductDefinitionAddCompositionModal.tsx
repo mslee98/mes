@@ -6,7 +6,7 @@ import Select, {
   type SingleValue,
   type StylesConfig,
 } from "react-select";
-import toast from "react-hot-toast";
+import { notify } from "../lib/notify";
 import { Modal } from "../components/ui/modal";
 import Label from "../components/form/Label";
 import Input from "../components/form/input/InputField";
@@ -199,7 +199,7 @@ export default function ProductDefinitionAddCompositionModal({
       });
     },
     onSuccess: () => {
-      toast.success("구성 품목을 추가했습니다.");
+      notify.success("구성 품목을 추가했습니다.");
       queryClient.invalidateQueries({
         queryKey: ["productDefinition", definitionId],
       });
@@ -208,18 +208,18 @@ export default function ProductDefinitionAddCompositionModal({
     },
     onError: (e: unknown) => {
       if (showForbiddenToast(e, "추가 권한이 없습니다.")) return;
-      toast.error(e instanceof Error ? e.message : "추가에 실패했습니다.");
+      notify.error(e instanceof Error ? e.message : "추가에 실패했습니다.");
     },
   });
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (revisionIdPick < 1) {
-      toast.error("품목과 리비전을 선택하세요.");
+      notify.error("품목과 리비전을 선택하세요.");
       return;
     }
     if (lineItemRole.trim().toLowerCase() === "housing") {
-      toast.error(
+      notify.error(
         "역할에 HOUSING을 사용할 수 없습니다. 하우징은 제품 정의의 하우징 템플릿에서 지정하세요."
       );
       return;

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router";
-import toast from "react-hot-toast";
+import { notify } from "../lib/notify";
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import ComponentCard from "../components/common/ComponentCard";
@@ -9,7 +9,7 @@ import DetailPageState from "../components/common/DetailPageState";
 import Label from "../components/form/Label";
 import Input from "../components/form/input/InputField";
 import TextArea from "../components/form/input/TextArea";
-import ActiveToggle from "../components/form/ActiveToggle";
+import Toggle from "../components/form/Toggle";
 import FormActionBar from "../components/form/FormActionBar";
 import { useAuth } from "../hooks/useAuth";
 import { useProductPermissions } from "../hooks/useProductPermissions";
@@ -77,7 +77,7 @@ export default function DetectorSeriesForm() {
       });
     },
     onSuccess: (saved) => {
-      toast.success(isNew ? "시리즈를 등록했습니다." : "시리즈를 저장했습니다.");
+      notify.success(isNew ? "시리즈를 등록했습니다." : "시리즈를 저장했습니다.");
       queryClient.invalidateQueries({ queryKey: ["detectorSeries"] });
       if (isNew) {
         navigate("/detectors", { replace: true });
@@ -87,18 +87,18 @@ export default function DetectorSeriesForm() {
     },
     onError: (err: unknown) => {
       const msg = err instanceof Error ? err.message : "저장에 실패했습니다.";
-      toast.error(msg);
+      notify.error(msg);
     },
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!canManageProducts) {
-      toast.error("제품 관리 권한(product.manage)이 없습니다.");
+      notify.error("제품 관리 권한(product.manage)이 없습니다.");
       return;
     }
     if (!code.trim() || !name.trim()) {
-      toast.error("코드와 이름은 필수입니다.");
+      notify.error("코드와 이름은 필수입니다.");
       return;
     }
     saveMutation.mutate();
@@ -183,7 +183,7 @@ export default function DetectorSeriesForm() {
                 />
               </div>
               <div className="sm:col-span-2 flex items-center pt-1">
-                <ActiveToggle
+                <Toggle
                   id="series-active"
                   checked={isActive}
                   onChange={setIsActive}

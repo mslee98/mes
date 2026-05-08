@@ -5,7 +5,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { Link, useParams } from "react-router";
-import toast from "react-hot-toast";
+import { notify } from "../lib/notify";
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import ComponentCard from "../components/common/ComponentCard";
@@ -514,13 +514,13 @@ export default function OrderDetail() {
         accessToken!
       ),
     onSuccess: () => {
-      toast.success("접수되어 발주가 종결되었습니다.");
+      notify.success("접수되어 발주가 종결되었습니다.");
       setReceiveConfirmOpen(false);
       queryClient.invalidateQueries({ queryKey: ["purchaseOrder", id] });
       queryClient.invalidateQueries({ queryKey: ["purchaseOrders"] });
     },
     onError: (e: Error) =>
-      toast.error(e.message || "접수 처리에 실패했습니다."),
+      notify.error(e.message || "접수 처리에 실패했습니다."),
   });
 
   const deliveryMutation = useMutation({
@@ -528,14 +528,14 @@ export default function OrderDetail() {
       return createDelivery(id, vars.deliveryPayload, accessToken!);
     },
     onSuccess: () => {
-      toast.success("납품 및 시리얼이 등록되었습니다.");
+      notify.success("납품 및 시리얼이 등록되었습니다.");
       setDeliveryModalOpen(false);
       resetDeliveryModalForm();
       queryClient.invalidateQueries({ queryKey: ["purchaseOrderDeliveries", id] });
       queryClient.invalidateQueries({ queryKey: ["purchaseOrder", id] });
     },
     onError: (e: Error) =>
-      toast.error(e.message || "납품/시리얼 등록에 실패했습니다."),
+      notify.error(e.message || "납품/시리얼 등록에 실패했습니다."),
   });
 
   const orderLineSummaries = useMemo(() => {
@@ -615,31 +615,31 @@ export default function OrderDetail() {
   };
   const handleGenerateSerialClick = async () => {
     if (!hasDeliveryTargets) {
-      toast.error("등록할 제품 라인이 없습니다.");
+      notify.error("등록할 제품 라인이 없습니다.");
       return;
     }
     const raw = deliverySerialQtyInput.trim();
     const qty = Number(raw);
     if (!raw || !Number.isFinite(qty) || qty <= 0 || !Number.isInteger(qty)) {
-      toast.error("납품 수량은 1 이상의 정수로 입력하세요.");
+      notify.error("납품 수량은 1 이상의 정수로 입력하세요.");
       return;
     }
     if (!wavelengthCode.trim()) {
-      toast.error("파장정보를 선택하세요.");
+      notify.error("파장정보를 선택하세요.");
       return;
     }
     if (!detectorId.trim()) {
-      toast.error("검출기 타입을 선택하세요.");
+      notify.error("검출기 타입을 선택하세요.");
       return;
     }
     if (!selectedDetector) {
-      toast.error("검출기 정보를 찾을 수 없습니다. 다시 선택하세요.");
+      notify.error("검출기 정보를 찾을 수 없습니다. 다시 선택하세요.");
       return;
     }
     const normalizedWavelengthCode = wavelengthCode.trim().toUpperCase();
     const arrayWidth = Number(selectedDetector.arrayWidth);
     if (!Number.isFinite(arrayWidth) || arrayWidth <= 0) {
-      toast.error("검출기 해상도(가로) 정보가 없습니다.");
+      notify.error("검출기 해상도(가로) 정보가 없습니다.");
       return;
     }
     const resolutionCode = String(Math.trunc(arrayWidth)).padStart(4, "0");
@@ -647,17 +647,17 @@ export default function OrderDetail() {
       String(selectedDetector.detectorType ?? "")
     );
     if (!detectorTypeCode) {
-      toast.error("검출기 타입 코드(A/A2 등)를 파싱하지 못했습니다.");
+      notify.error("검출기 타입 코드(A/A2 등)를 파싱하지 못했습니다.");
       return;
     }
     const yearCode = yearCodeFromDate(deliveryDate.trim());
     if (!yearCode) {
-      toast.error("제작년도 코드 매핑이 없습니다. (예: 2025→O, 2026→P)");
+      notify.error("제작년도 코드 매핑이 없습니다. (예: 2025→O, 2026→P)");
       return;
     }
     const customerCode = String(po.partner?.code ?? "").trim().toUpperCase();
     if (!customerCode) {
-      toast.error("고객사 업체코드를 찾을 수 없습니다.");
+      notify.error("고객사 업체코드를 찾을 수 없습니다.");
       return;
     }
     const qtyEps = 1e-9;
@@ -705,7 +705,7 @@ export default function OrderDetail() {
       const serialMeta = productSerialMetaById.get(String(line.productId ?? "").trim());
       const businessCode = serialMeta?.businessCode ?? "";
       if (!businessCode) {
-        toast.error(
+        notify.error(
           `제품 business_code를 찾을 수 없습니다. (${line.itemName ?? "품목"})`
         );
         return;
@@ -713,14 +713,14 @@ export default function OrderDetail() {
       const pitchCode = pitchCodeFromRaw(serialMeta?.pixelPitch ?? "");
 
       if (!pitchCode) {
-        toast.error(
+        notify.error(
           `제품 Pixel Pitch 코드 매핑이 없습니다. (${line.itemName ?? "품목"})`
         );
         return;
       }
       const detectorElementCode = detectorElementCodeFromBusinessName(lineCode);
       if (!detectorElementCode) {
-        toast.error(
+        notify.error(
           `소자정보를 찾을 수 없습니다. (${line.itemName ?? "품목"})`
         );
         return;
@@ -748,7 +748,7 @@ export default function OrderDetail() {
         const prev = deliveredByOrderItemId.get(line.id) ?? 0;
         return sum + Math.max(0, line.qty - prev);
       }, 0);
-      toast.error(`잔여 수량(${totalRemaining})을 초과했습니다.`);
+      notify.error(`잔여 수량(${totalRemaining})을 초과했습니다.`);
       return;
     }
     const uniqueSequenceKeys = [...new Set(plannedRows.map((row) => row.sequenceKey))];
@@ -767,7 +767,7 @@ export default function OrderDetail() {
         error instanceof Error
           ? error.message
           : "시리얼 시퀀스 조회 중 오류가 발생했습니다.";
-      toast.error(message);
+      notify.error(message);
       return;
     }
     const sequenceCounterByKey = new Map<string, number>();
@@ -805,7 +805,7 @@ export default function OrderDetail() {
     });
     setDeliveryLineQtyInput(nextInput);
     setDeliverySerialPreviewRows(nextSerialRows);
-    toast.success("시리얼 넘버를 발급했습니다.");
+    notify.success("시리얼 넘버를 발급했습니다.");
   };
 
   const createdById = po.createdBy?.id;
@@ -1115,7 +1115,7 @@ export default function OrderDetail() {
                                       error instanceof Error
                                         ? error.message
                                         : "첨부파일 다운로드에 실패했습니다.";
-                                    toast.error(message);
+                                    notify.error(message);
                                   }
                                 }}
                                 title="첨부파일 다운로드"
@@ -1430,29 +1430,29 @@ export default function OrderDetail() {
             type="button"
             onClick={() => {
               if (!deliveryDate.trim()) {
-                toast.error("제품 인계일을 입력하세요.");
+                notify.error("제품 인계일을 입력하세요.");
                 return;
               }
               if (!wavelengthCode.trim()) {
-                toast.error("파장정보를 선택하세요.");
+                notify.error("파장정보를 선택하세요.");
                 return;
               }
               if (!detectorId.trim()) {
-                toast.error("검출기 타입을 선택하세요.");
+                notify.error("검출기 타입을 선택하세요.");
                 return;
               }
               const selectedDetectorId = Number(detectorId);
               if (!Number.isFinite(selectedDetectorId) || selectedDetectorId <= 0) {
-                toast.error("검출기를 다시 선택하세요.");
+                notify.error("검출기를 다시 선택하세요.");
                 return;
               }
               if (!selectedDetector || Number(selectedDetector.id) !== selectedDetectorId) {
-                toast.error("검출기 정보를 찾을 수 없습니다. 다시 선택하세요.");
+                notify.error("검출기 정보를 찾을 수 없습니다. 다시 선택하세요.");
                 return;
               }
               const arrayWidth = Number(selectedDetector.arrayWidth);
               if (!Number.isFinite(arrayWidth) || arrayWidth <= 0) {
-                toast.error("검출기 해상도(가로) 정보가 없습니다.");
+                notify.error("검출기 해상도(가로) 정보가 없습니다.");
                 return;
               }
               const resolutionCode = String(Math.trunc(arrayWidth)).padStart(4, "0");
@@ -1460,25 +1460,25 @@ export default function OrderDetail() {
                 String(selectedDetector.detectorType ?? "")
               );
               if (!detectorTypeCode) {
-                toast.error("검출기 타입 코드(A/A2 등)를 파싱하지 못했습니다.");
+                notify.error("검출기 타입 코드(A/A2 등)를 파싱하지 못했습니다.");
                 return;
               }
               const yearCode = yearCodeFromDate(deliveryDate.trim());
               if (!yearCode) {
-                toast.error("제작년도 코드 매핑이 없습니다. (예: 2025→O, 2026→P)");
+                notify.error("제작년도 코드 매핑이 없습니다. (예: 2025→O, 2026→P)");
                 return;
               }
               const customerCode = String(po.partner?.code ?? "").trim().toUpperCase();
               if (!customerCode) {
-                toast.error("고객사 업체코드를 찾을 수 없습니다.");
+                notify.error("고객사 업체코드를 찾을 수 없습니다.");
                 return;
               }
               if (!hasDeliveryTargets) {
-                toast.error("등록할 제품 라인이 없습니다.");
+                notify.error("등록할 제품 라인이 없습니다.");
                 return;
               }
               if (deliverySerialPreviewRows.length === 0) {
-                toast.error("시리얼을 먼저 생성하세요.");
+                notify.error("시리얼을 먼저 생성하세요.");
                 return;
               }
               const QTY_EPS = 1e-9;
@@ -1531,7 +1531,7 @@ export default function OrderDetail() {
                 const prev = deliveredByOrderItemId.get(line.id) ?? 0;
                 const remaining = Math.max(0, line.qty - prev);
                 if (bundled.quantity - remaining > QTY_EPS) {
-                  toast.error(
+                  notify.error(
                     `잔량을 초과했습니다. (${line.itemName ?? "품목"} · 잔여 ${remaining})`
                   );
                   return;
@@ -1544,21 +1544,21 @@ export default function OrderDetail() {
                   productSerialMetaById.get(String(line.productId ?? "").trim());
                 const businessCode = serialMeta?.businessCode ?? "";
                 if (!businessCode) {
-                  toast.error(
+                  notify.error(
                     `제품 business_code를 찾을 수 없습니다. (${line.itemName ?? "품목"})`
                   );
                   return;
                 }
                 const pitchCode = pitchCodeFromRaw(serialMeta?.pixelPitch ?? "");
                 if (!pitchCode) {
-                  toast.error(
+                  notify.error(
                     `제품 Pixel Pitch 코드 매핑이 없습니다. (${line.itemName ?? "품목"})`
                   );
                   return;
                 }
                 const derivedElement = detectorElementCodeFromBusinessName(biz);
                 if (!derivedElement) {
-                  toast.error(
+                  notify.error(
                     `소자정보를 사업명에서 찾을 수 없습니다. 사업명에 '_' 뒤 소자 코드가 있어야 합니다. (${line.itemName ?? "품목"})`
                   );
                   return;
@@ -1606,7 +1606,7 @@ export default function OrderDetail() {
                 });
               }
               if (linesPayload.length === 0) {
-                toast.error("이번 납품 수량을 1건 이상 입력하세요.");
+                notify.error("이번 납품 수량을 1건 이상 입력하세요.");
                 return;
               }
               const payload: DeliveryCreatePayload = {

@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams } from "react-router";
-import toast from "react-hot-toast";
+import { notify } from "../lib/notify";
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import PageNotice from "../components/common/PageNotice";
@@ -194,7 +194,7 @@ export default function ProductDefinitionDetail() {
       });
     },
     onSuccess: () => {
-      toast.success("저장했습니다.");
+      notify.success("저장했습니다.");
       queryClient.invalidateQueries({ queryKey: ["productDefinition", did] });
       queryClient.invalidateQueries({ queryKey: ["product", pid] });
       queryClient.invalidateQueries({ queryKey: ["productList"] });
@@ -202,7 +202,7 @@ export default function ProductDefinitionDetail() {
     },
     onError: (e: unknown) => {
       if (showForbiddenToast(e, "수정 권한이 없습니다.")) return;
-      toast.error(e instanceof Error ? e.message : "수정에 실패했습니다.");
+      notify.error(e instanceof Error ? e.message : "수정에 실패했습니다.");
     },
   });
 
@@ -210,12 +210,12 @@ export default function ProductDefinitionDetail() {
     mutationFn: (lineId: number) =>
       deleteProductDefinitionItemRevision(did, lineId, accessToken as string),
     onSuccess: () => {
-      toast.success("삭제했습니다.");
+      notify.success("삭제했습니다.");
       queryClient.invalidateQueries({ queryKey: ["productDefinition", did] });
     },
     onError: (e: unknown) => {
       if (showForbiddenToast(e, "삭제 권한이 없습니다.")) return;
-      toast.error(e instanceof Error ? e.message : "삭제에 실패했습니다.");
+      notify.error(e instanceof Error ? e.message : "삭제에 실패했습니다.");
     },
   });
 
@@ -610,7 +610,7 @@ export default function ProductDefinitionDetail() {
           onSubmit={(e) => {
             e.preventDefault();
             if (!editCode.trim() || !editName.trim()) {
-              toast.error("정의 코드와 정의명은 필수입니다.");
+              notify.error("정의 코드와 정의명은 필수입니다.");
               return;
             }
             updateHeaderMutation.mutate();

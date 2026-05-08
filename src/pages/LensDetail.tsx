@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "react-router";
-import toast from "react-hot-toast";
+import { notify } from "../lib/notify";
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import ComponentCard from "../components/common/ComponentCard";
@@ -197,7 +197,7 @@ export default function LensDetail() {
                                 error instanceof Error
                                   ? error.message
                                   : "첨부파일 다운로드에 실패했습니다.";
-                              toast.error(message);
+                              notify.error(message);
                             }
                           }}
                           title="첨부파일 다운로드"

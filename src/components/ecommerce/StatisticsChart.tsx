@@ -1,8 +1,10 @@
 import Chart from "react-apexcharts";
 import type { ApexOptions } from "apexcharts";
-import ChartTab from "../common/ChartTab";
+import { useState } from "react";
+import SegmentedControl from "../common/SegmentedControl";
 
 export default function StatisticsChart() {
+  const [period, setPeriod] = useState<"monthly" | "quarterly" | "annually">("monthly");
   const options: ApexOptions = {
     legend: {
       show: false, // Hide legend
@@ -123,7 +125,16 @@ export default function StatisticsChart() {
           </p>
         </div>
         <div className="flex items-start w-full gap-3 sm:justify-end">
-          <ChartTab />
+          <SegmentedControl
+            value={period}
+            onChange={setPeriod}
+            ariaLabel="통계 기간 선택"
+            options={[
+              { value: "monthly", label: "Monthly" },
+              { value: "quarterly", label: "Quarterly" },
+              { value: "annually", label: "Annually" },
+            ]}
+          />
         </div>
       </div>
 

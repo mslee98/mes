@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams, useSearchParams } from "react-router";
-import toast from "react-hot-toast";
+import { notify } from "../lib/notify";
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import PageNotice from "../components/common/PageNotice";
@@ -283,7 +283,7 @@ export default function ProductDetail() {
                                     error instanceof Error
                                       ? error.message
                                       : "첨부파일 다운로드에 실패했습니다.";
-                                  toast.error(message);
+                                  notify.error(message);
                                 }
                               }}
                               title="첨부파일 다운로드"

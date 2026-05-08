@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router";
-import toast from "react-hot-toast";
+import { notify } from "../lib/notify";
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import ComponentCard from "../components/common/ComponentCard";
@@ -14,7 +14,7 @@ import InputAddonField from "../components/form/InputAddonField";
 import TextArea from "../components/form/input/TextArea";
 import Select from "../components/form/Select";
 import FileUploadDropzone from "../components/form/FileUploadDropzone";
-import ActiveToggle from "../components/form/ActiveToggle";
+import Toggle from "../components/form/Toggle";
 import FormActionBar from "../components/form/FormActionBar";
 import { TrashBinIcon } from "../icons";
 import { useAuth } from "../hooks/useAuth";
@@ -141,11 +141,11 @@ export default function ProductForm() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["productList"] });
       queryClient.invalidateQueries({ queryKey: ["product", id] });
-      toast.success("제품을 수정했습니다.");
+      notify.success("제품을 수정했습니다.");
       navigate(`/products/${id}`);
     },
     onError: (e: Error) =>
-      toast.error(e.message || "수정에 실패했습니다."),
+      notify.error(e.message || "수정에 실패했습니다."),
   });
   const createMutation = useMutation({
     mutationFn: () =>
@@ -172,31 +172,31 @@ export default function ProductForm() {
             accessToken as string
           );
         } catch (error) {
-          toast.error(uploadErrorMessage(error));
+          notify.error(uploadErrorMessage(error));
         }
       }
-      toast.success("제품을 등록했습니다.");
+      notify.success("제품을 등록했습니다.");
       navigate(`/products/${created.id}`);
     },
-    onError: (e: Error) => toast.error(e.message || "등록에 실패했습니다."),
+    onError: (e: Error) => notify.error(e.message || "등록에 실패했습니다."),
   });
   const fileUploadMutation = useMutation({
     mutationFn: (selectedFiles: File[]) =>
       uploadProductFiles(id, selectedFiles, accessToken as string),
     onSuccess: (uploaded) => {
       queryClient.invalidateQueries({ queryKey: ["productFiles", id] });
-      toast.success(`첨부파일 ${uploaded.length}건을 업로드했습니다.`);
+      notify.success(`첨부파일 ${uploaded.length}건을 업로드했습니다.`);
     },
-    onError: (error: Error) => toast.error(uploadErrorMessage(error)),
+    onError: (error: Error) => notify.error(uploadErrorMessage(error)),
   });
   const fileDeleteMutation = useMutation({
     mutationFn: (fileLinkId: number) =>
       deleteProductFile(id, fileLinkId, accessToken as string),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["productFiles", id] });
-      toast.success("첨부파일을 삭제했습니다.");
+      notify.success("첨부파일을 삭제했습니다.");
     },
-    onError: (error: Error) => toast.error(uploadErrorMessage(error)),
+    onError: (error: Error) => notify.error(uploadErrorMessage(error)),
   });
   const businessCodeCheckMutation = useMutation({
     mutationFn: () =>
@@ -208,14 +208,14 @@ export default function ProductForm() {
     onSuccess: (result) => {
       if (!result.available) {
         setVerifiedBusinessCode("");
-        toast.error("이미 사용 중인 사업코드입니다.");
+        notify.error("이미 사용 중인 사업코드입니다.");
         return;
       }
       setVerifiedBusinessCode(result.businessCode);
-      toast.success("사용 가능한 사업코드입니다.");
+      notify.success("사용 가능한 사업코드입니다.");
     },
     onError: (error: Error) =>
-      toast.error(error.message || "사업코드 중복 확인에 실패했습니다."),
+      notify.error(error.message || "사업코드 중복 확인에 실패했습니다."),
   });
   const openDeleteConfirm = (fileLinkId: number) => {
     setDeleteTargetFileId(fileLinkId);
@@ -241,29 +241,29 @@ export default function ProductForm() {
           { value: productName, message: "제품명을 입력하세요." },
           { value: arrayType, message: "배열 타입을 선택하세요." },
         ],
-        toast.error
+        notify.error
       )
     ) {
       return;
     }
     if (!arrayWidth.trim() || Number(arrayWidth) <= 0) {
-      toast.error("Array Width는 0보다 커야 합니다.");
+      notify.error("Array Width는 0보다 커야 합니다.");
       return;
     }
     if (!arrayHeight.trim() || Number(arrayHeight) <= 0) {
-      toast.error("Array Height는 0보다 커야 합니다.");
+      notify.error("Array Height는 0보다 커야 합니다.");
       return;
     }
     if (!pixelPitch.trim() || Number(pixelPitch) <= 0) {
-      toast.error("Pixel Pitch는 0보다 커야 합니다.");
+      notify.error("Pixel Pitch는 0보다 커야 합니다.");
       return;
     }
     if (!BUSINESS_CODE_REGEX.test(normalizedBusinessCode)) {
-      toast.error("사업코드는 영문 대문자 1~2자리만 입력하세요. (예: A, ZZ)");
+      notify.error("사업코드는 영문 대문자 1~2자리만 입력하세요. (예: A, ZZ)");
       return;
     }
     if (verifiedBusinessCode !== normalizedBusinessCode) {
-      toast.error("사업코드 중복 확인을 완료해 주세요.");
+      notify.error("사업코드 중복 확인을 완료해 주세요.");
       return;
     }
     if (isNew) {
@@ -515,7 +515,7 @@ export default function ProductForm() {
                           [...prev, ...selected].slice(0, 10)
                         )
                       }
-                      onError={toast.error}
+                      onError={notify.error}
                       disabled={pending}
                       maxFileSizeMb={50}
                       maxFiles={10}
@@ -568,7 +568,7 @@ export default function ProductForm() {
                     </p>
                     <FileUploadDropzone
                       onSelectFiles={(selected) => fileUploadMutation.mutate(selected)}
-                      onError={toast.error}
+                      onError={notify.error}
                       disabled={fileUploadMutation.isPending || fileDeleteMutation.isPending}
                       maxFileSizeMb={50}
                       maxFiles={10}
@@ -623,7 +623,7 @@ export default function ProductForm() {
               </div>
             </div>
             <div className="sm:col-span-2 flex items-center pt-1">
-              <ActiveToggle
+              <Toggle
                 id="product-active-toggle"
                 checked={isActive}
                 onChange={setIsActive}

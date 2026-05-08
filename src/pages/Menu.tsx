@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import toast from "react-hot-toast";
+import { notify } from "../lib/notify";
 import {
   createMenu,
   deleteMenu,
@@ -255,13 +255,13 @@ export default function Menu() {
   const createMutation = useMutation({
     mutationFn: async () => createMenu(buildMenuPayload(formValues), accessToken as string),
     onSuccess: async (createdMenu) => {
-      toast.success("메뉴 생성 성공");
+      notify.success("메뉴 생성 성공");
       setMode("edit");
       setCreateParentId(null);
       await syncMenus(createdMenu?.id ?? null);
     },
     onError: (mutationError) => {
-      toast.error(
+      notify.error(
         mutationError instanceof Error ? mutationError.message : "메뉴 생성에 실패했습니다."
       );
     },
@@ -275,12 +275,12 @@ export default function Menu() {
         accessToken as string
       ),
     onSuccess: async (updatedMenu) => {
-      toast.success("메뉴 수정 성공");
+      notify.success("메뉴 수정 성공");
       await queryClient.invalidateQueries({ queryKey: ["menu", selectedMenuId] });
       await syncMenus(updatedMenu?.id ?? selectedMenuId);
     },
     onError: (mutationError) => {
-      toast.error(
+      notify.error(
         mutationError instanceof Error ? mutationError.message : "메뉴 수정에 실패했습니다."
       );
     },
@@ -289,13 +289,13 @@ export default function Menu() {
   const deleteMutation = useMutation({
     mutationFn: async () => deleteMenu(selectedMenuId as number, accessToken as string),
     onSuccess: async () => {
-      toast.success("메뉴 삭제 성공");
+      notify.success("메뉴 삭제 성공");
       setMode("edit");
       setIsDeleteModalOpen(false);
       await syncMenus(selectedFlatItem?.parentId ?? null);
     },
     onError: (mutationError) => {
-      toast.error(
+      notify.error(
         mutationError instanceof Error ? mutationError.message : "메뉴 삭제에 실패했습니다."
       );
     },
@@ -319,12 +319,12 @@ export default function Menu() {
         )
       ),
     onSuccess: async (_, variables) => {
-      toast.success("메뉴 순서가 저장되었습니다.");
+      notify.success("메뉴 순서가 저장되었습니다.");
       await queryClient.invalidateQueries({ queryKey: ["menu", variables.menuId] });
       await syncMenus(variables.menuId);
     },
     onError: (mutationError, variables) => {
-      toast.error(
+      notify.error(
         mutationError instanceof Error
           ? mutationError.message
           : "메뉴 순서 저장에 실패했습니다."
@@ -370,7 +370,7 @@ export default function Menu() {
 
   const handleSave = () => {
     if (!formValues.code.trim() || !formValues.name.trim()) {
-      toast.error("코드와 이름은 필수입니다.");
+      notify.error("코드와 이름은 필수입니다.");
       return;
     }
 
@@ -380,7 +380,7 @@ export default function Menu() {
     }
 
     if (!selectedMenuId) {
-      toast.error("수정할 메뉴를 선택해주세요.");
+      notify.error("수정할 메뉴를 선택해주세요.");
       return;
     }
 
@@ -389,12 +389,12 @@ export default function Menu() {
 
   const handleDelete = () => {
     if (!selectedMenuId || !selectedMenu) {
-      toast.error("삭제할 메뉴를 선택해주세요.");
+      notify.error("삭제할 메뉴를 선택해주세요.");
       return;
     }
 
     if (isRootMenuWithChildren) {
-      toast.error("하위 메뉴가 있어 바로 최상위 메뉴를 삭제할 수 없습니다.");
+      notify.error("하위 메뉴가 있어 바로 최상위 메뉴를 삭제할 수 없습니다.");
       return;
     }
 

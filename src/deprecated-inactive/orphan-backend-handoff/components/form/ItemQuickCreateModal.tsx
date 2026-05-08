@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import toast from "react-hot-toast";
+import { notify } from "../../../../lib/notify";
 import { Modal } from "../ui/modal";
 import Label from "./Label";
 import Input from "./input/InputField";
@@ -88,7 +88,7 @@ export default function ItemQuickCreateModal({
     mutationFn: (payload: ItemCreatePayload) =>
       createItem(payload, accessToken!),
     onSuccess: (item) => {
-      toast.success("품목이 등록되었습니다.");
+      notify.success("품목이 등록되었습니다.");
       queryClient.invalidateQueries({ queryKey: ["items"] });
       onCreated(item);
       setCode("");
@@ -97,7 +97,7 @@ export default function ItemQuickCreateModal({
       setItemTypeId("");
       onClose();
     },
-    onError: (e: Error) => toast.error(e.message || "등록에 실패했습니다."),
+    onError: (e: Error) => notify.error(e.message || "등록에 실패했습니다."),
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -105,11 +105,11 @@ export default function ItemQuickCreateModal({
     const cat = categoryId ? Number(categoryId) : 0;
     const typ = itemTypeId ? Number(itemTypeId) : 0;
     if (!code.trim() || !name.trim()) {
-      toast.error("품목 코드와 품목명을 입력하세요.");
+      notify.error("품목 코드와 품목명을 입력하세요.");
       return;
     }
     if (!cat || !typ) {
-      toast.error("분류와 유형을 선택하세요.");
+      notify.error("분류와 유형을 선택하세요.");
       return;
     }
     const payload: ItemCreatePayload = {

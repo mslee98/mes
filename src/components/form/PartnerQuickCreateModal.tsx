@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import toast from "react-hot-toast";
+import { notify } from "../../lib/notify";
 import { Modal } from "../ui/modal";
 import Label from "./Label";
 import Input from "./input/InputField";
@@ -88,7 +88,7 @@ export default function PartnerQuickCreateModal({
     mutationFn: (payload: PartnerCreatePayload) =>
       createPartner(payload, accessToken!),
     onSuccess: (partner) => {
-      toast.success("업체가 등록되었습니다.");
+      notify.success("업체가 등록되었습니다.");
       queryClient.invalidateQueries({ queryKey: ["partners"] });
       onCreated(partner);
       setCode("");
@@ -98,32 +98,32 @@ export default function PartnerQuickCreateModal({
       setCountryCode("");
       onClose();
     },
-    onError: (e: Error) => toast.error(e.message || "등록에 실패했습니다."),
+    onError: (e: Error) => notify.error(e.message || "등록에 실패했습니다."),
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const normalizedCode = code.trim().toUpperCase();
     if (!normalizedCode || !name.trim()) {
-      toast.error("업체 코드와 이름을 입력하세요.");
+      notify.error("업체 코드와 이름을 입력하세요.");
       return;
     }
     if (!PARTNER_CODE_REGEX.test(normalizedCode)) {
-      toast.error("업체 코드는 영문 대문자 1~2자리만 입력할 수 있습니다. (예: A, ZZ)");
+      notify.error("업체 코드는 영문 대문자 1~2자리만 입력할 수 있습니다. (예: A, ZZ)");
       return;
     }
     if (defenseOptions.length === 0) {
-      toast.error("민수/군수 공통코드를 불러올 수 없습니다.");
+      notify.error("민수/군수 공통코드를 불러올 수 없습니다.");
       return;
     }
     const dm = defenseMarket.trim();
     const cc = countryCode.trim();
     if (!dm || !defenseOptions.some((o) => o.value === dm)) {
-      toast.error("민수/군수를 선택하세요.");
+      notify.error("민수/군수를 선택하세요.");
       return;
     }
     if (!cc || !isPartnerCountryCode(cc)) {
-      toast.error("국가를 선택하세요.");
+      notify.error("국가를 선택하세요.");
       return;
     }
     mutation.mutate({

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router";
-import toast from "react-hot-toast";
+import { notify } from "../../lib/notify";
 import { ChevronLeftIcon, EyeCloseIcon, EyeIcon } from "../../icons";
 import Label from "../form/Label";
 import Input from "../form/input/InputField";
@@ -62,7 +62,7 @@ export default function SignInForm() {
     setIsSubmitting(true);
     try {
       await login(no, password, isChecked);
-      toast.success("로그인 성공");
+      notify.success("로그인 성공");
       navigate("/", { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "로그인에 실패했습니다.");

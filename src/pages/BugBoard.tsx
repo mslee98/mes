@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import toast from "react-hot-toast";
+import { notify } from "../lib/notify";
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import ListPageLoading from "../components/common/ListPageLoading";
@@ -170,10 +170,10 @@ export default function BugBoard() {
       setCreateModalOpen(false);
       setCreateForm(EMPTY_FORM);
       setSelectedId(created.id);
-      toast.success("버그 게시글을 등록했습니다.");
+      notify.success("버그 게시글을 등록했습니다.");
     },
     onError: (error: Error) => {
-      toast.error(error.message || "버그 게시글 등록에 실패했습니다.");
+      notify.error(error.message || "버그 게시글 등록에 실패했습니다.");
     },
   });
 
@@ -195,10 +195,10 @@ export default function BugBoard() {
     onSuccess: async (updated) => {
       await queryClient.invalidateQueries({ queryKey: ["bugBoardList"] });
       await queryClient.invalidateQueries({ queryKey: ["bugBoardPost", updated.id] });
-      toast.success("버그 게시글을 수정했습니다.");
+      notify.success("버그 게시글을 수정했습니다.");
     },
     onError: (error: Error) => {
-      toast.error(error.message || "버그 게시글 수정에 실패했습니다.");
+      notify.error(error.message || "버그 게시글 수정에 실패했습니다.");
     },
   });
 
@@ -217,10 +217,10 @@ export default function BugBoard() {
       setDetailModalOpen(false);
       setDeleteConfirmOpen(false);
       setEditForm(EMPTY_FORM);
-      toast.success("버그 게시글을 삭제했습니다.");
+      notify.success("버그 게시글을 삭제했습니다.");
     },
     onError: (error: Error) => {
-      toast.error(error.message || "버그 게시글 삭제에 실패했습니다.");
+      notify.error(error.message || "버그 게시글 삭제에 실패했습니다.");
     },
   });
 
@@ -234,11 +234,11 @@ export default function BugBoard() {
 
   const handleCreateSubmit = async () => {
     if (createForm.title.trim() === "") {
-      toast.error("제목을 입력해 주세요.");
+      notify.error("제목을 입력해 주세요.");
       return;
     }
     if (createForm.content.trim() === "") {
-      toast.error("내용을 입력해 주세요.");
+      notify.error("내용을 입력해 주세요.");
       return;
     }
     await createMutation.mutateAsync();
@@ -246,15 +246,15 @@ export default function BugBoard() {
 
   const handleUpdateSubmit = async () => {
     if (editForm.title.trim() === "") {
-      toast.error("제목을 입력해 주세요.");
+      notify.error("제목을 입력해 주세요.");
       return;
     }
     if (editForm.content.trim() === "") {
-      toast.error("내용을 입력해 주세요.");
+      notify.error("내용을 입력해 주세요.");
       return;
     }
     if (selectedId == null) {
-      toast.error("수정할 게시글을 선택해 주세요.");
+      notify.error("수정할 게시글을 선택해 주세요.");
       return;
     }
     await updateMutation.mutateAsync();
