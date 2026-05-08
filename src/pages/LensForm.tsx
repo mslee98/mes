@@ -35,22 +35,10 @@ import {
 import { toPartnerSearchableSelectOptions } from "../lib/partnerSelectOptions";
 import { validateRequiredFields } from "../lib/formValidation";
 import { fileTypeIconSrc } from "../lib/fileTypeIcon";
+import { normalizeDecimalInput } from "../lib/numberInput";
+import { formatDateTimeKo } from "../lib/dateFormat";
 
 const LENS_MANUFACTURER_SUPPLIER_SEGMENT_CODE = PARTNER_SUPPLIER_SEGMENT_OTHER;
-
-function normalizeNumberLike(raw: string) {
-  const sanitized = raw.replace(/[^\d.]/g, "");
-  const [intPart, ...decimalParts] = sanitized.split(".");
-  const decimal = decimalParts.join("");
-  return decimalParts.length > 0 ? `${intPart}.${decimal}` : intPart;
-}
-
-function formatAttachmentDateTime(iso?: string) {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleString("ko-KR");
-}
 
 export default function LensForm() {
   const { lensId } = useParams();
@@ -301,7 +289,7 @@ export default function LensForm() {
                   <InputAddonField
                     id="lens-fnumber"
                     value={fNumber}
-                    onChange={(value) => setFNumber(normalizeNumberLike(value))}
+                    onChange={(value) => setFNumber(normalizeDecimalInput(value))}
                     placeholder="예: 1.4"
                     addon="F/"
                     addonPlacement="outside-left"
@@ -321,7 +309,7 @@ export default function LensForm() {
                   <InputAddonField
                     id="lens-focal-length"
                     value={focalLength}
-                    onChange={(value) => setFocalLength(normalizeNumberLike(value))}
+                    onChange={(value) => setFocalLength(normalizeDecimalInput(value))}
                     placeholder="예: 25"
                     addon="mm"
                     addonPlacement="outside-right"
@@ -434,9 +422,9 @@ export default function LensForm() {
                                   <TrashBinIcon className="h-3.5 w-3.5" aria-hidden />
                                 </button>
                                 <span className="shrink-0 text-gray-500">
-                                  {formatAttachmentDateTime(
-                                    f.createdAt ?? f.uploadedAt ?? ""
-                                  )}
+                                  {formatDateTimeKo(f.createdAt ?? f.uploadedAt ?? "", {
+                                    emptyFallback: "",
+                                  })}
                                 </span>
                               </div>
                             </li>

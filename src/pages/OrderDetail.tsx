@@ -48,9 +48,11 @@ import Label from "../components/form/Label";
 import DatePicker from "../components/form/date-picker";
 import SearchableSelectWithCreate from "../components/form/SearchableSelectWithCreate";
 import TextArea from "../components/form/input/TextArea";
-import { formatCurrency } from "../lib/formatCurrency";
+import { formatCurrency, normalizeCurrencyCode } from "../lib/formatCurrency";
 import { lineItemsToAmountSummaries } from "../lib/orderLineAmountSummary";
 import { fileTypeIconSrc } from "../lib/fileTypeIcon";
+import { formatDateTimeKo, formatDateYmd } from "../lib/dateFormat";
+import { buildApiFileUrl, downloadFileWithAuth } from "../lib/fileDownload";
 import { ReactComponent as ArrowDownTrayIcon } from "../icons/arrow-down-tray.svg?react";
 import { ArrowTopRightOnSquareIcon } from "../icons";
 import IconTooltip from "../components/ui/tooltip/IconTooltip";
@@ -192,48 +194,6 @@ function detectorElementInitial(code: string): string {
  * - 접수: PUT `.../purchase-orders/:id` (status=PO_CLOSED) — 발주 즉시 종결.
  * - 납품: POST `.../deliveries` — `order.status === PO_CLOSED` 일 때만 백엔드에서 허용.
  */
-function formatDate(s: string | null | undefined): string {
-  return s ?? "-";
-}
-
-function formatAttachmentDateTime(iso?: string): string {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleString("ko-KR");
-}
-
-function buildFileDownloadUrl(filePath: string): string {
-  const raw = String(filePath ?? "").trim();
-  if (!raw) return "#";
-  if (/^https?:\/\//i.test(raw)) return raw;
-  const apiOrigin = new URL(API_BASE).origin;
-  if (raw.startsWith("/")) return `${apiOrigin}${raw}`;
-  return `${apiOrigin}/${raw}`;
-}
-
-async function forceDownloadFile(
-  fileUrl: string,
-  fileName: string,
-  accessToken: string
-) {
-  const res = await fetch(fileUrl, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-    credentials: "include",
-  });
-  if (!res.ok) {
-    throw new Error("첨부파일 다운로드에 실패했습니다.");
-  }
-  const blob = await res.blob();
-  const objectUrl = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = objectUrl;
-  anchor.download = fileName || "attachment";
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  URL.revokeObjectURL(objectUrl);
-}
 
 export default function OrderDetail() {
   const { orderId } = useParams();
@@ -543,7 +503,7 @@ export default function OrderDetail() {
     const d = order as PurchaseOrderDetail;
     return lineItemsToAmountSummaries(
       d.orderItems ?? d.items ?? [],
-      d.currencyCode ?? "KRW"
+      normalizeCurrencyCode(d.currencyCode)
     );
   }, [order]);
 
@@ -826,8 +786,7 @@ export default function OrderDetail() {
   const partnerFlagUrl = partnerCountryFlagUrl(
     String((po.partner as Partner | undefined)?.countryCode ?? "")
   );
-  const headerCurrency = po.currencyCode ?? "KRW";
-  const normalizedHeaderCurrency = headerCurrency.trim().toUpperCase() || "KRW";
+  const normalizedHeaderCurrency = normalizeCurrencyCode(po.currencyCode);
   const isForeignHeaderCurrency = normalizedHeaderCurrency !== "KRW";
   const supplyAmountValue =
     po.supplyAmount != null && Number.isFinite(Number(po.supplyAmount))
@@ -843,7 +802,9 @@ export default function OrderDetail() {
   const exchangeRateValue = Number(po.exchangeRate ?? NaN);
   const hasExchangeRate =
     Number.isFinite(exchangeRateValue) && exchangeRateValue > 0;
-  const exchangeRateDateLabel = formatDate(po.exchangeRateDate ?? po.orderDate);
+  const exchangeRateDateLabel = formatDateYmd(po.exchangeRateDate ?? po.orderDate, {
+    emptyFallback: "-",
+  });
   const supplyAmountKrw =
     supplyAmountValue != null && isForeignHeaderCurrency && hasExchangeRate
       ? supplyAmountValue * exchangeRateValue
@@ -952,7 +913,9 @@ export default function OrderDetail() {
                   <th scope="row" className={orderSummaryTh}>
                     발주일
                   </th>
-                  <td className={orderSummaryTd}>{formatDate(po.orderDate)}</td>
+                  <td className={orderSummaryTd}>
+                    {formatDateYmd(po.orderDate, { emptyFallback: "-" })}
+                  </td>
                 </tr>
                 <tr>
                   <th scope="row" className={orderSummaryTh}>
@@ -964,7 +927,9 @@ export default function OrderDetail() {
                   <th scope="row" className={orderSummaryTh}>
                     고객요청납기일
                   </th>
-                  <td className={orderSummaryTd}>{formatDate(po.dueDate)}</td>
+                  <td className={orderSummaryTd}>
+                    {formatDateYmd(po.dueDate, { emptyFallback: "-" })}
+                  </td>
                 </tr>
                 {po.vendorRequest ? (
                   <tr>
@@ -1002,9 +967,9 @@ export default function OrderDetail() {
                   >
                     {supplyAmountValue != null ? (
                       <>
-                        {formatCurrency(supplyAmountValue, headerCurrency)}
+                        {formatCurrency(supplyAmountValue, normalizedHeaderCurrency)}
                         <span className="ml-1.5 text-theme-xs font-normal text-gray-500 dark:text-gray-400">
-                          ({headerCurrency})
+                          ({normalizedHeaderCurrency})
                         </span>
                         {isForeignHeaderCurrency ? (
                           <span className="mt-1 block text-theme-xs font-normal text-gray-500 dark:text-gray-400">
@@ -1038,9 +1003,9 @@ export default function OrderDetail() {
                   >
                     {totalAmountWithVat != null ? (
                       <>
-                        {formatCurrency(totalAmountWithVat, headerCurrency)}
+                        {formatCurrency(totalAmountWithVat, normalizedHeaderCurrency)}
                         <span className="ml-1.5 text-theme-xs font-normal text-gray-500 dark:text-gray-400">
-                          ({headerCurrency})
+                          ({normalizedHeaderCurrency})
                         </span>
                         {isForeignHeaderCurrency ? (
                           <span className="mt-1 block text-theme-xs font-normal text-gray-500 dark:text-gray-400">
@@ -1099,17 +1064,22 @@ export default function OrderDetail() {
                             </span>
                             <div className="flex shrink-0 items-center gap-2">
                               <span className="text-theme-xs text-gray-500">
-                                {formatAttachmentDateTime(f.uploadedAt ?? f.createdAt ?? "")}
+                                {formatDateTimeKo(f.uploadedAt ?? f.createdAt ?? "", {
+                                  emptyFallback: "",
+                                })}
                               </span>
                               <button
                                 type="button"
                                 onClick={async () => {
                                   try {
-                                    await forceDownloadFile(
-                                      buildFileDownloadUrl(f.filePath ?? ""),
-                                      f.fileName ?? "attachment",
-                                      accessToken!
-                                    );
+                                    await downloadFileWithAuth({
+                                      fileUrl: buildApiFileUrl(
+                                        f.filePath ?? "",
+                                        API_BASE
+                                      ),
+                                      fileName: f.fileName ?? "attachment",
+                                      accessToken: accessToken!,
+                                    });
                                   } catch (error) {
                                     const message =
                                       error instanceof Error
@@ -1139,7 +1109,7 @@ export default function OrderDetail() {
 
         <OrderDetailLinesCard
           orderLines={orderLines}
-          defaultCurrencyCode={po.currencyCode ?? "KRW"}
+          defaultCurrencyCode={normalizeCurrencyCode(po.currencyCode)}
           orderLineSummaries={orderLineSummaries}
         />
 
@@ -1147,7 +1117,7 @@ export default function OrderDetail() {
           deliveries={deliveries as Delivery[]}
           canRegisterDelivery={canRegisterDelivery}
           onRegisterDeliveryClick={openDeliveryRegistrationModal}
-          formatDeliveryDate={formatDate}
+          formatDeliveryDate={(s) => formatDateYmd(s, { emptyFallback: "-" })}
           deliveryStatusDisplayName={deliveryStatusDisplayName}
         />
       </div>

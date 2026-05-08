@@ -38,7 +38,6 @@ import {
   getItemRevisions,
   type ItemMasterListItem,
 } from "../api/itemMaster";
-import { showForbiddenToast } from "../lib/forbiddenToast";
 import { useCommonCodesByGroup } from "../hooks/useCommonCodesByGroup";
 import { TrashBinIcon } from "../icons";
 import {
@@ -236,7 +235,7 @@ function AddHousingLineModal({
       onClose();
     },
     onError: (e: unknown) => {
-      if (showForbiddenToast(e, "추가 권한이 없습니다.")) return;
+      if (notify.forbidden(e, "추가 권한이 없습니다.")) return;
       notify.error(e instanceof Error ? e.message : "추가에 실패했습니다.");
     },
   });
@@ -486,7 +485,7 @@ export default function HousingTemplateDetail() {
       queryClient.invalidateQueries({ queryKey: ["housingTemplates"] });
     },
     onError: (e: unknown) => {
-      if (showForbiddenToast(e, "수정 권한이 없습니다.")) return;
+      if (notify.forbidden(e, "수정 권한이 없습니다.")) return;
       notify.error(e instanceof Error ? e.message : "수정에 실패했습니다.");
     },
   });
@@ -499,7 +498,7 @@ export default function HousingTemplateDetail() {
       navigate("/housing-templates");
     },
     onError: (e: unknown) => {
-      if (showForbiddenToast(e, "삭제 권한이 없습니다.")) return;
+      if (notify.forbidden(e, "삭제 권한이 없습니다.")) return;
       notify.error(e instanceof Error ? e.message : "삭제에 실패했습니다.");
     },
   });
@@ -513,7 +512,7 @@ export default function HousingTemplateDetail() {
       queryClient.invalidateQueries({ queryKey: ["housingTemplates"] });
     },
     onError: (e: unknown) => {
-      if (showForbiddenToast(e, "삭제 권한이 없습니다.")) return;
+      if (notify.forbidden(e, "삭제 권한이 없습니다.")) return;
       notify.error(e instanceof Error ? e.message : "삭제에 실패했습니다.");
     },
   });

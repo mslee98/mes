@@ -24,13 +24,10 @@ import {
   updateUserRole,
   type UserRoleAssignment,
 } from "../api/userRole";
+import { formatDateYmd } from "../lib/dateFormat";
 
 function todayString() {
   return new Date().toISOString().slice(0, 10);
-}
-
-function formatDate(value: string | null | undefined) {
-  return value ?? "-";
 }
 
 const ACTIVE_OPTIONS = [
@@ -435,7 +432,7 @@ export default function UserDetail() {
                           <code>{assignment.role.code}</code>
                         </td>
                         <td className="px-5 py-4 text-sm text-gray-500 dark:text-gray-400">
-                          {formatDate(assignment.startedAt)}
+                          {formatDateYmd(assignment.startedAt, { emptyFallback: "-" })}
                         </td>
                         <td className="px-5 py-4 text-sm text-gray-500 dark:text-gray-400">
                           <DatePicker

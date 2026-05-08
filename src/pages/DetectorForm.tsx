@@ -37,17 +37,11 @@ import {
 import type { CreateDetectorPayload, UpdateDetectorPayload } from "../api/detectors";
 import type { SearchableSelectOption } from "../components/form/SearchableSelectWithCreate";
 import { toPartnerSearchableSelectOptions } from "../lib/partnerSelectOptions";
+import { normalizeDecimalInput } from "../lib/numberInput";
 
 function emptyToNull(s: string): string | null {
   const t = s.trim();
   return t === "" ? null : t;
-}
-
-function normalizeNumberLike(raw: string) {
-  const sanitized = raw.replace(/[^\d.]/g, "");
-  const [intPart, ...decimalParts] = sanitized.split(".");
-  const decimal = decimalParts.join("");
-  return decimalParts.length > 0 ? `${intPart}.${decimal}` : intPart;
 }
 
 const PARTNER_TYPE_CUSTOMER = "CUSTOMER";
@@ -602,7 +596,7 @@ export default function DetectorForm() {
                     <InputAddonField
                       id="detector-pitch"
                       value={pitch}
-                      onChange={(value) => setPitch(normalizeNumberLike(value))}
+                      onChange={(value) => setPitch(normalizeDecimalInput(value))}
                       placeholder="예: 17"
                       addon="μm"
                       addonPlacement="outside-right"
@@ -645,7 +639,7 @@ export default function DetectorForm() {
                     <InputAddonField
                       id="detector-fnum"
                       value={fNumber}
-                      onChange={(value) => setFNumber(normalizeNumberLike(value))}
+                      onChange={(value) => setFNumber(normalizeDecimalInput(value))}
                       placeholder="예: 1.4"
                       addon="F/"
                       addonPlacement="outside-left"

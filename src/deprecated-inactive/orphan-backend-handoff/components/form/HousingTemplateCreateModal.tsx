@@ -13,7 +13,6 @@ import {
   USE_STATUS_CODE_ACTIVE,
   buildUseStatusSelectOptions,
 } from "../../api/commonCode";
-import { showForbiddenToast } from "../../lib/forbiddenToast";
 import { useCommonCodesByGroup } from "../../hooks/useCommonCodesByGroup";
 
 export type HousingTemplateCreateModalProps = {
@@ -69,7 +68,7 @@ export default function HousingTemplateCreateModal({
       onClose();
     },
     onError: (e: unknown) => {
-      if (showForbiddenToast(e, "등록 권한이 없습니다.")) return;
+      if (notify.forbidden(e, "등록 권한이 없습니다.")) return;
       notify.error(e instanceof Error ? e.message : "등록에 실패했습니다.");
     },
   });

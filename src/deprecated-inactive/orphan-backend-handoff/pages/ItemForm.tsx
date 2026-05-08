@@ -23,7 +23,6 @@ import {
   COMMON_CODE_GROUP_ITEM_TYPE,
   commonCodesToSelectOptions,
 } from "../api/commonCode";
-import { showForbiddenToast } from "../lib/forbiddenToast";
 import { useCommonCodesByGroup } from "../hooks/useCommonCodesByGroup";
 
 const inputClass =
@@ -155,7 +154,7 @@ export default function ItemForm() {
       navigate(`/items/${data.id}`);
     },
     onError: (e: unknown) => {
-      if (showForbiddenToast(e, "품목을 등록할 권한이 없습니다.")) return;
+      if (notify.forbidden(e, "품목을 등록할 권한이 없습니다.")) return;
       notify.error(e instanceof Error ? e.message : "등록에 실패했습니다.");
     },
   });
@@ -175,7 +174,7 @@ export default function ItemForm() {
       navigate(`/items/${editId}`);
     },
     onError: (e: unknown) => {
-      if (showForbiddenToast(e, "품목을 수정할 권한이 없습니다.")) return;
+      if (notify.forbidden(e, "품목을 수정할 권한이 없습니다.")) return;
       notify.error(e instanceof Error ? e.message : "수정에 실패했습니다.");
     },
   });

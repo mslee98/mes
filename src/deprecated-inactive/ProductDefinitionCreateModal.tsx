@@ -13,7 +13,6 @@ import {
   COMMON_CODE_GROUP_PURCHASE_ORDER_TYPE,
   commonCodesToSelectOptions,
 } from "../api/commonCode";
-import { showForbiddenToast } from "../lib/forbiddenToast";
 import { useCommonCodesByGroup } from "../hooks/useCommonCodesByGroup";
 import SearchableSelectWithCreate from "../components/form/SearchableSelectWithCreate";
 
@@ -129,7 +128,7 @@ export default function ProductDefinitionCreateModal({
       onClose();
     },
     onError: (e: unknown) => {
-      if (showForbiddenToast(e, "등록 권한이 없습니다.")) return;
+      if (notify.forbidden(e, "등록 권한이 없습니다.")) return;
       notify.error(e instanceof Error ? e.message : "등록에 실패했습니다.");
     },
   });

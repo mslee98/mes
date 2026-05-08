@@ -10,45 +10,9 @@ import { useAuth } from "../hooks/useAuth";
 import { getLens, getLensFiles, type LensItem, type FileLink } from "../api/lenses";
 import { API_BASE } from "../api/apiBase";
 import { fileTypeIconSrc } from "../lib/fileTypeIcon";
+import { formatDateTimeKo } from "../lib/dateFormat";
+import { buildApiFileUrl, downloadFileWithAuth } from "../lib/fileDownload";
 import { ReactComponent as ArrowDownTrayIcon } from "../icons/arrow-down-tray.svg?react";
-
-function formatIsoDate(iso?: string): string {
-  if (!iso) return "-";
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? iso : d.toLocaleString("ko-KR");
-}
-
-function buildFileDownloadUrl(filePath: string): string {
-  const raw = String(filePath ?? "").trim();
-  if (!raw) return "#";
-  if (/^https?:\/\//i.test(raw)) return raw;
-  const apiOrigin = new URL(API_BASE).origin;
-  if (raw.startsWith("/")) return `${apiOrigin}${raw}`;
-  return `${apiOrigin}/${raw}`;
-}
-
-async function forceDownloadFile(
-  fileUrl: string,
-  fileName: string,
-  accessToken: string
-) {
-  const res = await fetch(fileUrl, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-    credentials: "include",
-  });
-  if (!res.ok) {
-    throw new Error("첨부파일 다운로드에 실패했습니다.");
-  }
-  const blob = await res.blob();
-  const objectUrl = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = objectUrl;
-  anchor.download = fileName || "attachment";
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  URL.revokeObjectURL(objectUrl);
-}
 
 function DetailRow({
   label,
@@ -155,8 +119,14 @@ export default function LensDetail() {
               </Badge>
             }
           />
-          <DetailRow label="등록일시" value={formatIsoDate(l.createdAt)} />
-          <DetailRow label="수정일시" value={formatIsoDate(l.updatedAt)} />
+          <DetailRow
+            label="등록일시"
+            value={formatDateTimeKo(l.createdAt, { emptyFallback: "-" })}
+          />
+          <DetailRow
+            label="수정일시"
+            value={formatDateTimeKo(l.updatedAt, { emptyFallback: "-" })}
+          />
           <DetailRow
             label="첨부파일"
             value={
@@ -181,17 +151,19 @@ export default function LensDetail() {
                           {fileName}
                         </span>
                         <span className="text-theme-xs text-gray-500">
-                          {formatIsoDate(f.createdAt ?? f.uploadedAt)}
+                          {formatDateTimeKo(f.createdAt ?? f.uploadedAt, {
+                            emptyFallback: "-",
+                          })}
                         </span>
                         <button
                           type="button"
                           onClick={async () => {
                             try {
-                              await forceDownloadFile(
-                                buildFileDownloadUrl(filePath),
+                              await downloadFileWithAuth({
+                                fileUrl: buildApiFileUrl(filePath, API_BASE),
                                 fileName,
-                                accessToken as string
-                              );
+                                accessToken: accessToken as string,
+                              });
                             } catch (error) {
                               const message =
                                 error instanceof Error

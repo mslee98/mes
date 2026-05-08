@@ -2,13 +2,7 @@ import FileUploadDropzone from "../../../components/form/FileUploadDropzone";
 import { TrashBinIcon } from "../../../icons";
 import type { PurchaseOrderFile } from "../../../api/purchaseOrder";
 import { fileTypeIconSrc } from "../../../lib/fileTypeIcon";
-
-function formatAttachmentDateTime(iso?: string) {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleString("ko-KR");
-}
+import { formatDateTimeKo } from "../../../lib/dateFormat";
 
 type Props = {
   isNew: boolean;
@@ -149,7 +143,9 @@ export default function OrderAttachmentSection({
                       </span>
                     ) : null}
                     <span className="shrink-0 text-gray-500">
-                      {formatAttachmentDateTime(f.uploadedAt ?? f.createdAt ?? "")}
+                      {formatDateTimeKo(f.uploadedAt ?? f.createdAt ?? "", {
+                        emptyFallback: "",
+                      })}
                     </span>
                   </div>
                 </li>

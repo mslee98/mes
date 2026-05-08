@@ -15,8 +15,17 @@ const CURRENCY_CONFIG: Record<
 };
 
 function getConfig(currencyCode: string) {
-  const code = (currencyCode || DEFAULT_CURRENCY).toUpperCase();
+  const code = normalizeCurrencyCode(currencyCode);
   return CURRENCY_CONFIG[code] ?? CURRENCY_CONFIG[DEFAULT_CURRENCY];
+}
+
+export function normalizeCurrencyCode(
+  currencyCode: string | null | undefined,
+  fallback: string = DEFAULT_CURRENCY
+): string {
+  const normalizedFallback = String(fallback || DEFAULT_CURRENCY).trim().toUpperCase();
+  const normalizedCode = String(currencyCode ?? "").trim().toUpperCase();
+  return normalizedCode || normalizedFallback || DEFAULT_CURRENCY;
 }
 
 /** 통화 코드별 기호(원, $, ¥). Select+Input 등 공통 UI에서 사용 */
