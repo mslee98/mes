@@ -39,7 +39,6 @@ import {
   commonCodesToSelectOptions,
 } from "../api/commonCode";
 import { isApiError, isForbiddenError } from "../lib/apiError";
-import { showForbiddenToast } from "../lib/forbiddenToast";
 import { formatItemDetailDt } from "../lib/itemDetailDisplay";
 import { ReactComponent as ArrowDownOnSquareIcon } from "../icons/arrow-down-on-square.svg?react";
 import { TrashBinIcon } from "../icons";
@@ -219,7 +218,7 @@ export default function ItemDetail() {
       closeRevisionModal();
     },
     onError: (e: unknown) => {
-      if (showForbiddenToast(e, "권한이 없습니다.")) return;
+      if (notify.forbidden(e, "권한이 없습니다.")) return;
       notify.error(e instanceof Error ? e.message : "등록에 실패했습니다.");
     },
   });
@@ -243,7 +242,7 @@ export default function ItemDetail() {
       closeRevisionModal();
     },
     onError: (e: unknown) => {
-      if (showForbiddenToast(e, "권한이 없습니다.")) return;
+      if (notify.forbidden(e, "권한이 없습니다.")) return;
       notify.error(e instanceof Error ? e.message : "수정에 실패했습니다.");
     },
   });
@@ -284,7 +283,7 @@ export default function ItemDetail() {
       });
     },
     onError: (e: unknown) => {
-      if (showForbiddenToast(e, "업로드 권한이 없습니다.")) return;
+      if (notify.forbidden(e, "업로드 권한이 없습니다.")) return;
       notify.error(e instanceof Error ? e.message : "업로드에 실패했습니다.");
     },
   });
@@ -303,7 +302,7 @@ export default function ItemDetail() {
       });
     },
     onError: (e: unknown) => {
-      if (showForbiddenToast(e, "삭제 권한이 없습니다.")) return;
+      if (notify.forbidden(e, "삭제 권한이 없습니다.")) return;
       notify.error(e instanceof Error ? e.message : "삭제에 실패했습니다.");
     },
   });

@@ -28,7 +28,7 @@ import FormActionBar from "../components/form/FormActionBar";
 import { useAuth } from "../hooks/useAuth";
 import { useOrderCommonCodes } from "../hooks/useOrderCommonCodes";
 import { usePartnersQuery } from "../hooks/usePartnersQuery";
-import { getCurrencySymbol } from "../lib/formatCurrency";
+import { getCurrencySymbol, normalizeCurrencyCode } from "../lib/formatCurrency";
 import { itemFormStrings as S } from "./itemFormStrings";
 import { toPartnerSearchableSelectOptions } from "../lib/partnerSelectOptions";
 import {
@@ -128,10 +128,10 @@ function parseOptionalExchangeRate(display: string): number | null {
  * 헤더 통화 기준 라인 공급가액 (백엔드 `supplyAmount`)
  */
 function computeHeaderSupplyAmount(rows: ItemRow[], headerCurrency: string): number {
-  const cc = headerCurrency.trim().toUpperCase() || "KRW";
+  const cc = normalizeCurrencyCode(headerCurrency);
   let subtotal = 0;
   for (const row of rows) {
-    const rcc = (row.currencyCode || "KRW").trim().toUpperCase() || "KRW";
+    const rcc = normalizeCurrencyCode(row.currencyCode);
     if (rcc !== cc) continue;
     if (row.qty <= 0) continue;
     subtotal += row.qty * parseLineUnitPrice(row.unitPrice);
@@ -512,7 +512,7 @@ export default function OrderForm() {
         setPartnerId(String(order.partnerId ?? ""));
         setOrderDate(order.orderDate ?? todayString());
         setDueDate(order.dueDate ?? "");
-        const persistedCurrencyCode = String(order.currencyCode ?? "KRW").trim() || "KRW";
+        const persistedCurrencyCode = normalizeCurrencyCode(order.currencyCode);
         setOrderCurrencyCode(persistedCurrencyCode);
         setExchangeRateCurrencyCode(persistedCurrencyCode);
         setRequestDeliveryDate(order.requestDeliveryDate ?? "");
@@ -634,7 +634,7 @@ export default function OrderForm() {
   const defaultNewLineCurrency = useMemo(() => {
     const fromExchange = exchangeRateCurrencyCode?.trim().toUpperCase();
     if (fromExchange) return fromExchange;
-    return (orderCurrencyCode || "KRW").trim().toUpperCase() || "KRW";
+    return normalizeCurrencyCode(orderCurrencyCode);
   }, [exchangeRateCurrencyCode, orderCurrencyCode]);
 
   /**
@@ -753,9 +753,9 @@ export default function OrderForm() {
             unitCode: String(created.unit ?? firstUnitValue ?? "").trim(),
             qty: Number(created.qty ?? 0),
             unitPrice: formatLineUnitPriceDisplay(created.unitPrice),
-            currencyCode:
-              String(created.currencyCode ?? order?.currencyCode ?? "KRW").trim() ||
-              "KRW",
+            currencyCode: normalizeCurrencyCode(
+              created.currencyCode ?? order?.currencyCode
+            ),
             requestDeliveryDate: created.requestDeliveryDate ?? "",
             remark: created.remark ?? "",
           };
@@ -953,7 +953,7 @@ export default function OrderForm() {
         qty: row.qty,
         unitPrice,
         unit: row.unitCode.trim() || null,
-        currencyCode: row.currencyCode.trim() || "KRW",
+        currencyCode: normalizeCurrencyCode(row.currencyCode),
         remark: row.remark.trim() || null,
       };
       lineCreateMutation.mutate(
@@ -974,7 +974,7 @@ export default function OrderForm() {
           qty: row.qty,
           unit: row.unitCode.trim() || null,
           unitPrice,
-          currencyCode: row.currencyCode.trim() || "KRW",
+          currencyCode: normalizeCurrencyCode(row.currencyCode),
           remark: row.remark.trim() || null,
         },
       },
@@ -1035,9 +1035,9 @@ export default function OrderForm() {
           unitCode: String(source.unit ?? firstUnitValue ?? "").trim(),
           qty: Number(source.qty ?? 0),
           unitPrice: formatLineUnitPriceDisplay(source.unitPrice),
-          currencyCode:
-            String(source.currencyCode ?? order?.currencyCode ?? "KRW").trim() ||
-            "KRW",
+          currencyCode: normalizeCurrencyCode(
+            source.currencyCode ?? order?.currencyCode
+          ),
           requestDeliveryDate: source.requestDeliveryDate ?? "",
           remark: source.remark ?? "",
         };
@@ -1152,7 +1152,7 @@ export default function OrderForm() {
     );
 
     const headerCurrency =
-      orderCurrencyCode || order?.currencyCode || "KRW";
+      normalizeCurrencyCode(orderCurrencyCode || order?.currencyCode);
     const supplyAmount = computeHeaderSupplyAmount(validItems, headerCurrency);
 
     if (
@@ -1203,9 +1203,9 @@ export default function OrderForm() {
             unitCode: String(line.unit ?? firstUnitValue ?? "").trim(),
             qty: Number(line.qty ?? 0),
             unitPrice: formatLineUnitPriceDisplay(line.unitPrice),
-            currencyCode:
-              String(line.currencyCode ?? order.currencyCode ?? "KRW").trim() ||
-              "KRW",
+            currencyCode: normalizeCurrencyCode(
+              line.currencyCode ?? order.currencyCode
+            ),
             requestDeliveryDate: line.requestDeliveryDate ?? "",
             remark: line.remark ?? "",
           }));

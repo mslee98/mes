@@ -15,12 +15,12 @@ import Badge from "../ui/badge/Badge";
 import { formatCurrency } from "../../lib/formatCurrency";
 import {
   asDeliveryDetailRecord,
-  formatDeliveryDetailDate,
   orderLineQtyFromOrderItem,
   productCodeFromOrderItem,
   productNameFromOrderItem,
   unitCodeFromOrderItem,
 } from "../../lib/deliveryDetailHelpers";
+import { formatDeliveryDetailDate } from "../../lib/deliveryDetailFormat";
 
 type DeliveryDetailOrderTabProps = {
   order: DeliveryOrderWithDetail | undefined;

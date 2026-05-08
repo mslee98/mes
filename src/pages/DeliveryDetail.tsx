@@ -36,9 +36,11 @@ import {
   asDeliveryDetailRecord,
   deliveryLinesFromDelivery,
   deliveryStatusSimStorageKey,
+} from "../lib/deliveryDetailHelpers";
+import {
   formatDeliveryDetailDateYmd,
   labelForSortedDeliveryStatus,
-} from "../lib/deliveryDetailHelpers";
+} from "../lib/deliveryDetailFormat";
 
 const COMMON_CODE_GROUP_UNIT = "UNIT";
 

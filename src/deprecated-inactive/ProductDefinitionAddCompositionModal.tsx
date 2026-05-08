@@ -16,7 +16,6 @@ import {
   getItemRevisions,
   type ItemMasterListItem,
 } from "./orphan-backend-handoff/api/itemMaster";
-import { showForbiddenToast } from "../lib/forbiddenToast";
 import { useTheme } from "../context/ThemeContext";
 
 /** 품목 목록 API 페이지 크기(상한과 맞춤: `Items` 목록과 동일 계열) */
@@ -207,7 +206,7 @@ export default function ProductDefinitionAddCompositionModal({
       onClose();
     },
     onError: (e: unknown) => {
-      if (showForbiddenToast(e, "추가 권한이 없습니다.")) return;
+      if (notify.forbidden(e, "추가 권한이 없습니다.")) return;
       notify.error(e instanceof Error ? e.message : "추가에 실패했습니다.");
     },
   });

@@ -39,7 +39,6 @@ import {
   COMMON_CODE_GROUP_PURCHASE_ORDER_TYPE,
   commonCodesToSelectOptions,
 } from "../api/commonCode";
-import { showForbiddenToast } from "../lib/forbiddenToast";
 import { useCommonCodesByGroup } from "../hooks/useCommonCodesByGroup";
 import { TrashBinIcon } from "../icons";
 
@@ -201,7 +200,7 @@ export default function ProductDefinitionDetail() {
       setHeaderModalOpen(false);
     },
     onError: (e: unknown) => {
-      if (showForbiddenToast(e, "수정 권한이 없습니다.")) return;
+      if (notify.forbidden(e, "수정 권한이 없습니다.")) return;
       notify.error(e instanceof Error ? e.message : "수정에 실패했습니다.");
     },
   });
@@ -214,7 +213,7 @@ export default function ProductDefinitionDetail() {
       queryClient.invalidateQueries({ queryKey: ["productDefinition", did] });
     },
     onError: (e: unknown) => {
-      if (showForbiddenToast(e, "삭제 권한이 없습니다.")) return;
+      if (notify.forbidden(e, "삭제 권한이 없습니다.")) return;
       notify.error(e instanceof Error ? e.message : "삭제에 실패했습니다.");
     },
   });

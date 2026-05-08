@@ -10,10 +10,12 @@ import { badgeColorFromKoStatusLabel } from "../../lib/badgeStatusColor";
 import {
   deliveryDetailUserDisplayName,
   deliveryLinesFromDelivery,
+} from "../../lib/deliveryDetailHelpers";
+import {
   formatDeliveryDetailDate,
   formatDeliveryDetailDateTimeKo,
   labelForSortedDeliveryStatus,
-} from "../../lib/deliveryDetailHelpers";
+} from "../../lib/deliveryDetailFormat";
 import type { DeliveryDetailTab } from "./deliveryDetailTabTypes";
 
 type NextDeliveryStatusHint =

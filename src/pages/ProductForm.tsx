@@ -29,6 +29,8 @@ import {
 } from "../api/products";
 import { validateRequiredFields } from "../lib/formValidation";
 import { fileTypeIconSrc } from "../lib/fileTypeIcon";
+import { normalizeDecimalInput } from "../lib/numberInput";
+import { formatDateTimeKo } from "../lib/dateFormat";
 
 const ARRAY_TYPE_PRESET: Record<"QVGA" | "VGA" | "SXGA", { width: string; height: string }> = {
   QVGA: { width: "320", height: "256" },
@@ -36,20 +38,6 @@ const ARRAY_TYPE_PRESET: Record<"QVGA" | "VGA" | "SXGA", { width: string; height
   SXGA: { width: "1280", height: "1024" },
 };
 const BUSINESS_CODE_REGEX = /^[A-Z]{1,2}$/;
-
-function normalizeNumberLike(raw: string) {
-  const sanitized = raw.replace(/[^\d.]/g, "");
-  const [intPart, ...decimalParts] = sanitized.split(".");
-  const decimal = decimalParts.join("");
-  return decimalParts.length > 0 ? `${intPart}.${decimal}` : intPart;
-}
-
-function formatAttachmentDateTime(iso?: string) {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleString("ko-KR");
-}
 
 export default function ProductForm() {
   const { productId } = useParams();
@@ -436,7 +424,7 @@ export default function ProductForm() {
                   <InputAddonField
                     id="product-edit-pixel-pitch"
                     value={pixelPitch}
-                    onChange={(value) => setPixelPitch(normalizeNumberLike(value))}
+                    onChange={(value) => setPixelPitch(normalizeDecimalInput(value))}
                     placeholder="예: 14"
                     addon="µm"
                     addonPlacement="outside-right"
@@ -608,9 +596,9 @@ export default function ProductForm() {
                                   <TrashBinIcon className="h-3.5 w-3.5" aria-hidden />
                                 </button>
                                 <span className="shrink-0 text-gray-500">
-                                  {formatAttachmentDateTime(
-                                    f.createdAt ?? f.uploadedAt ?? ""
-                                  )}
+                                  {formatDateTimeKo(f.createdAt ?? f.uploadedAt ?? "", {
+                                    emptyFallback: "",
+                                  })}
                                 </span>
                               </div>
                             </li>
