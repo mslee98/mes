@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import toast from "react-hot-toast";
+import { notify } from "../../../lib/notify";
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import ListPageLoading from "../components/common/ListPageLoading";
@@ -121,35 +121,35 @@ export default function ItemTypes() {
     mutationFn: (payload: ItemTypeCreatePayload) =>
       createItemType(payload, accessToken!),
     onSuccess: () => {
-      toast.success("품목 유형이 등록되었습니다.");
+      notify.success("품목 유형이 등록되었습니다.");
       queryClient.invalidateQueries({ queryKey: ["itemTypes"] });
       formModal.closeModal();
       setForm(initialForm());
     },
-    onError: (e: Error) => toast.error(e.message || "등록에 실패했습니다."),
+    onError: (e: Error) => notify.error(e.message || "등록에 실패했습니다."),
   });
 
   const updateMutation = useMutation({
     mutationFn: ({ id, payload }: { id: number; payload: ItemTypeCreatePayload }) =>
       updateItemType(id, payload, accessToken!),
     onSuccess: () => {
-      toast.success("품목 유형이 수정되었습니다.");
+      notify.success("품목 유형이 수정되었습니다.");
       queryClient.invalidateQueries({ queryKey: ["itemTypes"] });
       formModal.closeModal();
       setForm(initialForm());
     },
-    onError: (e: Error) => toast.error(e.message || "수정에 실패했습니다."),
+    onError: (e: Error) => notify.error(e.message || "수정에 실패했습니다."),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => deleteItemType(id, accessToken!),
     onSuccess: () => {
-      toast.success("품목 유형이 삭제되었습니다.");
+      notify.success("품목 유형이 삭제되었습니다.");
       queryClient.invalidateQueries({ queryKey: ["itemTypes"] });
       deleteModal.closeModal();
       setTypeToDelete(null);
     },
-    onError: (e: Error) => toast.error(e.message || "삭제에 실패했습니다."),
+    onError: (e: Error) => notify.error(e.message || "삭제에 실패했습니다."),
   });
 
   const openAddModal = () => {
@@ -179,7 +179,7 @@ export default function ItemTypes() {
       isActive: form.isActive,
     };
     if (!payload.code || !payload.name) {
-      toast.error("코드와 이름을 입력하세요.");
+      notify.error("코드와 이름을 입력하세요.");
       return;
     }
     if (form.id != null) {

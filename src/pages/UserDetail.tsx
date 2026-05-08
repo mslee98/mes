@@ -5,7 +5,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { Link, useParams } from "react-router";
-import toast from "react-hot-toast";
+import { notify } from "../lib/notify";
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import ComponentCard from "../components/common/ComponentCard";
@@ -135,7 +135,7 @@ export default function UserDetail() {
         accessToken as string
       ),
     onSuccess: async () => {
-      toast.success("역할 부여 성공");
+      notify.success("역할 부여 성공");
       setAssignForm({
         roleCode: roles[0]?.code as string,
         isActive: true,
@@ -147,7 +147,7 @@ export default function UserDetail() {
       });
     },
     onError: (error) => {
-      toast.error(
+      notify.error(
         error instanceof Error ? error.message : "역할 부여에 실패했습니다."
       );
     },
@@ -164,13 +164,13 @@ export default function UserDetail() {
         accessToken as string
       ),
     onSuccess: async () => {
-      toast.success("역할 수정 성공");
+      notify.success("역할 수정 성공");
       await queryClient.invalidateQueries({
         queryKey: ["userRoles", numericUserId],
       });
     },
     onError: (error) => {
-      toast.error(
+      notify.error(
         error instanceof Error ? error.message : "역할 수정에 실패했습니다."
       );
     },
@@ -180,13 +180,13 @@ export default function UserDetail() {
     mutationFn: async (assignmentId: number) =>
       deleteUserRole(assignmentId, accessToken as string),
     onSuccess: async () => {
-      toast.success("역할 삭제 성공");
+      notify.success("역할 삭제 성공");
       await queryClient.invalidateQueries({
         queryKey: ["userRoles", numericUserId],
       });
     },
     onError: (error) => {
-      toast.error(
+      notify.error(
         error instanceof Error ? error.message : "역할 삭제에 실패했습니다."
       );
     },

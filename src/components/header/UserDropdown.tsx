@@ -1,5 +1,5 @@
 import { useState } from "react";
-import toast from "react-hot-toast";
+import { notify } from "../../lib/notify";
 import { DropdownItem } from "../ui/dropdown/DropdownItem";
 import { Dropdown } from "../ui/dropdown/Dropdown";
 import { useNavigate } from "react-router";
@@ -254,7 +254,7 @@ export default function UserDropdown() {
           onClick={async () => {
             closeDropdown();
             await logout();
-            toast.success("로그아웃 성공");
+            notify.success("로그아웃 성공");
             if (!keycloakAuth) {
               navigate("/signin", { replace: true });
             }

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "react-router";
-import toast from "react-hot-toast";
+import { notify } from "../../../lib/notify";
 import Select from "react-select";
 import type { GroupBase, SingleValue, StylesConfig } from "react-select";
 import PageMeta from "../components/common/PageMeta";
@@ -230,21 +230,21 @@ function AddHousingLineModal({
       });
     },
     onSuccess: () => {
-      toast.success("라인을 추가했습니다.");
+      notify.success("라인을 추가했습니다.");
       queryClient.invalidateQueries({ queryKey: ["housingTemplate", templateId] });
       queryClient.invalidateQueries({ queryKey: ["housingTemplates"] });
       onClose();
     },
     onError: (e: unknown) => {
       if (showForbiddenToast(e, "추가 권한이 없습니다.")) return;
-      toast.error(e instanceof Error ? e.message : "추가에 실패했습니다.");
+      notify.error(e instanceof Error ? e.message : "추가에 실패했습니다.");
     },
   });
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (revisionIdPick < 1) {
-      toast.error("품목과 리비전을 선택하세요.");
+      notify.error("품목과 리비전을 선택하세요.");
       return;
     }
     addMutation.mutate();
@@ -481,26 +481,26 @@ export default function HousingTemplateDetail() {
         remark: editRemark.trim() || null,
       }),
     onSuccess: () => {
-      toast.success("저장했습니다.");
+      notify.success("저장했습니다.");
       queryClient.invalidateQueries({ queryKey: ["housingTemplate", tid] });
       queryClient.invalidateQueries({ queryKey: ["housingTemplates"] });
     },
     onError: (e: unknown) => {
       if (showForbiddenToast(e, "수정 권한이 없습니다.")) return;
-      toast.error(e instanceof Error ? e.message : "수정에 실패했습니다.");
+      notify.error(e instanceof Error ? e.message : "수정에 실패했습니다.");
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: () => deleteHousingTemplate(tid, accessToken as string),
     onSuccess: () => {
-      toast.success("삭제했습니다.");
+      notify.success("삭제했습니다.");
       queryClient.invalidateQueries({ queryKey: ["housingTemplates"] });
       navigate("/housing-templates");
     },
     onError: (e: unknown) => {
       if (showForbiddenToast(e, "삭제 권한이 없습니다.")) return;
-      toast.error(e instanceof Error ? e.message : "삭제에 실패했습니다.");
+      notify.error(e instanceof Error ? e.message : "삭제에 실패했습니다.");
     },
   });
 
@@ -508,13 +508,13 @@ export default function HousingTemplateDetail() {
     mutationFn: (lineId: number) =>
       deleteHousingTemplateLine(tid, lineId, accessToken as string),
     onSuccess: () => {
-      toast.success("라인을 삭제했습니다.");
+      notify.success("라인을 삭제했습니다.");
       queryClient.invalidateQueries({ queryKey: ["housingTemplate", tid] });
       queryClient.invalidateQueries({ queryKey: ["housingTemplates"] });
     },
     onError: (e: unknown) => {
       if (showForbiddenToast(e, "삭제 권한이 없습니다.")) return;
-      toast.error(e instanceof Error ? e.message : "삭제에 실패했습니다.");
+      notify.error(e instanceof Error ? e.message : "삭제에 실패했습니다.");
     },
   });
 
@@ -612,7 +612,7 @@ export default function HousingTemplateDetail() {
             onSubmit={(e) => {
               e.preventDefault();
               if (!editCode.trim() || !editName.trim()) {
-                toast.error("코드와 이름은 필수입니다.");
+                notify.error("코드와 이름은 필수입니다.");
                 return;
               }
               updateMutation.mutate();

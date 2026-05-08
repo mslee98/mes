@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, useNavigate } from "react-router";
-import toast from "react-hot-toast";
+import { notify } from "../../../lib/notify";
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import PageNotice from "../components/common/PageNotice";
@@ -212,7 +212,7 @@ export default function ItemDetail() {
         isDefault: revDefault,
       }),
     onSuccess: () => {
-      toast.success("리비전을 등록했습니다.");
+      notify.success("리비전을 등록했습니다.");
       queryClient.invalidateQueries({ queryKey: ["itemRevisions", id] });
       queryClient.invalidateQueries({ queryKey: ["itemMaster", id] });
       queryClient.invalidateQueries({ queryKey: ["itemMasterList"] });
@@ -220,7 +220,7 @@ export default function ItemDetail() {
     },
     onError: (e: unknown) => {
       if (showForbiddenToast(e, "권한이 없습니다.")) return;
-      toast.error(e instanceof Error ? e.message : "등록에 실패했습니다.");
+      notify.error(e instanceof Error ? e.message : "등록에 실패했습니다.");
     },
   });
 
@@ -236,7 +236,7 @@ export default function ItemDetail() {
       });
     },
     onSuccess: () => {
-      toast.success("리비전을 수정했습니다.");
+      notify.success("리비전을 수정했습니다.");
       queryClient.invalidateQueries({ queryKey: ["itemRevisions", id] });
       queryClient.invalidateQueries({ queryKey: ["itemMaster", id] });
       queryClient.invalidateQueries({ queryKey: ["itemMasterList"] });
@@ -244,7 +244,7 @@ export default function ItemDetail() {
     },
     onError: (e: unknown) => {
       if (showForbiddenToast(e, "권한이 없습니다.")) return;
-      toast.error(e instanceof Error ? e.message : "수정에 실패했습니다.");
+      notify.error(e instanceof Error ? e.message : "수정에 실패했습니다.");
     },
   });
 
@@ -252,7 +252,7 @@ export default function ItemDetail() {
     mutationFn: (revisionId: number) =>
       deleteItemRevision(revisionId, accessToken as string),
     onSuccess: () => {
-      toast.success("리비전을 삭제했습니다.");
+      notify.success("리비전을 삭제했습니다.");
       queryClient.invalidateQueries({ queryKey: ["itemRevisions", id] });
       queryClient.invalidateQueries({ queryKey: ["itemMaster", id] });
       queryClient.invalidateQueries({ queryKey: ["itemMasterList"] });
@@ -278,14 +278,14 @@ export default function ItemDetail() {
     mutationFn: (args: { revisionId: number; file: File }) =>
       uploadItemRevisionFile(args.revisionId, args.file, accessToken as string),
     onSuccess: (_data, args) => {
-      toast.success("파일을 업로드했습니다.");
+      notify.success("파일을 업로드했습니다.");
       queryClient.invalidateQueries({
         queryKey: ["itemRevisionFiles", args.revisionId],
       });
     },
     onError: (e: unknown) => {
       if (showForbiddenToast(e, "업로드 권한이 없습니다.")) return;
-      toast.error(e instanceof Error ? e.message : "업로드에 실패했습니다.");
+      notify.error(e instanceof Error ? e.message : "업로드에 실패했습니다.");
     },
   });
 
@@ -297,14 +297,14 @@ export default function ItemDetail() {
         accessToken as string
       ),
     onSuccess: (_data, args) => {
-      toast.success("첨부를 삭제했습니다.");
+      notify.success("첨부를 삭제했습니다.");
       queryClient.invalidateQueries({
         queryKey: ["itemRevisionFiles", args.revisionId],
       });
     },
     onError: (e: unknown) => {
       if (showForbiddenToast(e, "삭제 권한이 없습니다.")) return;
-      toast.error(e instanceof Error ? e.message : "삭제에 실패했습니다.");
+      notify.error(e instanceof Error ? e.message : "삭제에 실패했습니다.");
     },
   });
 
@@ -312,7 +312,7 @@ export default function ItemDetail() {
     e.preventDefault();
     if (revisionModal === "create") {
       if (!revCode.trim() || !revName.trim()) {
-        toast.error("리비전 코드와 이름을 입력하세요.");
+        notify.error("리비전 코드와 이름을 입력하세요.");
         return;
       }
       createRevMutation.mutate();
@@ -588,7 +588,7 @@ export default function ItemDetail() {
                   file,
                 });
               }}
-              onError={(msg: string) => toast.error(msg)}
+              onError={(msg: string) => notify.error(msg)}
               uploadGuideText="이 리비전에 붙일 파일을 선택하거나 여기에 놓으세요."
             />
           </div>
@@ -628,7 +628,7 @@ export default function ItemDetail() {
                       disabled={f.fileLinkId < 1}
                       onClick={async () => {
                         if (f.fileLinkId < 1) {
-                          toast.error(
+                          notify.error(
                             "유효한 fileLinkId가 없습니다. 목록을 새로고침해 보세요."
                           );
                           return;
@@ -646,7 +646,7 @@ export default function ItemDetail() {
                             error instanceof Error
                               ? error.message
                               : "첨부파일 다운로드에 실패했습니다.";
-                          toast.error(message);
+                          notify.error(message);
                         }
                       }}
                       title="다운로드"

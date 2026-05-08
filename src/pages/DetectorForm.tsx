@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router";
-import toast from "react-hot-toast";
+import { notify } from "../lib/notify";
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import ComponentCard from "../components/common/ComponentCard";
@@ -16,7 +16,7 @@ import Checkbox from "../components/form/input/Checkbox";
 import InputAddonField from "../components/form/InputAddonField";
 import SearchableSelectWithCreate from "../components/form/SearchableSelectWithCreate";
 import { renderPartnerOptionLabel } from "../components/form/PartnerOptionLabel";
-import ActiveToggle from "../components/form/ActiveToggle";
+import Toggle from "../components/form/Toggle";
 import FormActionBar from "../components/form/FormActionBar";
 import { useAuth } from "../hooks/useAuth";
 import { useProductPermissions } from "../hooks/useProductPermissions";
@@ -400,29 +400,29 @@ export default function DetectorForm() {
       return updateDetector(accessToken as string, idNum, body);
     },
     onSuccess: (saved) => {
-      toast.success(isNew ? "검출기를 등록했습니다." : "검출기를 저장했습니다.");
+      notify.success(isNew ? "검출기를 등록했습니다." : "검출기를 저장했습니다.");
       queryClient.invalidateQueries({ queryKey: ["detectors"] });
       queryClient.invalidateQueries({ queryKey: ["detector", saved.id] });
       navigate(`/detectors/${saved.id}`, { replace: true });
     },
     onError: (err: unknown) => {
       const msg = err instanceof Error ? err.message : "저장에 실패했습니다.";
-      toast.error(msg);
+      notify.error(msg);
     },
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!canManageProducts) {
-      toast.error("제품 관리 권한(product.manage)이 없습니다.");
+      notify.error("제품 관리 권한(product.manage)이 없습니다.");
       return;
     }
     if (!arrayWidth.trim() || Number(arrayWidth) <= 0) {
-      toast.error("배열 가로 해상도는 0보다 커야 합니다.");
+      notify.error("배열 가로 해상도는 0보다 커야 합니다.");
       return;
     }
     if (!arrayHeight.trim() || Number(arrayHeight) <= 0) {
-      toast.error("배열 세로 해상도는 0보다 커야 합니다.");
+      notify.error("배열 세로 해상도는 0보다 커야 합니다.");
       return;
     }
     saveMutation.mutate();
@@ -724,7 +724,7 @@ export default function DetectorForm() {
                 />
               </div>
               <div className="sm:col-span-2 flex items-center pt-1">
-                <ActiveToggle
+                <Toggle
                   id="detector-active"
                   checked={isActive}
                   onChange={setIsActive}

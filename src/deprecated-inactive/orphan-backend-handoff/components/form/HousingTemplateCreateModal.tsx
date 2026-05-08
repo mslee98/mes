@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import toast from "react-hot-toast";
+import { notify } from "../../../../lib/notify";
 import { Modal } from "../ui/modal";
 import Label from "./Label";
 import Input from "./input/InputField";
@@ -63,21 +63,21 @@ export default function HousingTemplateCreateModal({
         remark: remark.trim() || null,
       }),
     onSuccess: (data) => {
-      toast.success("하우징 템플릿을 등록했습니다.");
+      notify.success("하우징 템플릿을 등록했습니다.");
       queryClient.invalidateQueries({ queryKey: ["housingTemplates"] });
       onCreated(data.id);
       onClose();
     },
     onError: (e: unknown) => {
       if (showForbiddenToast(e, "등록 권한이 없습니다.")) return;
-      toast.error(e instanceof Error ? e.message : "등록에 실패했습니다.");
+      notify.error(e instanceof Error ? e.message : "등록에 실패했습니다.");
     },
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!templateCode.trim() || !templateName.trim()) {
-      toast.error("템플릿 코드와 이름은 필수입니다.");
+      notify.error("템플릿 코드와 이름은 필수입니다.");
       return;
     }
     if (!accessToken) return;

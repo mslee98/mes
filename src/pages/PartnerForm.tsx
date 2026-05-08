@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router";
-import toast from "react-hot-toast";
+import { notify } from "../lib/notify";
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import ComponentCard from "../components/common/ComponentCard";
@@ -13,7 +13,7 @@ import TextArea from "../components/form/input/TextArea";
 import Select from "../components/form/Select";
 import SelectInput from "../components/form/SelectInput";
 import CountrySelect from "../components/form/CountrySelect";
-import ActiveToggle from "../components/form/ActiveToggle";
+import Toggle from "../components/form/Toggle";
 import FormActionBar from "../components/form/FormActionBar";
 import { Modal } from "../components/ui/modal";
 import { ReactComponent as MailLineIcon } from "../icons/mail-line.svg?react";
@@ -297,10 +297,10 @@ export default function PartnerForm() {
       createPartner(payload, accessToken as string),
     onSuccess: (created) => {
       queryClient.invalidateQueries({ queryKey: ["partners"] });
-      toast.success("업체를 등록했습니다.");
+      notify.success("업체를 등록했습니다.");
       navigate(`/partners/${created.id}`);
     },
-    onError: (e: Error) => toast.error(e.message || "등록에 실패했습니다."),
+    onError: (e: Error) => notify.error(e.message || "등록에 실패했습니다."),
   });
 
   const updateMutation = useMutation({
@@ -309,31 +309,31 @@ export default function PartnerForm() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["partners"] });
       queryClient.invalidateQueries({ queryKey: ["partner", id] });
-      toast.success("업체를 수정했습니다.");
+      notify.success("업체를 수정했습니다.");
       navigate(`/partners/${id}`);
     },
-    onError: (e: Error) => toast.error(e.message || "수정에 실패했습니다."),
+    onError: (e: Error) => notify.error(e.message || "수정에 실패했습니다."),
   });
 
   const validateAndBuildPayload = () => {
     if (
       !validateRequiredFields(
         [{ value: name, message: "업체명을 입력하세요." }],
-        toast.error
+        notify.error
       )
     ) {
       return null;
     }
     const cc = countryCode.trim();
     if (!cc || !isPartnerCountryCode(cc)) {
-      toast.error("국가를 선택하세요.");
+      notify.error("국가를 선택하세요.");
       return null;
     }
     const pt = partnerType.trim();
     if (
       !validateRequiredFields(
         [{ value: pt, message: "업체 유형(고객 유형)을 선택하세요." }],
-        toast.error
+        notify.error
       )
     ) {
       return null;
@@ -341,13 +341,13 @@ export default function PartnerForm() {
     if (pt === PARTNER_TYPE_SUPPLIER) {
       const seg = supplierSegment.trim();
       if (!seg) {
-        toast.error("협력사 부문을 선택하세요.");
+        notify.error("협력사 부문을 선택하세요.");
         return null;
       }
     }
     const normalizedCode = code.trim().toUpperCase();
     if (!PARTNER_CODE_REGEX.test(normalizedCode)) {
-      toast.error("업체 코드는 대문자 1~2자리만 가능합니다. (예: A, ZZ)");
+      notify.error("업체 코드는 대문자 1~2자리만 가능합니다. (예: A, ZZ)");
       return null;
     }
     const contactPhoneCombined =
@@ -355,7 +355,7 @@ export default function PartnerForm() {
       null;
     const phoneValue = phoneNational.trim();
     if (phoneValue && !PHONE_NATIONAL_REGEX.test(phoneValue)) {
-      toast.error(
+      notify.error(
         "담당자 연락처는 010-1234-5678 또는 042-123-4567 형식으로 입력하세요."
       );
       return null;
@@ -367,7 +367,7 @@ export default function PartnerForm() {
         .trim() || null;
     const emailValue = contactEmail.trim();
     if (emailValue && !EMAIL_REGEX.test(emailValue)) {
-      toast.error("담당자 이메일 형식이 올바르지 않습니다.");
+      notify.error("담당자 이메일 형식이 올바르지 않습니다.");
       return null;
     }
     return {
@@ -746,7 +746,7 @@ export default function PartnerForm() {
             </div>
             {!isNew ? (
               <div className="sm:col-span-2 flex items-center pt-1">
-                <ActiveToggle
+                <Toggle
                   id="partner-active-toggle"
                   checked={isActive}
                   onChange={setIsActive}

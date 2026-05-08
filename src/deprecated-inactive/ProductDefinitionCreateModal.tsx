@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import toast from "react-hot-toast";
+import { notify } from "../lib/notify";
 import { Modal } from "../components/ui/modal";
 import Label from "../components/form/Label";
 import Input from "../components/form/input/InputField";
@@ -121,7 +121,7 @@ export default function ProductDefinitionCreateModal({
       });
     },
     onSuccess: (data) => {
-      toast.success("제품 정의를 등록했습니다.");
+      notify.success("제품 정의를 등록했습니다.");
       queryClient.invalidateQueries({ queryKey: ["product", productId] });
       queryClient.invalidateQueries({ queryKey: ["productList"] });
       queryClient.invalidateQueries({ queryKey: ["housingTemplates"] });
@@ -130,14 +130,14 @@ export default function ProductDefinitionCreateModal({
     },
     onError: (e: unknown) => {
       if (showForbiddenToast(e, "등록 권한이 없습니다.")) return;
-      toast.error(e instanceof Error ? e.message : "등록에 실패했습니다.");
+      notify.error(e instanceof Error ? e.message : "등록에 실패했습니다.");
     },
   });
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!definitionCode.trim() || !definitionName.trim()) {
-      toast.error("정의 코드와 정의명은 필수입니다.");
+      notify.error("정의 코드와 정의명은 필수입니다.");
       return;
     }
     createMutation.mutate();

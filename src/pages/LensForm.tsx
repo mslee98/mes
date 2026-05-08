@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router";
-import toast from "react-hot-toast";
+import { notify } from "../lib/notify";
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import ComponentCard from "../components/common/ComponentCard";
@@ -12,7 +12,7 @@ import Label from "../components/form/Label";
 import Input from "../components/form/input/InputField";
 import InputAddonField from "../components/form/InputAddonField";
 import FileUploadDropzone from "../components/form/FileUploadDropzone";
-import ActiveToggle from "../components/form/ActiveToggle";
+import Toggle from "../components/form/Toggle";
 import FormActionBar from "../components/form/FormActionBar";
 import SearchableSelectWithCreate from "../components/form/SearchableSelectWithCreate";
 import { renderPartnerOptionLabel } from "../components/form/PartnerOptionLabel";
@@ -142,13 +142,13 @@ export default function LensForm() {
             accessToken as string
           );
         } catch (error) {
-          toast.error(uploadErrorMessage(error));
+          notify.error(uploadErrorMessage(error));
         }
       }
-      toast.success("렌즈를 등록했습니다.");
+      notify.success("렌즈를 등록했습니다.");
       navigate(`/lenses/${created.id}`);
     },
-    onError: (e: Error) => toast.error(e.message || "등록에 실패했습니다."),
+    onError: (e: Error) => notify.error(e.message || "등록에 실패했습니다."),
   });
 
   const updateMutation = useMutation({
@@ -163,28 +163,28 @@ export default function LensForm() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["lensList"] });
       queryClient.invalidateQueries({ queryKey: ["lens", id] });
-      toast.success("렌즈를 수정했습니다.");
+      notify.success("렌즈를 수정했습니다.");
       navigate(`/lenses/${id}`);
     },
-    onError: (e: Error) => toast.error(e.message || "수정에 실패했습니다."),
+    onError: (e: Error) => notify.error(e.message || "수정에 실패했습니다."),
   });
   const fileUploadMutation = useMutation({
     mutationFn: (selectedFiles: File[]) =>
       uploadLensFiles(id, selectedFiles, accessToken as string),
     onSuccess: (uploaded) => {
       queryClient.invalidateQueries({ queryKey: ["lensFiles", id] });
-      toast.success(`첨부파일 ${uploaded.length}건을 업로드했습니다.`);
+      notify.success(`첨부파일 ${uploaded.length}건을 업로드했습니다.`);
     },
-    onError: (error: Error) => toast.error(uploadErrorMessage(error)),
+    onError: (error: Error) => notify.error(uploadErrorMessage(error)),
   });
   const fileDeleteMutation = useMutation({
     mutationFn: (fileLinkId: number) =>
       deleteLensFile(id, fileLinkId, accessToken as string),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["lensFiles", id] });
-      toast.success("첨부파일을 삭제했습니다.");
+      notify.success("첨부파일을 삭제했습니다.");
     },
-    onError: (error: Error) => toast.error(uploadErrorMessage(error)),
+    onError: (error: Error) => notify.error(uploadErrorMessage(error)),
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -197,7 +197,7 @@ export default function LensForm() {
           { value: fNumber, message: "F Number를 입력하세요." },
           { value: focalLength, message: "초점 거리를 입력하세요." },
         ],
-        toast.error
+        notify.error
       )
     ) {
       return;
@@ -341,7 +341,7 @@ export default function LensForm() {
                           [...prev, ...selected].slice(0, 10)
                         )
                       }
-                      onError={toast.error}
+                      onError={notify.error}
                       disabled={pending}
                       maxFileSizeMb={50}
                       maxFiles={10}
@@ -394,7 +394,7 @@ export default function LensForm() {
                     </p>
                     <FileUploadDropzone
                       onSelectFiles={(selected) => fileUploadMutation.mutate(selected)}
-                      onError={toast.error}
+                      onError={notify.error}
                       disabled={fileUploadMutation.isPending || fileDeleteMutation.isPending}
                       maxFileSizeMb={50}
                       maxFiles={10}
@@ -449,7 +449,7 @@ export default function LensForm() {
               </div>
             </div>
             <div className="sm:col-span-2 flex items-center pt-1">
-              <ActiveToggle
+              <Toggle
                 id="lens-active-toggle"
                 checked={isActive}
                 onChange={setIsActive}

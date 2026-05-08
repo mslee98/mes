@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, useNavigate } from "react-router";
-import toast from "react-hot-toast";
+import { notify } from "../../../lib/notify";
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import PageNotice from "../components/common/PageNotice";
@@ -150,13 +150,13 @@ export default function ItemForm() {
         isActive,
       }),
     onSuccess: (data) => {
-      toast.success("품목을 등록했습니다.");
+      notify.success("품목을 등록했습니다.");
       queryClient.invalidateQueries({ queryKey: ["itemMasterList"] });
       navigate(`/items/${data.id}`);
     },
     onError: (e: unknown) => {
       if (showForbiddenToast(e, "품목을 등록할 권한이 없습니다.")) return;
-      toast.error(e instanceof Error ? e.message : "등록에 실패했습니다.");
+      notify.error(e instanceof Error ? e.message : "등록에 실패했습니다.");
     },
   });
 
@@ -169,29 +169,29 @@ export default function ItemForm() {
         isActive,
       }),
     onSuccess: () => {
-      toast.success("품목을 수정했습니다.");
+      notify.success("품목을 수정했습니다.");
       queryClient.invalidateQueries({ queryKey: ["itemMasterList"] });
       queryClient.invalidateQueries({ queryKey: ["itemMaster", editId] });
       navigate(`/items/${editId}`);
     },
     onError: (e: unknown) => {
       if (showForbiddenToast(e, "품목을 수정할 권한이 없습니다.")) return;
-      toast.error(e instanceof Error ? e.message : "수정에 실패했습니다.");
+      notify.error(e instanceof Error ? e.message : "수정에 실패했습니다.");
     },
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!itemCode.trim() && isNew) {
-      toast.error("품목코드를 입력하세요.");
+      notify.error("품목코드를 입력하세요.");
       return;
     }
     if (!itemName.trim()) {
-      toast.error("품목명을 입력하세요.");
+      notify.error("품목명을 입력하세요.");
       return;
     }
     if (!itemType.trim()) {
-      toast.error("품목 유형을 선택하세요.");
+      notify.error("품목 유형을 선택하세요.");
       return;
     }
     if (isNew) {

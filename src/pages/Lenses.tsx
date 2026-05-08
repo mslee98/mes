@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
-import toast from "react-hot-toast";
+import { notify } from "../lib/notify";
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import ListPageLoading from "../components/common/ListPageLoading";
@@ -11,7 +11,7 @@ import FileUploadDropzone from "../components/form/FileUploadDropzone";
 import Select from "../components/form/Select";
 import Label from "../components/form/Label";
 import FormField from "../components/form/FormField";
-import ActiveToggle from "../components/form/ActiveToggle";
+import Toggle from "../components/form/Toggle";
 import FormActionBar from "../components/form/FormActionBar";
 import ConfirmModal from "../components/common/ConfirmModal";
 import Badge from "../components/ui/badge/Badge";
@@ -171,23 +171,23 @@ export default function Lenses() {
           failedCount = Math.max(pendingFilesForCreate.length - uploadedCount, 0);
         } catch (error) {
           failedCount = pendingFilesForCreate.length;
-          toast.error(uploadErrorMessage(error));
+          notify.error(uploadErrorMessage(error));
         }
         if (uploadedCount > 0) {
-          toast.success(`렌즈와 첨부파일 ${uploadedCount}건을 등록했습니다.`);
+          notify.success(`렌즈와 첨부파일 ${uploadedCount}건을 등록했습니다.`);
         } else {
-          toast.success("렌즈를 등록했습니다.");
+          notify.success("렌즈를 등록했습니다.");
         }
         if (failedCount > 0) {
-          toast.error(`첨부파일 ${failedCount}건 업로드에 실패했습니다.`);
+          notify.error(`첨부파일 ${failedCount}건 업로드에 실패했습니다.`);
         }
       } else {
-        toast.success("렌즈를 등록했습니다.");
+        notify.success("렌즈를 등록했습니다.");
       }
       resetCreateForm();
       setCreateOpen(false);
     },
-    onError: (e: Error) => toast.error(e.message || "등록에 실패했습니다."),
+    onError: (e: Error) => notify.error(e.message || "등록에 실패했습니다."),
   });
 
   const handleCreateSubmit = (e: React.FormEvent) => {
@@ -200,7 +200,7 @@ export default function Lenses() {
           { value: fNumber, message: "F Number를 입력하세요." },
           { value: focalLength, message: "초점 거리를 입력하세요." },
         ],
-        toast.error
+        notify.error
       )
     ) {
       return;
@@ -210,7 +210,7 @@ export default function Lenses() {
   const addPendingFilesForCreate = (files: File[]) => {
     if (files.length === 0) return;
     setPendingFilesForCreate((prev) => [...prev, ...files].slice(0, 10));
-    toast.success(`첨부 대기 목록에 ${files.length}건 추가되었습니다.`);
+    notify.success(`첨부 대기 목록에 ${files.length}건 추가되었습니다.`);
   };
   const removePendingCreateFile = (index: number) => {
     setPendingFilesForCreate((prev) => prev.filter((_, i) => i !== index));
@@ -330,7 +330,7 @@ export default function Lenses() {
               }
             />
           </div>
-          <ActiveToggle
+          <Toggle
             id="lens-create-active-toggle"
             checked={isActive}
             onChange={setIsActive}
@@ -340,7 +340,7 @@ export default function Lenses() {
             <div className="mt-1.5 space-y-3">
               <FileUploadDropzone
                 onSelectFiles={addPendingFilesForCreate}
-                onError={toast.error}
+                onError={notify.error}
                 disabled={createMutation.isPending}
                 maxFileSizeMb={50}
                 maxFiles={10}

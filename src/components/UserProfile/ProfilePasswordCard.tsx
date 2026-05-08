@@ -1,5 +1,5 @@
 import { useState } from "react";
-import toast from "react-hot-toast";
+import { notify } from "../../lib/notify";
 import { useMutation } from "@tanstack/react-query";
 import { changePassword } from "../../api/user";
 import { useModal } from "../../hooks/useModal";
@@ -32,7 +32,7 @@ export default function ProfilePasswordCard({
         accessToken!
       ),
     onSuccess: () => {
-      toast.success("비밀번호가 변경되었습니다.");
+      notify.success("비밀번호가 변경되었습니다.");
       setCurrentPassword("");
       setNewPassword("");
       setNewPasswordConfirm("");
@@ -40,7 +40,7 @@ export default function ProfilePasswordCard({
       closeModal();
     },
     onError: (err: Error) => {
-      toast.error(err.message);
+      notify.error(err.message);
     },
   });
 

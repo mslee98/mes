@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import toast from "react-hot-toast";
+import { notify } from "../../../lib/notify";
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import ComponentCard from "../components/common/ComponentCard";
@@ -171,12 +171,12 @@ export default function ItemCategories() {
     mutationFn: (payload: ItemCategoryCreatePayload) =>
       createItemCategory(payload, accessToken!),
     onSuccess: () => {
-      toast.success("품목 분류가 등록되었습니다.");
+      notify.success("품목 분류가 등록되었습니다.");
       queryClient.invalidateQueries({ queryKey: ["itemCategories"] });
       formModal.closeModal();
       setForm(initialForm());
     },
-    onError: (e: Error) => toast.error(e.message || "등록에 실패했습니다."),
+    onError: (e: Error) => notify.error(e.message || "등록에 실패했습니다."),
   });
 
   const updateMutation = useMutation({
@@ -188,24 +188,24 @@ export default function ItemCategories() {
       payload: ItemCategoryCreatePayload;
     }) => updateItemCategory(id, payload, accessToken!),
     onSuccess: () => {
-      toast.success("품목 분류가 수정되었습니다.");
+      notify.success("품목 분류가 수정되었습니다.");
       queryClient.invalidateQueries({ queryKey: ["itemCategories"] });
       formModal.closeModal();
       setForm(initialForm());
     },
-    onError: (e: Error) => toast.error(e.message || "수정에 실패했습니다."),
+    onError: (e: Error) => notify.error(e.message || "수정에 실패했습니다."),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => deleteItemCategory(id, accessToken!),
     onSuccess: () => {
-      toast.success("품목 분류가 삭제되었습니다.");
+      notify.success("품목 분류가 삭제되었습니다.");
       queryClient.invalidateQueries({ queryKey: ["itemCategories"] });
       deleteModal.closeModal();
       setCategoryToDelete(null);
     },
     onError: (e: Error) => {
-      toast.error(
+      notify.error(
         e.message || "하위 분류가 있으면 삭제할 수 없습니다."
       );
       deleteModal.closeModal();
@@ -240,7 +240,7 @@ export default function ItemCategories() {
       isActive: form.isActive,
     };
     if (!payload.code || !payload.name) {
-      toast.error("코드와 이름을 입력하세요.");
+      notify.error("코드와 이름을 입력하세요.");
       return;
     }
     if (form.id != null) {
