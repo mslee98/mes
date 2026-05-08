@@ -1,0 +1,32 @@
+---
+description: Prefer common code names over raw code values in UI
+alwaysApply: true
+---
+
+# Common Code Display Rule
+
+## Goal
+- In user-facing UI, display `name` from common-code APIs instead of raw `code` values.
+
+## Required Practice
+- If a status/type/category has a common-code group, map `code -> name` before rendering text or badges.
+- Keep raw `code` only as a fallback when common-code lookup fails.
+- Avoid exposing backend/internal code strings (e.g. `PENDING`, `PO_CLOSED`, `REGISTERED`) to general users by default.
+
+## Implementation Notes
+- Reuse `getCommonCodesByGroup` and project constants in `src/api/commonCode.ts`.
+- Prefer a small helper per screen (e.g. `displayNameForStatus(code)`).
+- If this mapping is repeated in many screens, extract a shared utility/hook.
+
+## Example
+```tsx
+const { data: statusCodes = [] } = useQuery({
+  queryKey: ["commonCodes", COMMON_CODE_GROUP_DELIVERY_STATUS],
+  queryFn: () => getCommonCodesByGroup(COMMON_CODE_GROUP_DELIVERY_STATUS, accessToken!),
+});
+
+const statusLabel = (code?: string | null) =>
+  statusCodes.find((item) => item.code === String(code ?? "").trim())?.name ||
+  code ||
+  "-";
+```
