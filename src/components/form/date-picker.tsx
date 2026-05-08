@@ -54,7 +54,7 @@ export default function DatePicker({
       dateFormat: "Y-m-d",
       defaultDate: value || defaultDate,
       appendTo: document.body,
-      position: "above",
+      position: "below",
       clickOpens: !disabled,
       onReady: (_selectedDates, _dateStr, instance) => {
         if (instance.calendarContainer) {
@@ -125,7 +125,7 @@ export default function DatePicker({
           placeholder={placeholder}
           readOnly
           disabled={disabled}
-          className={`w-full rounded-lg border appearance-none bg-transparent text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800 disabled:cursor-not-allowed disabled:opacity-60 ${
+          className={`w-full rounded-lg border appearance-none bg-transparent text-gray-800 !shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800 disabled:cursor-not-allowed disabled:opacity-60 ${
             compact
               ? "h-9 px-3 py-1.5 pr-8 text-theme-xs"
               : "h-11 px-4 py-2.5 text-sm pr-10"

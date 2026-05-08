@@ -155,6 +155,8 @@ export interface PartnerUpdatePayload {
 export interface PurchaseOrderItemPayload {
   /** 대표 제품 id (필수) */
   productId: string;
+  /** 활성 렌즈 마스터 id — 미선택 시 null 생략 가능 */
+  lensId?: string | null;
   qty: number;
   unitPrice: number;
   /** 공통코드 UNIT (예: EA, BOX) */
@@ -184,6 +186,7 @@ export interface PurchaseOrderLensLinePayload {
 
 export interface PurchaseOrderLinePatchPayload {
   productId?: string | null;
+  lensId?: string | null;
   qty?: number;
   quantity?: number;
   unit?: string | null;
@@ -304,6 +307,16 @@ export interface PurchaseOrderItem {
   id: number;
   /** 대표 제품 id */
   productId: string;
+  /** 품목에 연결된 렌즈(선택) */
+  lensId?: string | null;
+  lensNameSnapshot?: string | null;
+  lens?: {
+    id?: string;
+    lensName?: string | null;
+    fNumber?: string | null;
+    focalLength?: string | null;
+    isActive?: boolean;
+  } | null;
   /** 발주 시점 스냅샷 */
   productNameSnapshot?: string | null;
   businessNameSnapshot?: string | null;
@@ -422,6 +435,14 @@ export interface PurchaseOrderFile {
 
 export type DeliveryLineType = "PRODUCT" | "LENS";
 
+export interface DeliveryCreateLineSerialPayload {
+  serialNo: string;
+  detectorElementCode: string;
+  wavelengthCode: string;
+  detectorId?: number | null;
+  serialSnapshot?: Record<string, unknown> | null;
+}
+
 /** POST /purchase-orders/:id/deliveries — 제품/렌즈 혼합 입력 */
 export interface DeliveryCreateLinePayload {
   lineType?: DeliveryLineType;
@@ -429,6 +450,8 @@ export interface DeliveryCreateLinePayload {
   orderItemId?: number;
   orderLensId?: number;
   quantity: number;
+  sequenceKey?: string;
+  serials?: DeliveryCreateLineSerialPayload[];
 }
 
 /** POST /purchase-orders/:id/deliveries */
@@ -440,6 +463,69 @@ export interface DeliveryCreatePayload {
   plannedDeliveryDate?: string | null;
   remark?: string | null;
   deliveryManagerId?: number | null;
+}
+
+export interface DeliverySerialSnapshotPayload {
+  phase?: string;
+  yearCode?: string;
+  year?: number;
+}
+
+export interface DeliverySerialTemplatePayload {
+  templateCode: string;
+  mappingValues?: Record<string, string>;
+  manualSlotValues?: Record<number, string>;
+}
+
+export interface CreateDeliverySerialLinePayload {
+  deliveryItemId: number;
+  quantity: number;
+  detectorElementCode: string;
+  wavelengthCode: string;
+  detectorTypeCode?: string;
+  serialPrefix?: string;
+  sequenceKey?: string;
+  detectorId?: number | null;
+  lensId?: string | null;
+  serialTemplate?: DeliverySerialTemplatePayload;
+  serialSnapshot?: DeliverySerialSnapshotPayload | null;
+}
+
+export interface CreateDeliverySerialsPayload {
+  lines: CreateDeliverySerialLinePayload[];
+}
+
+export interface DeliverySerial {
+  id: number;
+  deliveryId?: number;
+  deliveryItemId?: number;
+  serialNo: string;
+  detectorElementCode: string;
+  wavelengthCode: string;
+  detectorTypeCode: string;
+  serialPrefix: string;
+  sequenceNo: number;
+  sequenceText: string;
+  status: string;
+  serialSnapshot?: DeliverySerialSnapshotPayload | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreateDeliverySerialsResponse {
+  deliveryId: number;
+  createdCount: number;
+  items: Array<{
+    deliveryItemId: number;
+    serials: DeliverySerial[];
+  }>;
+}
+
+export interface PurchaseOrderSerialMaxSequence {
+  sequenceKey: string;
+  maxSequence: number;
+  nextSequence: number;
+  nextSequenceText: string;
 }
 
 /** 레거시·다른 엔드포인트 호환용 (신규 POST에는 `DeliveryCreateLinePayload` 사용) */
@@ -713,6 +799,54 @@ function mapApiOrderLineToPurchaseOrderItem(
     (typeof x.note === "string" ? x.note : null) ??
     (typeof x.remark === "string" ? x.remark : null);
 
+  const lensIdRaw = x.lensId ?? x.lens_id;
+  const lensIdParsed =
+    lensIdRaw == null || lensIdRaw === ""
+      ? null
+      : String(lensIdRaw).trim() || null;
+
+  const lensNameSnapshot =
+    typeof x.lensNameSnapshot === "string"
+      ? x.lensNameSnapshot
+      : typeof x.lens_name_snapshot === "string"
+        ? x.lens_name_snapshot
+        : null;
+
+  const lensRaw =
+    x.lens && typeof x.lens === "object"
+      ? (x.lens as Record<string, unknown>)
+      : null;
+  const lens = lensRaw
+    ? {
+        id:
+          typeof lensRaw.id === "string"
+            ? lensRaw.id
+            : lensRaw.id != null
+              ? String(lensRaw.id)
+              : undefined,
+        lensName:
+          typeof lensRaw.lensName === "string"
+            ? lensRaw.lensName
+            : typeof lensRaw.lens_name === "string"
+              ? lensRaw.lens_name
+              : null,
+        fNumber:
+          typeof lensRaw.fNumber === "string"
+            ? lensRaw.fNumber
+            : typeof lensRaw.f_number === "string"
+              ? lensRaw.f_number
+              : null,
+        focalLength:
+          typeof lensRaw.focalLength === "string"
+            ? lensRaw.focalLength
+            : typeof lensRaw.focal_length === "string"
+              ? lensRaw.focal_length
+              : null,
+        isActive:
+          typeof lensRaw.isActive === "boolean" ? lensRaw.isActive : undefined,
+      }
+    : null;
+
   const productNameSnapshot =
     typeof x.productNameSnapshot === "string" ? x.productNameSnapshot : null;
   const businessNameSnapshot =
@@ -752,6 +886,9 @@ function mapApiOrderLineToPurchaseOrderItem(
   return {
     id,
     productId: lineProductId,
+    ...(lensIdParsed != null ? { lensId: lensIdParsed } : {}),
+    ...(lensNameSnapshot != null ? { lensNameSnapshot } : {}),
+    ...(lens != null ? { lens } : {}),
     ...(productNameSnapshot != null ? { productNameSnapshot } : {}),
     ...(businessNameSnapshot != null ? { businessNameSnapshot } : {}),
     ...(definitionNameSnapshot != null ? { definitionNameSnapshot } : {}),
@@ -985,9 +1122,8 @@ function mapPurchaseOrderDetail(raw: unknown): PurchaseOrderDetail {
   const rawLines =
     data.orderItems ?? data.order_items ?? data.items ?? [];
   const lines = mapOrderLinesFromApi(rawLines);
-  const rawLensLines =
-    data.orderLenses ?? data.order_lenses ?? [];
-  const lensLines = mapOrderLensesFromApi(rawLensLines);
+  /** 레거시 `order_lenses`는 제거됨 — 렌즈는 order_items에만 연결 */
+  const lensLines: PurchaseOrderLensLine[] = [];
 
   const orderDate =
     (typeof data.orderDate === "string" && data.orderDate) ||
@@ -1594,6 +1730,100 @@ export async function getDeliveries(
   }
   const data = await res.json();
   return Array.isArray(data) ? data : data?.data ?? [];
+}
+
+/** `POST /purchase-orders/:id/deliveries/:deliveryId/serials` */
+export async function createDeliverySerials(
+  purchaseOrderId: string,
+  deliveryId: number,
+  payload: CreateDeliverySerialsPayload,
+  accessToken: string
+): Promise<CreateDeliverySerialsResponse> {
+  const res = await fetchAuthorized(
+    `${API_BASE}/purchase-orders/${purchaseOrderId}/deliveries/${deliveryId}/serials`,
+    {
+      method: "POST",
+      headers: jsonHeaders(accessToken),
+      body: JSON.stringify(payload),
+      credentials: "include",
+    },
+    accessToken
+  );
+  if (!res.ok) {
+    throw await createApiError(res, "납품 시리얼을 등록하지 못했습니다.");
+  }
+  return res.json();
+}
+
+/** `GET /purchase-orders/:id/deliveries/:deliveryId/serials` */
+export async function getDeliverySerials(
+  purchaseOrderId: string,
+  deliveryId: number,
+  accessToken: string
+): Promise<DeliverySerial[]> {
+  const res = await fetchAuthorized(
+    `${API_BASE}/purchase-orders/${purchaseOrderId}/deliveries/${deliveryId}/serials`,
+    {
+      headers: authHeaders(accessToken),
+      credentials: "include",
+    },
+    accessToken
+  );
+  if (!res.ok) {
+    throw await createApiError(res, "납품 시리얼 목록을 불러오지 못했습니다.");
+  }
+  const data = await res.json();
+  return Array.isArray(data) ? data : data?.data ?? data?.product_serials ?? [];
+}
+
+/** `GET /purchase-orders/:id/serials/max-sequence?sequenceKey=...` */
+export async function getPurchaseOrderSerialMaxSequence(
+  purchaseOrderId: string,
+  sequenceKey: string,
+  accessToken: string
+): Promise<PurchaseOrderSerialMaxSequence> {
+  const key = String(sequenceKey ?? "").trim();
+  if (!key) {
+    return {
+      sequenceKey: "",
+      maxSequence: 0,
+      nextSequence: 1,
+      nextSequenceText: "0001",
+    };
+  }
+  const q = new URLSearchParams();
+  q.set("sequenceKey", key);
+  const res = await fetchAuthorized(
+    `${API_BASE}/purchase-orders/${purchaseOrderId}/serials/max-sequence?${q.toString()}`,
+    {
+      headers: authHeaders(accessToken),
+      credentials: "include",
+    },
+    accessToken
+  );
+  if (!res.ok) {
+    throw await createApiError(res, "시리얼 최대 시퀀스를 조회하지 못했습니다.");
+  }
+  const raw = (await res.json()) as Record<string, unknown>;
+  const maxSequenceRaw = Number(raw.maxSequence);
+  const nextSequenceRaw = Number(raw.nextSequence);
+  const maxSequence =
+    Number.isFinite(maxSequenceRaw) && maxSequenceRaw >= 0 ? maxSequenceRaw : 0;
+  const nextSequence =
+    Number.isFinite(nextSequenceRaw) && nextSequenceRaw > 0
+      ? nextSequenceRaw
+      : maxSequence + 1;
+  const nextSequenceTextRaw =
+    typeof raw.nextSequenceText === "string" ? raw.nextSequenceText.trim() : "";
+  return {
+    sequenceKey:
+      typeof raw.sequenceKey === "string" && raw.sequenceKey.trim() !== ""
+        ? raw.sequenceKey.trim()
+        : key,
+    maxSequence,
+    nextSequence,
+    nextSequenceText: nextSequenceTextRaw || String(nextSequence).padStart(4, "0"),
+  };
 }
 
 // --- 결재(상신·승인) ---

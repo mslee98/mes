@@ -201,6 +201,10 @@ export default function ProductDetail() {
           <div>
             <dl className="min-w-0 flex-1">
               <DetailRow
+                label="사업코드"
+                value={<code>{String(p.businessCode ?? "").trim() || "-"}</code>}
+              />
+              <DetailRow
                 label="사업명"
                 value={<code>{p.businessName || "-"}</code>}
               />

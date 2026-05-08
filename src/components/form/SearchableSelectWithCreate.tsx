@@ -5,6 +5,7 @@ import Select, {
   type SingleValue,
   type StylesConfig,
 } from "react-select";
+import CreatableSelect from "react-select/creatable";
 import Label from "./Label";
 import InfoActionPopover from "./InfoActionPopover";
 import { useTheme } from "../../context/ThemeContext";
@@ -44,6 +45,10 @@ export interface SearchableSelectWithCreateProps {
   compact?: boolean;
   /** `false`면 선택 후 X(지우기) 숨김 — 테이블 제품 등 */
   isClearable?: boolean;
+  /** 옵션에 없는 값을 즉시 생성해 선택할 수 있도록 허용 */
+  isCreatable?: boolean;
+  /** `isCreatable`일 때 새 값 생성 콜백 */
+  onCreateOption?: (inputValue: string) => void;
   /** 옵션/선택값 커스텀 렌더 */
   formatOptionLabel?: (
     option: SearchableSelectOption,
@@ -60,7 +65,10 @@ function buildStyles(
   const text = isDark ? "#f9fafb" : "#111827";
   const muted = isDark ? "#9ca3af" : "#6b7280";
   const hoverBg = isDark ? "#1f2937" : "#f3f4f6";
-  const focusRing = "0 0 0 2px rgba(70, 95, 255, 0.25)";
+  /** `Input` 필드와 동일 — `shadow-theme-xs` + 포커스 시 `focus:ring-brand-500/20`에 대응 */
+  const shadowXs = "var(--shadow-theme-xs)";
+  const focusRing =
+    "0 0 0 3px rgba(70, 95, 255, 0.2)";
   const minHeight = compact ? 36 : 44;
   const fontSize = compact ? 12 : 14;
 
@@ -76,7 +84,9 @@ function buildStyles(
       borderRadius: 8,
       backgroundColor: bg,
       borderColor: state.isFocused ? "#465fff" : border,
-      boxShadow: state.isFocused ? focusRing : "none",
+      boxShadow: state.isFocused
+        ? `${shadowXs}, ${focusRing}`
+        : shadowXs,
       "&:hover": { borderColor: state.isFocused ? "#465fff" : border },
     }),
     menu: (base) => ({
@@ -132,6 +142,8 @@ export default function SearchableSelectWithCreate({
   className = "",
   compact = false,
   isClearable = true,
+  isCreatable = false,
+  onCreateOption,
   formatOptionLabel,
 }: SearchableSelectWithCreateProps) {
   const { theme } = useTheme();
@@ -164,32 +176,42 @@ export default function SearchableSelectWithCreate({
       />
     ) : null;
 
-  const searchableSelect = (
-    <Select<SearchableSelectOption, false>
-      inputId={id}
-      instanceId={id}
-      isDisabled={isDisabled}
-      isClearable={isClearable}
-      isSearchable
-      options={options}
-      placeholder={placeholder}
-      value={selected}
-      onChange={(opt) => onChange(opt?.value ?? "")}
-      styles={styles}
-      menuPortalTarget={
-        typeof document !== "undefined" ? document.body : null
-      }
-      menuPosition="fixed"
-      noOptionsMessage={() => noOptionsMessage}
-      filterOption={(option, input) => {
-        if (!input) return true;
-        const q = input.trim().toLowerCase();
-        const labelStr = String(option.label ?? "").toLowerCase();
-        const valueStr = String(option.value ?? "").toLowerCase();
-        return labelStr.includes(q) || valueStr.includes(q);
-      }}
-      formatOptionLabel={formatOptionLabel}
+  const commonSelectProps = {
+    inputId: id,
+    instanceId: id,
+    isDisabled,
+    isClearable,
+    isSearchable: true,
+    options,
+    placeholder,
+    value: selected,
+    onChange: (opt: SingleValue<SearchableSelectOption>) =>
+      onChange(opt?.value ?? ""),
+    styles,
+    menuPortalTarget: typeof document !== "undefined" ? document.body : null,
+    menuPosition: "fixed" as const,
+    noOptionsMessage: () => noOptionsMessage,
+    filterOption: (
+      option: { label: string; value: string },
+      input: string
+    ) => {
+      if (!input) return true;
+      const q = input.trim().toLowerCase();
+      const labelStr = String(option.label ?? "").toLowerCase();
+      const valueStr = String(option.value ?? "").toLowerCase();
+      return labelStr.includes(q) || valueStr.includes(q);
+    },
+    formatOptionLabel,
+  };
+
+  const searchableSelect = isCreatable ? (
+    <CreatableSelect<SearchableSelectOption, false>
+      {...commonSelectProps}
+      onCreateOption={(inputValue) => onCreateOption?.(inputValue)}
+      formatCreateLabel={(inputValue) => `"${inputValue}" 직접 입력`}
     />
+  ) : (
+    <Select<SearchableSelectOption, false> {...commonSelectProps} />
   );
 
   return (

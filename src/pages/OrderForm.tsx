@@ -29,10 +29,6 @@ import { useAuth } from "../hooks/useAuth";
 import { useOrderCommonCodes } from "../hooks/useOrderCommonCodes";
 import { usePartnersQuery } from "../hooks/usePartnersQuery";
 import { getCurrencySymbol } from "../lib/formatCurrency";
-import {
-  ORDER_LINE_VAT_RATE,
-  type LineAmountSummary,
-} from "../lib/orderLineAmountSummary";
 import { itemFormStrings as S } from "./itemFormStrings";
 import { toPartnerSearchableSelectOptions } from "../lib/partnerSelectOptions";
 import {
@@ -48,7 +44,6 @@ import {
 import {
   getPurchaseOrder,
   getPurchaseOrderItems,
-  getPurchaseOrderLenses,
   getPurchaseOrderFiles,
   createPurchaseOrder,
   uploadPurchaseOrderFile,
@@ -57,23 +52,16 @@ import {
   createPurchaseOrderLine,
   updatePurchaseOrderLine,
   deletePurchaseOrderLine,
-  createPurchaseOrderLensLine,
-  updatePurchaseOrderLensLine,
-  deletePurchaseOrderLensLine,
   type PurchaseOrderCreatePayload,
   type PurchaseOrderUpdatePayload,
   type PurchaseOrderItemPayload,
   type PurchaseOrderLinePatchPayload,
-  type PurchaseOrderLensLineCreateBody,
-  type PurchaseOrderLensLinePatchBody,
   type PurchaseOrderFile,
   type PurchaseOrderItem,
-  type PurchaseOrderLensLine,
 } from "../api/purchaseOrder";
 import OrderAttachmentSection from "../features/order-form/sections/OrderAttachmentSection";
 import OrderLineEditorSection from "../features/order-form/sections/OrderLineEditorSection";
 import type { ItemRow } from "../features/order-form/types";
-import type { LensItemRow } from "../features/order-form/types";
 import {
   buildCreatePayload,
   buildUpdatePayload,
@@ -151,18 +139,6 @@ function computeHeaderSupplyAmount(rows: ItemRow[], headerCurrency: string): num
   return subtotal;
 }
 
-function computeLensSupplyAmount(rows: LensItemRow[], headerCurrency: string): number {
-  const cc = headerCurrency.trim().toUpperCase() || "KRW";
-  let subtotal = 0;
-  for (const row of rows) {
-    const rcc = (row.currencyCode || "KRW").trim().toUpperCase() || "KRW";
-    if (rcc !== cc) continue;
-    if (row.qty <= 0) continue;
-    subtotal += row.qty * parseLineUnitPrice(row.unitPrice);
-  }
-  return subtotal;
-}
-
 function isBlankProductRow(row: ItemRow): boolean {
   return (
     row.productId.trim() === "" &&
@@ -185,28 +161,6 @@ function isPartialProductRow(row: ItemRow): boolean {
   );
 }
 
-function isBlankLensRow(row: LensItemRow): boolean {
-  return (
-    row.lensId.trim() === "" &&
-    row.unitCode.trim() === "" &&
-    row.qty <= 0 &&
-    row.unitPrice.trim() === "" &&
-    row.remark.trim() === ""
-  );
-}
-
-function isPartialLensRow(row: LensItemRow): boolean {
-  if (isBlankLensRow(row)) return false;
-  const price = parseLineUnitPrice(row.unitPrice);
-  return (
-    row.lensId.trim() === "" ||
-    row.unitCode.trim() === "" ||
-    row.qty <= 0 ||
-    !Number.isFinite(price) ||
-    price < 0
-  );
-}
-
 /**
  * 
  * @returns 빈 행 데이터
@@ -214,15 +168,6 @@ function isPartialLensRow(row: LensItemRow): boolean {
 const emptyItemRow = (): ItemRow => ({
   lineId: undefined,
   productId: "",
-  unitCode: "",
-  qty: 0,
-  unitPrice: "",
-  currencyCode: "KRW",
-  requestDeliveryDate: "",
-  remark: "",
-});
-
-const emptyLensItemRow = (): LensItemRow => ({
   lensId: "",
   unitCode: "",
   qty: 0,
@@ -312,7 +257,6 @@ export default function OrderForm() {
     useState("KRW");
   const [exchangeRateInput, setExchangeRateInput] = useState("");
   const [items, setItems] = useState<ItemRow[]>([emptyItemRow()]);
-  const [lensItems, setLensItems] = useState<LensItemRow[]>([emptyLensItemRow()]);
   const [editingLineIds, setEditingLineIds] = useState<number[]>([]);
   const [pendingFilesForCreate, setPendingFilesForCreate] = useState<File[]>([]);
   const [recentlySavedLineIds, setRecentlySavedLineIds] = useState<number[]>([]);
@@ -323,9 +267,6 @@ export default function OrderForm() {
     string[]
   >([]);
   const [lineDeleteConfirmIndex, setLineDeleteConfirmIndex] = useState<number | null>(null);
-  const [lensDeleteConfirmIndex, setLensDeleteConfirmIndex] = useState<number | null>(null);
-  const [editingLensLineIds, setEditingLensLineIds] = useState<number[]>([]);
-  const [recentlySavedLensLineIds, setRecentlySavedLensLineIds] = useState<number[]>([]);
   const [fileDeleteConfirmId, setFileDeleteConfirmId] = useState<number | null>(null);
   const uploadErrorMessage = (error: unknown) => {
     const message = error instanceof Error ? error.message : "";
@@ -338,9 +279,6 @@ export default function OrderForm() {
     return message || "첨부파일 업로드에 실패했습니다.";
   };
   const recentlySavedLineTimersRef = useRef<
-    Record<number, ReturnType<typeof setTimeout>>
-  >({});
-  const recentlySavedLensLineTimersRef = useRef<
     Record<number, ReturnType<typeof setTimeout>>
   >({});
   const recentlyUploadedFileTimersRef = useRef<
@@ -360,13 +298,6 @@ export default function OrderForm() {
     !!order &&
     ((order.orderItems?.length ?? 0) === 0 &&
       (order.items?.length ?? 0) === 0);
-
-  const shouldFetchOrderLenses =
-    !isNew &&
-    !!accessToken &&
-    id !== "" &&
-    !!order &&
-    (order.orderLenses?.length ?? 0) === 0;
 
   const authUserId = useMemo(() => {
     if (!user) return undefined;
@@ -388,17 +319,9 @@ export default function OrderForm() {
       createdByEmployeeNo === "" ||
       (authEmployeeNo !== "" && authEmployeeNo === createdByEmployeeNo);
     const isOwner = isOwnerById || isOwnerByEmployeeNo;
-    const approvalStatus = String(order.currentApprovalRequest?.status ?? "")
-      .trim()
-      .toUpperCase();
-    const isApprovalInProgress =
-      !!order.currentApprovalRequest &&
-      approvalStatus !== "" &&
-      approvalStatus !== "DRAFT" &&
-      approvalStatus !== "REJECTED";
     const isPoClosed =
       String(order.status ?? order.orderStatus ?? "").trim() === "PO_CLOSED";
-    return isOwner && !isApprovalInProgress && !isPoClosed;
+    return isOwner && !isPoClosed;
   }, [isNew, order, user?.employeeNo, authUserId]);
 
   const blockedEditToastShownRef = useRef(false);
@@ -407,7 +330,7 @@ export default function OrderForm() {
     if (isNew || !order) return;
     if (canEditExistingOrder) return;
     if (!blockedEditToastShownRef.current) {
-      toast.error("작성자만 수정할 수 있으며, 상신 진행 중/종결 상태는 수정할 수 없습니다.");
+      toast.error("작성자만 수정할 수 있으며, 종결된 발주는 수정할 수 없습니다.");
       blockedEditToastShownRef.current = true;
     }
     navigate(`/order/${id}`, { replace: true });
@@ -423,25 +346,12 @@ export default function OrderForm() {
     enabled: shouldFetchOrderLineItems,
   });
 
-  const { data: orderLensesFetched } = useQuery({
-    queryKey: ["purchaseOrder", id, "lenses"],
-    queryFn: () => getPurchaseOrderLenses(id, accessToken!),
-    enabled: shouldFetchOrderLenses,
-  });
-
   const resolvedOrderLineItems = useMemo((): PurchaseOrderItem[] => {
     if (isNew || !order) return [];
     const embedded = order.orderItems ?? order.items;
     if (embedded && embedded.length > 0) return embedded;
     return orderLineItemsFetched;
   }, [isNew, order, orderLineItemsFetched]);
-
-  const resolvedOrderLenses = useMemo((): PurchaseOrderLensLine[] => {
-    if (isNew || !order) return [];
-    const embedded = order.orderLenses;
-    if (embedded && embedded.length > 0) return embedded;
-    return orderLensesFetched ?? [];
-  }, [isNew, order, orderLensesFetched]);
 
   /**
    * 
@@ -748,23 +658,6 @@ export default function OrderForm() {
     });
   }, [isNew, firstUnitValue]);
 
-  useEffect(() => {
-    if (!isNew || !firstUnitValue) return;
-    queueMicrotask(() => {
-      setLensItems((prev) => {
-        let changed = false;
-        const next = prev.map((row) => {
-          if (row.unitCode === "") {
-            changed = true;
-            return { ...row, unitCode: firstUnitValue };
-          }
-          return row;
-        });
-        return changed ? next : prev;
-      });
-    });
-  }, [isNew, firstUnitValue]);
-
   /**
    * 
    * @returns 발주 생성 뮤테이션
@@ -856,6 +749,7 @@ export default function OrderForm() {
           next[index] = {
             lineId: created.id,
             productId: created.productId ?? row.productId,
+            lensId: created.lensId?.trim() ?? "",
             unitCode: String(created.unit ?? firstUnitValue ?? "").trim(),
             qty: Number(created.qty ?? 0),
             unitPrice: formatLineUnitPriceDisplay(created.unitPrice),
@@ -882,95 +776,6 @@ export default function OrderForm() {
     },
     onError: (e: Error) =>
       toast.error(e.message || "발주 라인 삭제에 실패했습니다."),
-  });
-
-  const finishLensLineEdit = useCallback((lineId?: number) => {
-    if (!lineId) return;
-    setEditingLensLineIds((prev) => prev.filter((lid) => lid !== lineId));
-  }, []);
-
-  const markLensLineSaved = useCallback((lineId?: number) => {
-    if (!lineId) return;
-    setRecentlySavedLensLineIds((prev) =>
-      prev.includes(lineId) ? prev : [...prev, lineId]
-    );
-    const existingTimer = recentlySavedLensLineTimersRef.current[lineId];
-    if (existingTimer) clearTimeout(existingTimer);
-    recentlySavedLensLineTimersRef.current[lineId] = setTimeout(() => {
-      setRecentlySavedLensLineIds((prev) => prev.filter((lid) => lid !== lineId));
-      delete recentlySavedLensLineTimersRef.current[lineId];
-    }, 2500);
-  }, []);
-
-  const lensLineCreateMutation = useMutation({
-    mutationFn: ({
-      payload,
-    }: {
-      index: number;
-      payload: PurchaseOrderLensLineCreateBody;
-    }) => createPurchaseOrderLensLine(id, payload, accessToken!),
-    onSuccess: (created, { index }) => {
-      toast.success("렌즈 라인이 추가되었습니다.");
-      queryClient.invalidateQueries({ queryKey: ["purchaseOrder", id] });
-      queryClient.invalidateQueries({ queryKey: ["purchaseOrder", id, "lenses"] });
-      if (created) {
-        setLensItems((prev) => {
-          const next = [...prev];
-          const row = next[index];
-          if (!row) return prev;
-          next[index] = {
-            lineId: created.id,
-            lensId: created.lensId ?? row.lensId,
-            unitCode: String(
-              created.quantityUnitCode ?? created.unit ?? firstUnitValue ?? ""
-            ).trim(),
-            qty: Number(created.qty ?? 0),
-            unitPrice: formatLineUnitPriceDisplay(created.unitPrice),
-            currencyCode:
-              String(created.currencyCode ?? order?.currencyCode ?? "KRW").trim() ||
-              "KRW",
-            requestDeliveryDate: created.requestDeliveryDate ?? "",
-            remark: (created.remark ?? created.note ?? "") as string,
-          };
-          return next;
-        });
-        markLensLineSaved(created.id);
-      }
-    },
-    onError: (e: Error) =>
-      toast.error(e.message || "렌즈 라인 추가에 실패했습니다."),
-  });
-
-  const lensLineUpdateMutation = useMutation({
-    mutationFn: ({
-      lensLineId,
-      payload,
-    }: {
-      lensLineId: number;
-      payload: PurchaseOrderLensLinePatchBody;
-    }) =>
-      updatePurchaseOrderLensLine(id, lensLineId, payload, accessToken!),
-    onSuccess: (_, { lensLineId }) => {
-      toast.success("렌즈 라인이 수정되었습니다.");
-      queryClient.invalidateQueries({ queryKey: ["purchaseOrder", id] });
-      queryClient.invalidateQueries({ queryKey: ["purchaseOrder", id, "lenses"] });
-      markLensLineSaved(lensLineId);
-      finishLensLineEdit(lensLineId);
-    },
-    onError: (e: Error) =>
-      toast.error(e.message || "렌즈 라인 수정에 실패했습니다."),
-  });
-
-  const lensLineDeleteMutation = useMutation({
-    mutationFn: (lensLineId: number) =>
-      deletePurchaseOrderLensLine(id, lensLineId, accessToken!),
-    onSuccess: () => {
-      toast.success("렌즈 라인이 삭제되었습니다.");
-      queryClient.invalidateQueries({ queryKey: ["purchaseOrder", id] });
-      queryClient.invalidateQueries({ queryKey: ["purchaseOrder", id, "lenses"] });
-    },
-    onError: (e: Error) =>
-      toast.error(e.message || "렌즈 라인 삭제에 실패했습니다."),
   });
 
   const fileUploadMutation = useMutation({
@@ -1023,26 +828,16 @@ export default function OrderForm() {
 
   const hasUnsavedWorkingLine = useMemo(() => {
     if (isNew) return false;
-    if (editingLineIds.length > 0 || editingLensLineIds.length > 0) return true;
-    const hasDraftProduct =
-      items.some(
-        (row) =>
-          !row.lineId &&
-          (row.productId.trim() !== "" ||
-            row.qty > 0 ||
-            row.unitPrice.trim() !== "" ||
-            row.remark.trim() !== "")
-      );
-    const hasDraftLens = lensItems.some(
+    if (editingLineIds.length > 0) return true;
+    return items.some(
       (row) =>
         !row.lineId &&
-        (row.lensId.trim() !== "" ||
+        (row.productId.trim() !== "" ||
           row.qty > 0 ||
           row.unitPrice.trim() !== "" ||
           row.remark.trim() !== "")
     );
-    return hasDraftProduct || hasDraftLens;
-  }, [isNew, editingLineIds, editingLensLineIds, items, lensItems]);
+  }, [isNew, editingLineIds, items]);
 
   const addItemRow = () => {
     if (!isNew && !canEditExistingOrder) {
@@ -1053,20 +848,6 @@ export default function OrderForm() {
       ...prev,
       {
         ...emptyItemRow(),
-        unitCode: firstUnitValue,
-        currencyCode: defaultNewLineCurrency,
-      },
-    ]);
-  };
-  const addLensItemRow = () => {
-    if (!isNew && !canEditExistingOrder) {
-      toast.error("수정 권한이 없습니다.");
-      return;
-    }
-    setLensItems((prev) => [
-      ...prev,
-      {
-        ...emptyLensItemRow(),
         unitCode: firstUnitValue,
         currencyCode: defaultNewLineCurrency,
       },
@@ -1104,18 +885,6 @@ export default function OrderForm() {
       return next;
     });
   };
-  const updateLensItemRow = (
-    index: number,
-    field: keyof LensItemRow,
-    value: string | number | null
-  ) => {
-    setLensItems((prev) => {
-      const next = [...prev];
-      (next[index] as Record<string, unknown>)[field] = value;
-      return next;
-    });
-  };
-
   const setLineProductId = (index: number, productId: string) => {
     setItems((prev) => {
       const next = [...prev];
@@ -1126,20 +895,13 @@ export default function OrderForm() {
     });
   };
   const setLineLensId = (index: number, lensId: string) => {
-    setLensItems((prev) => {
+    setItems((prev) => {
       const next = [...prev];
       const row = next[index];
       if (!row) return prev;
       next[index] = { ...row, lensId };
       return next;
     });
-  };
-  const removeLensItemRow = (index: number) => {
-    if (!isNew && !canEditExistingOrder) {
-      toast.error("수정 권한이 없습니다.");
-      return;
-    }
-    setLensItems((prev) => prev.filter((_, i) => i !== index));
   };
 
   const beginLineEdit = (lineId?: number) => {
@@ -1187,6 +949,7 @@ export default function OrderForm() {
       if (isNew) return;
       const createPayload: PurchaseOrderItemPayload = {
         productId: row.productId,
+        lensId: row.lensId.trim() ? row.lensId.trim() : null,
         qty: row.qty,
         unitPrice,
         unit: row.unitCode.trim() || null,
@@ -1207,6 +970,7 @@ export default function OrderForm() {
         lineId: row.lineId,
         payload: {
           productId: row.productId,
+          lensId: row.lensId.trim() ? row.lensId.trim() : null,
           qty: row.qty,
           unit: row.unitCode.trim() || null,
           unitPrice,
@@ -1266,7 +1030,8 @@ export default function OrderForm() {
         if (!cur) return prev;
         next[index] = {
           ...cur,
-          productId: source.productId ?? 0,
+          productId: String(source.productId ?? "").trim(),
+          lensId: source.lensId?.trim() ?? "",
           unitCode: String(source.unit ?? firstUnitValue ?? "").trim(),
           qty: Number(source.qty ?? 0),
           unitPrice: formatLineUnitPriceDisplay(source.unitPrice),
@@ -1282,120 +1047,6 @@ export default function OrderForm() {
     finishLineEdit(row.lineId);
   };
 
-  const beginLensLineEdit = (lineId?: number) => {
-    if (!isNew && !canEditExistingOrder) {
-      toast.error("수정 권한이 없습니다.");
-      return;
-    }
-    if (!lineId) return;
-    setEditingLensLineIds((prev) =>
-      prev.includes(lineId) ? prev : [...prev, lineId]
-    );
-  };
-
-  const cancelLensLineEdit = (index: number) => {
-    const row = lensItems[index];
-    if (!row?.lineId) return;
-    const source = resolvedOrderLenses.find((l) => l.id === row.lineId);
-    if (source) {
-      setLensItems((prev) => {
-        const next = [...prev];
-        const cur = next[index];
-        if (!cur) return prev;
-        next[index] = {
-          ...cur,
-          lensId: source.lensId ?? "",
-          unitCode: String(
-            source.quantityUnitCode ?? source.unit ?? firstUnitValue ?? ""
-          ).trim(),
-          qty: Number(source.qty ?? 0),
-          unitPrice: formatLineUnitPriceDisplay(source.unitPrice),
-          currencyCode:
-            String(source.currencyCode ?? order?.currencyCode ?? "KRW").trim() ||
-            "KRW",
-          requestDeliveryDate: source.requestDeliveryDate ?? "",
-          remark: (source.remark ?? source.note ?? "") as string,
-        };
-        return next;
-      });
-    }
-    finishLensLineEdit(row.lineId);
-  };
-
-  const saveLensItemLine = (index: number) => {
-    if (!isNew && !canEditExistingOrder) {
-      toast.error("수정 권한이 없습니다.");
-      return;
-    }
-    const row = lensItems[index];
-    if (!row) return;
-    if (!row.lensId.trim()) {
-      toast.error("렌즈를 선택하세요.");
-      return;
-    }
-    if (!row.unitCode.trim()) {
-      toast.error("단위를 선택하세요.");
-      return;
-    }
-    if (row.qty <= 0) {
-      toast.error("수량은 0보다 커야 합니다.");
-      return;
-    }
-    const unitPrice = parseLineUnitPrice(row.unitPrice);
-    if (!Number.isFinite(unitPrice) || unitPrice < 0) {
-      toast.error("단가를 확인하세요.");
-      return;
-    }
-
-    if (!row.lineId) {
-      if (isNew) return;
-      const createPayload: PurchaseOrderLensLineCreateBody = {
-        lensId: row.lensId.trim(),
-        quantity: row.qty,
-        quantityUnitCode: row.unitCode.trim() || null,
-        unitPrice,
-        currencyCode: row.currencyCode.trim() || "KRW",
-        requestedDueDate: row.requestDeliveryDate.trim() || null,
-        note: row.remark.trim() || null,
-      };
-      lensLineCreateMutation.mutate({ index, payload: createPayload });
-      return;
-    }
-
-    const patchPayload: PurchaseOrderLensLinePatchBody = {
-      quantity: row.qty,
-      quantityUnitCode: row.unitCode.trim() || null,
-      unitPrice,
-      currencyCode: row.currencyCode.trim() || "KRW",
-      requestedDueDate: row.requestDeliveryDate.trim() || null,
-      note: row.remark.trim() || null,
-    };
-    lensLineUpdateMutation.mutate({
-      lensLineId: row.lineId,
-      payload: patchPayload,
-    });
-  };
-
-  const removeLensLine = (index: number) => {
-    if (!isNew && !canEditExistingOrder) {
-      toast.error("수정 권한이 없습니다.");
-      return;
-    }
-    const row = lensItems[index];
-    if (!row) return;
-    const isBlankDraft =
-      !row.lineId &&
-      row.lensId.trim() === "" &&
-      row.qty <= 0 &&
-      row.unitPrice.trim() === "" &&
-      row.remark.trim() === "";
-    if (isBlankDraft) {
-      removeLensItemRow(index);
-      return;
-    }
-    setLensDeleteConfirmIndex(index);
-  };
-
   /**
    * 
    * @param e 
@@ -1403,7 +1054,7 @@ export default function OrderForm() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!isNew && !canEditExistingOrder) {
-      toast.error("작성자만 수정할 수 있으며, 상신 진행 중/종결 상태는 수정할 수 없습니다.");
+      toast.error("작성자만 수정할 수 있으며, 종결된 발주는 수정할 수 없습니다.");
       return;
     }
     if (hasUnsavedWorkingLine) {
@@ -1434,20 +1085,9 @@ export default function OrderForm() {
         toast.error("제품 라인을 확인하세요. (대표 제품·단위·수량·단가)");
         return;
       }
-      if (lensItems.some((row) => isPartialLensRow(row))) {
-        toast.error("렌즈 라인을 확인하세요. (렌즈·단위·수량·단가)");
-        return;
-      }
       const validItems = items.filter(
         (row) =>
           row.productId.trim() !== "" &&
-          row.unitCode.trim() !== "" &&
-          row.qty > 0 &&
-          parseLineUnitPrice(row.unitPrice) >= 0
-      );
-      const validLensItems = lensItems.filter(
-        (row) =>
-          row.lensId.trim() !== "" &&
           row.unitCode.trim() !== "" &&
           row.qty > 0 &&
           parseLineUnitPrice(row.unitPrice) >= 0
@@ -1470,9 +1110,7 @@ export default function OrderForm() {
         orderCurrencyCode ||
         order?.currencyCode ||
         "KRW";
-      const supplyAmount =
-        computeHeaderSupplyAmount(validItems, headerCurrency) +
-        computeLensSupplyAmount(validLensItems, headerCurrency);
+      const supplyAmount = computeHeaderSupplyAmount(validItems, headerCurrency);
       const payload = buildCreatePayload({
         title,
         partnerId,
@@ -1494,7 +1132,6 @@ export default function OrderForm() {
         supplyAmount,
         exchangeRate: parseOptionalExchangeRate(exchangeRateInput),
         validItems,
-        validLensItems,
         parseLineUnitPrice,
       });
       createMutation.mutate(payload);
@@ -1505,10 +1142,6 @@ export default function OrderForm() {
       toast.error("제품 라인을 확인하세요. (대표 제품·단위·수량·단가)");
       return;
     }
-    if (lensItems.some((row) => isPartialLensRow(row))) {
-      toast.error("렌즈 라인을 확인하세요. (렌즈·단위·수량·단가)");
-      return;
-    }
 
     const validItems = items.filter(
       (row) =>
@@ -1517,19 +1150,10 @@ export default function OrderForm() {
         row.qty > 0 &&
         parseLineUnitPrice(row.unitPrice) >= 0
     );
-    const validLensItems = lensItems.filter(
-      (row) =>
-        row.lensId.trim() !== "" &&
-        row.unitCode.trim() !== "" &&
-        row.qty > 0 &&
-        parseLineUnitPrice(row.unitPrice) >= 0
-    );
 
     const headerCurrency =
       orderCurrencyCode || order?.currencyCode || "KRW";
-    const supplyAmount =
-      computeHeaderSupplyAmount(validItems, headerCurrency) +
-      computeLensSupplyAmount(validLensItems, headerCurrency);
+    const supplyAmount = computeHeaderSupplyAmount(validItems, headerCurrency);
 
     if (
       purchaseOrderTypeCodes.length > 0 &&
@@ -1575,6 +1199,7 @@ export default function OrderForm() {
         : lines.map((line) => ({
             lineId: Number(line.id ?? 0) || undefined,
             productId: line.productId ?? "",
+            lensId: line.lensId?.trim() ?? "",
             unitCode: String(line.unit ?? firstUnitValue ?? "").trim(),
             qty: Number(line.qty ?? 0),
             unitPrice: formatLineUnitPriceDisplay(line.unitPrice),
@@ -1584,53 +1209,10 @@ export default function OrderForm() {
             requestDeliveryDate: line.requestDeliveryDate ?? "",
             remark: line.remark ?? "",
           }));
-    const lensLines = resolvedOrderLenses;
-    const nextLensItems =
-      lensLines.length === 0
-        ? [{ ...emptyLensItemRow(), unitCode: firstUnitValue }]
-        : lensLines.map((lensLine) => ({
-            lineId: Number(lensLine.id ?? 0) || undefined,
-            lensId: lensLine.lensId ?? "",
-            unitCode: String(
-              lensLine.quantityUnitCode ?? lensLine.unit ?? firstUnitValue ?? ""
-            ).trim(),
-            qty: Number(lensLine.qty ?? 0),
-            unitPrice: formatLineUnitPriceDisplay(lensLine.unitPrice),
-            currencyCode:
-              String(lensLine.currencyCode ?? order.currencyCode ?? "KRW").trim() ||
-              "KRW",
-            requestDeliveryDate: lensLine.requestDeliveryDate ?? "",
-            remark: (lensLine.remark ?? lensLine.note ?? "") as string,
-          }));
     queueMicrotask(() => {
       setItems(nextItems);
-      setLensItems(nextLensItems);
     });
-  }, [isNew, order, resolvedOrderLineItems, resolvedOrderLenses, firstUnitValue]);
-
-  const draftLineAmountSummaries = useMemo((): LineAmountSummary[] => {
-    const map = new Map<string, number>();
-    for (const row of items) {
-      if (row.qty <= 0) continue;
-      const cc =
-        (row.currencyCode || "KRW").trim().toUpperCase() || "KRW";
-      const lineAmount = row.qty * parseLineUnitPrice(row.unitPrice);
-      map.set(cc, (map.get(cc) ?? 0) + lineAmount);
-    }
-    for (const row of lensItems) {
-      if (row.qty <= 0) continue;
-      const cc =
-        (row.currencyCode || "KRW").trim().toUpperCase() || "KRW";
-      const lineAmount = row.qty * parseLineUnitPrice(row.unitPrice);
-      map.set(cc, (map.get(cc) ?? 0) + lineAmount);
-    }
-    return Array.from(map.entries())
-      .map(([currencyCode, subtotal]) => {
-        const vat = Math.round(subtotal * ORDER_LINE_VAT_RATE * 100) / 100;
-        return { currencyCode, subtotal, vat, total: subtotal + vat };
-      })
-      .sort((a, b) => a.currencyCode.localeCompare(b.currencyCode));
-  }, [items, lensItems]);
+  }, [isNew, order, resolvedOrderLineItems, firstUnitValue]);
 
   if (!isNew && orderLoading && !order) {
     return (
@@ -1888,45 +1470,29 @@ export default function OrderForm() {
         <OrderLineEditorSection
           isNew={isNew}
           lineLayoutEditable={isNew || canEditExistingOrder}
-          lensRowEditable={isNew || canEditExistingOrder}
           items={items}
-          lensItems={lensItems}
           editingLineIds={editingLineIds}
-          editingLensLineIds={editingLensLineIds}
           productSelectOptions={productSelectOptions}
           lensSelectOptions={lensSelectOptions}
           unitOptions={unitOptions}
           currencyOptions={currencyOptions}
-          orderCurrencyCode={orderCurrencyCode}
           exchangeRateCurrencyCode={exchangeRateCurrencyCode}
           exchangeRateInput={exchangeRateInput}
           onExchangeRateCurrencyChange={setExchangeRateCurrencyCode}
           onExchangeRateInputChange={setExchangeRateInput}
-          draftLineAmountSummaries={draftLineAmountSummaries}
           isLineCreatePending={lineCreateMutation.isPending}
           isLineUpdatePending={lineUpdateMutation.isPending}
           isLineDeletePending={lineDeleteMutation.isPending}
-          isLensLineCreatePending={lensLineCreateMutation.isPending}
-          isLensLineUpdatePending={lensLineUpdateMutation.isPending}
-          isLensLineDeletePending={lensLineDeleteMutation.isPending}
           recentlySavedLineIds={recentlySavedLineIds}
-          recentlySavedLensLineIds={recentlySavedLensLineIds}
           onAddItemRow={addItemRow}
-          onAddLensItemRow={addLensItemRow}
           onSetLineProductId={setLineProductId}
           onSetLineLensId={setLineLensId}
           onUpdateItemRow={updateItemRow}
-          onUpdateLensItemRow={updateLensItemRow}
           onRemoveItemRow={removeItemRow}
-          onRemoveLensItemRow={removeLensItemRow}
           onSaveLine={saveLine}
           onCancelLineEdit={cancelLineEdit}
           onBeginLineEdit={beginLineEdit}
           onRemoveLine={removeLine}
-          onSaveLensLine={saveLensItemLine}
-          onCancelLensLineEdit={cancelLensLineEdit}
-          onBeginLensLineEdit={beginLensLineEdit}
-          onRemoveLensLine={removeLensLine}
         />
 
         <FormActionBar
@@ -1966,33 +1532,6 @@ export default function OrderForm() {
           }
           lineDeleteMutation.mutate(row.lineId, {
             onSettled: () => setLineDeleteConfirmIndex(null),
-          });
-        }}
-      />
-
-      <ConfirmModal
-        isOpen={lensDeleteConfirmIndex != null}
-        title="렌즈 라인을 삭제할까요?"
-        message="삭제 후 되돌릴 수 없습니다."
-        confirmText="삭제"
-        cancelText="취소"
-        confirmVariant="danger"
-        isConfirming={lensLineDeleteMutation.isPending}
-        onClose={() => setLensDeleteConfirmIndex(null)}
-        onConfirm={() => {
-          if (lensDeleteConfirmIndex == null) return;
-          const row = lensItems[lensDeleteConfirmIndex];
-          if (!row) {
-            setLensDeleteConfirmIndex(null);
-            return;
-          }
-          if (!row.lineId) {
-            removeLensItemRow(lensDeleteConfirmIndex);
-            setLensDeleteConfirmIndex(null);
-            return;
-          }
-          lensLineDeleteMutation.mutate(row.lineId, {
-            onSettled: () => setLensDeleteConfirmIndex(null),
           });
         }}
       />

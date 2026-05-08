@@ -46,6 +46,21 @@
 
 - 보드/부품 등 공통 마스터. 선택 필드: `spec`, `manufacturer`.
 
+## 검출기 (detectors)
+
+| 메서드 | 경로 | 용도 |
+|--------|------|------|
+| GET | `/api/detectors` | 검출기 목록 |
+| GET | `/api/detectors/:id` | 검출기 단건 |
+| POST | `/api/detectors` | 검출기 등록 |
+| PATCH | `/api/detectors/:id` | 검출기 수정 |
+
+- `partnerId`(nullable FK) 지원:
+  - 셀렉트에서 기존 거래처를 선택한 경우 `partnerId`에 거래처 UUID 저장
+  - 직접 입력(legacy 고객명)인 경우 `partnerId: null`
+- `customerName`은 화면 표시/검색 호환을 위해 함께 사용 가능
+- DB FK 정책: `partner_id -> partners(id)`, `ON DELETE SET NULL`
+
 ---
 
 프론트 구현: `src/api/products.ts`, `src/api/purchaseOrder.ts`, `src/api/approvalRequests.ts`, 발주 폼 `OrderForm.tsx`, 상세 `OrderDetail.tsx`.

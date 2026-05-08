@@ -13,6 +13,7 @@ function authHeaders(accessToken: string): HeadersInit {
 /** 제품 마스터 공통 필드 (목록·상세·셀렉트) */
 export interface RepresentativeProduct {
   id: string;
+  businessCode?: string | null;
   businessName: string;
   productName: string;
   productType: "ENGINE" | "CAMERA";
@@ -42,6 +43,7 @@ export interface ProductListResultDto {
 export type ProductDetailDto = RepresentativeProduct;
 
 export interface ProductCreatePayload {
+  businessCode: string;
   businessName: string;
   productName: string;
   productType: "ENGINE" | "CAMERA";
@@ -55,6 +57,7 @@ export interface ProductCreatePayload {
 }
 
 export interface ProductUpdatePayload {
+  businessCode?: string;
   businessName?: string;
   productName?: string;
   productType?: "ENGINE" | "CAMERA";
@@ -91,6 +94,11 @@ export interface ProductFileLink {
   uploadedAt?: string;
 }
 
+export interface ProductBusinessCodeCheckResult {
+  businessCode: string;
+  available: boolean;
+}
+
 /** 목록·셀렉트용 표시 문자열 (이름·코드 구분) */
 export function representativeProductLabel(p: RepresentativeProduct): string {
   const name = (p.productName ?? "").trim();
@@ -101,6 +109,11 @@ export function representativeProductLabel(p: RepresentativeProduct): string {
 
 function mapProduct(raw: unknown): RepresentativeProduct {
   const o = raw as Record<string, unknown>;
+  const businessCodeRaw = o.businessCode ?? o.business_code;
+  const businessCode =
+    businessCodeRaw == null || String(businessCodeRaw).trim() === ""
+      ? null
+      : String(businessCodeRaw).trim();
   const businessName =
     typeof o.businessName === "string"
       ? o.businessName
@@ -157,6 +170,7 @@ function mapProduct(raw: unknown): RepresentativeProduct {
     typeof o.updatedAt === "string" ? o.updatedAt : undefined;
   return {
     id: String(o.id ?? "").trim(),
+    businessCode,
     businessName,
     productName,
     productType,
@@ -349,4 +363,39 @@ export async function deleteProductFile(
   if (!res.ok) {
     throw await createApiError(res, "제품 파일을 삭제하지 못했습니다.");
   }
+}
+
+export async function checkProductBusinessCode(
+  accessToken: string,
+  businessCode: string,
+  excludeProductId?: string
+): Promise<ProductBusinessCodeCheckResult> {
+  const normalizedCode = businessCode.trim().toUpperCase();
+  if (!normalizedCode) {
+    return { businessCode: "", available: false };
+  }
+  const q = new URLSearchParams();
+  q.set("businessCode", normalizedCode);
+  if (excludeProductId != null && String(excludeProductId).trim() !== "") {
+    q.set("excludeProductId", String(excludeProductId).trim());
+  }
+  const res = await fetchAuthorized(
+    `${API_BASE}/products/check-business-code?${q.toString()}`,
+    {
+      headers: authHeaders(accessToken),
+      credentials: "include",
+    },
+    accessToken
+  );
+  if (!res.ok) {
+    throw await createApiError(res, "사업코드 중복 확인에 실패했습니다.");
+  }
+  const data = (await res.json()) as Record<string, unknown>;
+  return {
+    businessCode:
+      typeof data.businessCode === "string"
+        ? data.businessCode.trim().toUpperCase()
+        : normalizedCode,
+    available: Boolean(data.available),
+  };
 }

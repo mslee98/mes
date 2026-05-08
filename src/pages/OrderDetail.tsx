@@ -1,11 +1,4 @@
-import {
-  useState,
-  useMemo,
-  useCallback,
-  useEffect,
-  useRef,
-  startTransition,
-} from "react";
+import { useState, useMemo, useCallback, useEffect, startTransition } from "react";
 import {
   useQuery,
   useMutation,
@@ -16,7 +9,6 @@ import toast from "react-hot-toast";
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import ComponentCard from "../components/common/ComponentCard";
-import PageNotice from "../components/common/PageNotice";
 import { OrderDetailLinesCard } from "../components/order/OrderDetailLinesCard";
 import { OrderDetailDeliveriesCard } from "../components/order/OrderDetailDeliveriesCard";
 import ConfirmModal from "../components/common/ConfirmModal";
@@ -29,69 +21,51 @@ import {
   getPurchaseOrderFiles,
   getDeliveries,
   createDelivery,
+  getPurchaseOrderSerialMaxSequence,
   aggregateDeliveredQtyByOrderItemId,
   getPurchaseOrderRequestDepartmentLabel,
-  submitPurchaseOrderApproval,
-  approvePurchaseOrderApproval,
-  rejectPurchaseOrderApproval,
-  type PurchaseOrderApprovalLineInput,
+  updatePurchaseOrder,
   type PurchaseOrderDetail,
   type PurchaseOrderFile,
   type PurchaseOrderItem,
-  type PurchaseOrderLensLine,
   type Delivery,
   type DeliveryCreatePayload,
   type DeliveryCreateLinePayload,
   type Partner,
 } from "../api/purchaseOrder";
-import { rejectApprovalRequest } from "../api/approvalRequests";
 import { API_BASE } from "../api/apiBase";
 import {
   COMMON_CODE_GROUP_PURCHASE_ORDER_STATUS,
   COMMON_CODE_GROUP_DELIVERY_STATUS,
   COMMON_CODE_GROUP_COUNTRY,
+  COMMON_CODE_GROUP_WAVELENGTH,
 } from "../api/commonCode";
+import { getDetectors } from "../api/detectors";
+import { getProductList } from "../api/products";
 import { partnerSelectLabel } from "../lib/partnerDisplay";
 import { partnerCountryFlagUrl } from "../lib/partnerCountryOptions";
-import Input from "../components/form/input/InputField";
-import TextArea from "../components/form/input/TextArea";
 import Label from "../components/form/Label";
 import DatePicker from "../components/form/date-picker";
 import SearchableSelectWithCreate from "../components/form/SearchableSelectWithCreate";
+import TextArea from "../components/form/input/TextArea";
 import { formatCurrency } from "../lib/formatCurrency";
 import { lineItemsToAmountSummaries } from "../lib/orderLineAmountSummary";
 import { fileTypeIconSrc } from "../lib/fileTypeIcon";
-import ApprovalDetailContent, {
-  type ApprovalDocumentMock,
-} from "../components/approval/ApprovalDetailContent";
-import PurchaseOrderApprovalSubmitPanel from "../components/approval/PurchaseOrderApprovalSubmitPanel";
-import ApprovalModalAlternateAction from "../components/approval/ApprovalModalAlternateAction";
-import CurrentApprovalRequestSection, {
-  ApprovalRequestCompactSummary,
-  ApprovalRequestDetailBody,
-} from "../components/approval/CurrentApprovalRequestSection";
-import {
-  approvalCurrentStepSummary,
-  approvalRequestStatusLabel,
-} from "../components/approval/approvalRequestDisplayUtils";
 import { ReactComponent as ArrowDownTrayIcon } from "../icons/arrow-down-tray.svg?react";
-import {
-  newApprovalDraftRowId,
-  buildApprovalLinesFromDraft,
-  type ApprovalLineDraftRow,
-} from "../lib/purchaseOrderApprovalDraft";
-import { canShowPurchaseOrderApproveRejectUi } from "../lib/purchaseOrderApprovalEligibility";
-import { getUsers, findTeamLeaderUserForDepartment } from "../api/user";
+import { ArrowTopRightOnSquareIcon } from "../icons";
+import IconTooltip from "../components/ui/tooltip/IconTooltip";
+import { getUsers } from "../api/user";
 import {
   getOrganizationTree,
   flattenOrganizationUnitsForSelect,
-  getOrganizationUnitUsers,
 } from "../api/organization";
 function parsePositiveIntId(v: unknown): number | undefined {
   if (typeof v === "number" && Number.isFinite(v)) return v;
   if (typeof v === "string" && /^\d+$/.test(v.trim())) return Number(v.trim());
   return undefined;
 }
+
+const DETECTOR_TYPE_GUIDE_URL = "/iddca-type-table";
 
 /** 발주 폼(`OrderForm`)과 동일 — 조직 단위 선택값·레거시 부서 문자열 */
 const LEGACY_DEPT_PREFIX = "legacy-dept:";
@@ -110,12 +84,6 @@ function tryDecodeLegacyDept(selectValue: string): string | null {
   }
 }
 
-function orgUnitIdFromDeptSelect(selectValue: string): number | null {
-  if (!selectValue || selectValue.startsWith(LEGACY_DEPT_PREFIX)) return null;
-  const n = Number(selectValue);
-  return Number.isFinite(n) ? n : null;
-}
-
 function tryDecodeLegacyUser(selectValue: string): string | null {
   if (!selectValue.startsWith(LEGACY_USER_PREFIX)) return null;
   try {
@@ -132,30 +100,98 @@ function deliveryManagerUserIdFromSelect(selectValue: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-function deliveryInputKey(lineType: "PRODUCT" | "LENS", lineId: number): string {
-  return `${lineType}:${lineId}`;
+function deliveryQtyKey(orderItemId: number): string {
+  return `oi:${orderItemId}`;
 }
 
-function orderLensDisplayName(line: PurchaseOrderLensLine): string {
-  const lensName =
-    line.lens?.lensName?.trim() || line.lensNameSnapshot?.trim() || "";
-  if (lensName) return lensName;
-  return line.lensId?.trim() ? `렌즈 #${line.lensId}` : `렌즈 라인 #${line.id}`;
+const SERIAL_MAKER_CODE = "I";
+const PIXEL_PITCH_CODE_MAP: Record<string, string> = {
+  "7.5": "S",
+  "10.0": "T",
+  "15.0": "F",
+  "20.0": "W",
+  "30.0": "H",
+};
+
+
+const YEAR_CODE_MAP: Record<string, string> = {
+  "2025": "O",
+  "2026": "P",
+  "2027": "Q",
+  "2028": "R",
+  "2029": "S",
+  "2030": "T",
+  "2031": "U",
+  "2032": "V",
+  "2033": "W",
+  "2034": "X",
+  "2035": "Y",
+};
+
+function itemTypeCodeFromLine(line: PurchaseOrderItem): string {
+  const joined = [
+    line.itemName,
+    line.productNameSnapshot,
+    line.definitionNameSnapshot,
+    line.spec,
+  ]
+    .map((v) => String(v ?? "").toUpperCase())
+    .join(" ");
+  if (joined.includes("CAMERA") || joined.includes("카메라".toUpperCase())) return "C";
+  return "E";
+}
+
+function detectorTypeSuffixCode(rawType: string): string {
+  const t = String(rawType ?? "").trim().toUpperCase();
+  if (!t) return "";
+  const parts = t.split("-").map((p) => p.trim()).filter(Boolean);
+  return (parts[parts.length - 1] ?? "").replace(/[^A-Z0-9]/g, "");
+}
+
+function pitchCodeFromRaw(rawPitch: string): string {
+  const trimmed = String(rawPitch ?? "").trim().replace(/UM$/i, "");
+  if (!trimmed) return "";
+  const parsed = Number(trimmed);
+  if (!Number.isFinite(parsed)) return "";
+  const normalized = parsed.toFixed(1);
+  return PIXEL_PITCH_CODE_MAP[normalized] ?? "";
+}
+
+function yearCodeFromDate(deliveryDate: string): string {
+  const year = String(deliveryDate ?? "").trim().slice(0, 4);
+  return YEAR_CODE_MAP[year] ?? "";
+}
+
+function sequenceText(n: number): string {
+  return String(n).padStart(4, "0");
 }
 
 /**
- * 결재(상신·승인) / 납품 — API 흐름 요약
- * -----------------------------------------------------------------
- * 1) 상신: POST `.../approval/submit` — `lines[]`는 `stepOrder`·`approverUserId`(선택 `status`).
- *    이미 PO_CLOSED이면 400.
- * 2) 승인: POST `.../approval/approve` — 발주 종결(PO_CLOSED). 성공 시 200 + 발주 본문 등 백엔드 응답이 올 수 있음.
- *    JWT 사용자와 현재 PENDING 라인의 결재자가 다르면 403(또는 상태 불가 시 400); ADMIN·SYSTEM_MANAGER는 결재선 우회.
- * 3) 납품: POST `.../deliveries` — **order.status === PO_CLOSED** 일 때만 백엔드에서 허용.
- * 4) 발주 헤더의 결재 시각·1차 결재자 필드는 제거됨 → `currentApprovalRequest` 로 표시.
- *    승인/반려 버튼 노출은 `canCurrentUserApprove` 필드 없이 `currentApprovalRequest.lines`의 PENDING + 역할로 계산.
+ * 발주 라인 사업명에서 소자 공통코드에 해당하는 토큰을 추출합니다.
+ * 예: `ICC640_T2SL` 또는 표시명 `… (ICC640_T2SL)` → `T2SL` (`_` 기준 마지막 구간)
  */
-type ApprovalModalAction = "submit" | "approve";
+function detectorElementCodeFromBusinessName(raw: string): string {
+  const trimmed = String(raw ?? "").trim();
+  if (!trimmed) return "";
+  const parenMatch = trimmed.match(/\(([^)]+)\)\s*$/);
+  const core = (parenMatch ? parenMatch[1] : trimmed).trim();
+  const parts = core.split("_").map((p) => p.trim()).filter(Boolean);
+  if (parts.length < 2) return "";
+  return parts[parts.length - 1] ?? "";
+}
 
+function detectorElementInitial(code: string): string {
+  const normalized = String(code ?? "").trim().toUpperCase();
+  if (!normalized) return "";
+  return normalized.slice(0, 1);
+}
+
+/**
+ * 접수/납품 — 현재 UX
+ * -----------------------------------------------------------------
+ * - 접수: PUT `.../purchase-orders/:id` (status=PO_CLOSED) — 발주 즉시 종결.
+ * - 납품: POST `.../deliveries` — `order.status === PO_CLOSED` 일 때만 백엔드에서 허용.
+ */
 function formatDate(s: string | null | undefined): string {
   return s ?? "-";
 }
@@ -210,38 +246,49 @@ export default function OrderDetail() {
   const [deliveryDate, setDeliveryDate] = useState("");
   const [plannedDeliveryDate, setPlannedDeliveryDate] = useState("");
   const [deliveryRemark, setDeliveryRemark] = useState("");
+  const [wavelengthCode, setWavelengthCode] = useState("");
+  const [detectorId, setDetectorId] = useState("");
   /** 납품 담당자 — 발주 등록과 동일: 조직 단위 id(문자열) + 사용자 id(문자열) */
   const [deliveryManagerDeptSelectValue, setDeliveryManagerDeptSelectValue] =
     useState("");
   const [deliveryManagerUserSelectValue, setDeliveryManagerUserSelectValue] =
     useState("");
-  /** 납품 라인 key(PRODUCT:{id}|LENS:{id}) → 이번 납품 수량 입력 문자열 */
+  /** 납품 라인 key(`oi:{orderItemId}`) → 이번 납품 수량 입력 문자열 */
   const [deliveryLineQtyInput, setDeliveryLineQtyInput] = useState<
     Record<string, string>
   >({});
+  const [deliverySerialQtyInput, setDeliverySerialQtyInput] = useState("");
+  const [isSerialRulePopoverOpen, setIsSerialRulePopoverOpen] = useState(false);
+  const [deliverySerialPreviewRows, setDeliverySerialPreviewRows] = useState<
+    Array<{
+      key: string;
+      orderItemId: number;
+      lineLabel: string;
+      serialNo: string;
+      sequenceKey: string;
+      detectorElementCode: string;
+      wavelengthCode: string;
+      detectorId: number;
+      serialSnapshot?: Record<string, unknown>;
+    }>
+  >([]);
   const resetDeliveryModalForm = useCallback(() => {
     setDeliveryTitle("");
     setDeliveryDate("");
     setPlannedDeliveryDate("");
     setDeliveryRemark("");
+    setWavelengthCode("");
+    setDetectorId("");
     setDeliveryManagerDeptSelectValue("");
     setDeliveryManagerUserSelectValue("");
     setDeliveryLineQtyInput({});
+    setDeliverySerialQtyInput("");
+    setIsSerialRulePopoverOpen(false);
+    setDeliverySerialPreviewRows([]);
   }, []);
 
-  /** 결재 모달: 상신 | 승인 */
-  const [approvalModalOpen, setApprovalModalOpen] = useState(false);
-  const [approvalAction, setApprovalAction] = useState<ApprovalModalAction>("submit");
-  /** 상신·승인 시 서버로 같이 보내는 의견(선택) */
-  const [approvalComment, setApprovalComment] = useState("");
-  /** 상신 전용 — 결재선 단계별 결재자(미상신 상태에서만 편집) */
-  const [approvalLineDraftRows, setApprovalLineDraftRows] = useState<
-    ApprovalLineDraftRow[]
-  >([]);
-  const [approvalSubmitTitle, setApprovalSubmitTitle] = useState("발주 결재 요청");
-  const [approvalSubmitRemark, setApprovalSubmitRemark] = useState("");
-  const [rejectConfirmOpen, setRejectConfirmOpen] = useState(false);
-  const approvalDraftSeededForOrderRef = useRef<string | null>(null);
+  /** 접수(종결) 확인 모달 */
+  const [receiveConfirmOpen, setReceiveConfirmOpen] = useState(false);
 
   const { data: order, isLoading: orderLoading, error: orderError } = useQuery({
     queryKey: ["purchaseOrder", id],
@@ -283,15 +330,33 @@ export default function OrderDetail() {
     accessToken,
     { enabled: !!accessToken && !isAuthLoading }
   );
+  const { data: wavelengthCodes = [] } = useCommonCodesByGroup(
+    COMMON_CODE_GROUP_WAVELENGTH,
+    accessToken,
+    { enabled: !!accessToken && !isAuthLoading }
+  );
+  const { data: detectorMasterList = [] } = useQuery({
+    queryKey: ["detectorMasterForDeliveryTypeSelect"],
+    queryFn: () => getDetectors(accessToken as string, { isActive: true }),
+    enabled: !!accessToken && !isAuthLoading,
+  });
+  const { data: productMasterList = [] } = useQuery({
+    queryKey: ["productMasterForSerialPrefix"],
+    queryFn: async () => {
+      const result = await getProductList(accessToken as string, { page: 1, size: 1000 });
+      return result.items;
+    },
+    enabled: !!accessToken && !isAuthLoading,
+  });
 
-  /** 팀장 후보: 전 사용자 + nested `userOrganizations` (다른 화면과 동일 키로 캐시 공유) */
-  const { data: users = [], isLoading: isUsersLoading } = useQuery({
+  /** 로그인 사용자 id 매칭용 전 사용자 목록 */
+  const { data: users = [] } = useQuery({
     queryKey: ["users"],
     queryFn: () => getUsers(accessToken!),
     enabled: !!accessToken && !isAuthLoading,
   });
 
-  /** JWT·로그인 user.id 우선, 없으면 GET /users 에서 employeeNo 로 매칭(상신 버튼 작성자 여부 등) */
+  /** JWT·로그인 user.id 우선, 없으면 GET /users 에서 employeeNo 로 매칭(작성자·접수 버튼 등) */
   const currentUserId = useMemo(() => {
     if (!authUser) return undefined;
     const fromAuth = parsePositiveIntId(
@@ -302,14 +367,8 @@ export default function OrderDetail() {
     return row?.id;
   }, [authUser, users]);
 
-  /**
-   * 조직 전체 트리 — `findTeamLeaderUserForDepartment`에 넘겨 소속 unit의 **전체 경로 세그먼트**를 id/parentId로 복원.
-   * GET /users 의 organizationUnit.parent 가 2단 eager만 있을 때와의 불일치 완화.
-   */
   const {
     data: orgTree = [],
-    isLoading: orgTreeLoading,
-    isError: orgTreeError,
   } = useQuery({
     queryKey: ["organizationTree"],
     queryFn: () => getOrganizationTree(accessToken ?? undefined),
@@ -321,45 +380,13 @@ export default function OrderDetail() {
     [orgTree]
   );
 
-  const deliveryMgrOrgUnitId = useMemo(
-    () => orgUnitIdFromDeptSelect(deliveryManagerDeptSelectValue),
-    [deliveryManagerDeptSelectValue]
-  );
-
-  const {
-    data: deliveryMgrOrgUsers = [],
-    isLoading: deliveryMgrOrgUsersLoading,
-    isError: deliveryMgrOrgUsersError,
-  } = useQuery({
-    queryKey: ["organizationUnitUsers", deliveryMgrOrgUnitId],
-    queryFn: () =>
-      getOrganizationUnitUsers(deliveryMgrOrgUnitId!, accessToken!),
-    enabled:
-      !!accessToken &&
-      !isAuthLoading &&
-      deliveryMgrOrgUnitId != null &&
-      deliveryModalOpen,
-  });
-
-  const deliveryManagerDepartmentOptions = useMemo(() => {
-    const opts = [...departmentOptionsFromTree];
-    const sel = deliveryManagerDeptSelectValue;
-    if (!sel) return opts;
-    const legacyPath = tryDecodeLegacyDept(sel);
-    if (legacyPath && !opts.some((o) => o.value === sel)) {
-      opts.unshift({
-        value: sel,
-        label: `${legacyPath} (저장된 값)`,
-      });
-    }
-    return opts;
-  }, [departmentOptionsFromTree, deliveryManagerDeptSelectValue]);
-
   const deliveryManagerUserOptions = useMemo(() => {
-    const opts = deliveryMgrOrgUsers.map((u) => ({
-      value: String(u.id),
-      label: `${u.name} (${u.employeeNo})`,
-    }));
+    const opts = users
+      .filter((u) => u.isActive !== false)
+      .map((u) => ({
+        value: String(u.id),
+        label: `${u.name} (${u.employeeNo})`,
+      }));
     const sel = deliveryManagerUserSelectValue;
     if (!sel || opts.some((o) => o.value === sel)) return opts;
     const legacyName = tryDecodeLegacyUser(sel);
@@ -369,12 +396,59 @@ export default function OrderDetail() {
     }
     opts.unshift({ value: sel, label: `사용자 #${sel}` });
     return opts;
-  }, [deliveryMgrOrgUsers, deliveryManagerUserSelectValue]);
+  }, [users, deliveryManagerUserSelectValue]);
 
-  const handleDeliveryManagerDeptChange = useCallback((v: string) => {
-    setDeliveryManagerDeptSelectValue(v);
-    setDeliveryManagerUserSelectValue("");
-  }, []);
+  const wavelengthOptions = useMemo(
+    () =>
+      wavelengthCodes
+        .filter((item) => item.isActive !== false)
+        .map((item) => ({ value: item.code, label: item.name || item.code })),
+    [wavelengthCodes]
+  );
+  const detectorTypeOptions = useMemo(
+    () =>
+      detectorMasterList
+        .filter((item) => item.isActive !== false)
+        .map((item) => {
+          const detectorType = String(item.detectorType ?? "").trim();
+          const arrayWidth = Number(item.arrayWidth);
+          const arrayHeight = Number(item.arrayHeight);
+          const pitch = String(item.pitch ?? "").trim();
+          const roicType = String(item.roicType ?? "").trim();
+          const resolution =
+            Number.isFinite(arrayWidth) && Number.isFinite(arrayHeight)
+              ? `${arrayWidth}*${arrayHeight}`
+              : "-";
+          const pitchLabel = pitch ? `${pitch}` : "-";
+          const roicLabel = roicType || "-";
+          const label = `${detectorType} | ${resolution} | ${pitchLabel} | ${roicLabel}`;
+          return {
+            value: String(item.id),
+            label,
+          };
+        })
+        .filter((item) => item.value.length > 0),
+    [detectorMasterList]
+  );
+  const productSerialMetaById = useMemo(() => {
+    const m = new Map<string, { businessCode: string; pixelPitch: string }>();
+    productMasterList.forEach((product) => {
+      const id = String(product.id ?? "").trim();
+      if (!id) return;
+      const businessCode = String(product.businessCode ?? "").trim().toUpperCase();
+      const pixelPitch = String(product.pixelPitch ?? "").trim();
+      if (!businessCode) return;
+      m.set(id, { businessCode, pixelPitch });
+    });
+    return m;
+  }, [productMasterList]);
+  const selectedDetector = useMemo(() => {
+    const selectedId = Number(detectorId);
+    if (!Number.isFinite(selectedId) || selectedId <= 0) return null;
+    return (
+      detectorMasterList.find((item) => Number(item.id) === selectedId) ?? null
+    );
+  }, [detectorMasterList, detectorId]);
 
   useEffect(() => {
     if (!deliveryModalOpen) return;
@@ -396,10 +470,8 @@ export default function OrderDetail() {
     const name = (poDetail.requesterName ?? "").trim();
     if (!name) return;
     if (deliveryManagerUserSelectValue !== "") return;
-    const orgId = orgUnitIdFromDeptSelect(deliveryManagerDeptSelectValue);
-    if (orgId == null) return;
-    if (deliveryMgrOrgUsers.length === 0) return;
-    const u = deliveryMgrOrgUsers.find((x) => x.name === name);
+    if (users.length === 0) return;
+    const u = users.find((x) => x.name === name && x.isActive !== false);
     if (u) {
       startTransition(() =>
         setDeliveryManagerUserSelectValue(String(u.id))
@@ -408,8 +480,7 @@ export default function OrderDetail() {
   }, [
     deliveryModalOpen,
     order,
-    deliveryManagerDeptSelectValue,
-    deliveryMgrOrgUsers,
+    users,
     deliveryManagerUserSelectValue,
   ]);
 
@@ -431,298 +502,40 @@ export default function OrderDetail() {
     [deliveryStatusCodes]
   );
 
-  /** `currentApprovalRequest`·발주 status(PO_CLOSED) 기준 */
-  const approvalPhaseLabel = useMemo(() => {
-    if (!order) return "-";
-    const d = order as PurchaseOrderDetail;
-    const closed =
-      String(d.status ?? d.orderStatus ?? "").trim() === "PO_CLOSED";
-    if (closed) return "승인·종결 완료";
-    const ar = d.currentApprovalRequest;
-    const st = String(ar?.status ?? "").trim().toUpperCase();
-    if (st === "REJECTED") return "반려";
-    if (ar && st && st !== "DRAFT") {
-      const hint = approvalCurrentStepSummary(ar);
-      return hint !== "—" ? hint : "결재 진행 중";
-    }
-    return "미상신";
-  }, [order]);
-
-  const currentApprovalAssigneeLabel = useMemo(() => {
-    if (!order) return "-";
-    const d = order as PurchaseOrderDetail;
-    const req = d.currentApprovalRequest;
-    if (!req) return "-";
-    const lines = Array.isArray(req.lines) ? req.lines : [];
-    const pending = lines.find(
-      (line) =>
-        String(line.status ?? line.lineStatus ?? "")
-          .trim()
-          .toUpperCase() === "PENDING"
-    );
-    return pending?.approver?.name?.trim() || "-";
-  }, [order]);
-
-  /**
-   * 상신 시 결재 담당자(팀장) 참고값 — 클라이언트 전용 계산. 서버는 참고용으로만 저장.
-   */
-  const resolvedTeamLeaderForSubmit = useMemo(() => {
-    if (!order) return null;
-    const dept = getPurchaseOrderRequestDepartmentLabel(
-      order as PurchaseOrderDetail
-    );
-    return findTeamLeaderUserForDepartment(users, dept, {
-      organizationTree: orgTree.length > 0 ? orgTree : undefined,
-    });
-  }, [order, users, orgTree]);
-
-  useEffect(() => {
-    setApprovalLineDraftRows([]);
-    setApprovalSubmitTitle("발주 결재 요청");
-    setApprovalSubmitRemark("");
-    approvalDraftSeededForOrderRef.current = null;
-  }, [id]);
-
-  useEffect(() => {
-    if (!order) return;
-    const po = order as PurchaseOrderDetail;
-    const closed = String(po.status ?? po.orderStatus ?? "").trim() === "PO_CLOSED";
-    const ar = po.currentApprovalRequest;
-    const arSt = String(ar?.status ?? "").trim().toUpperCase();
-    const hasActiveSubmitted =
-      ar != null &&
-      arSt !== "" &&
-      arSt !== "DRAFT" &&
-      arSt !== "REJECTED";
-    const createdById = po.createdBy?.id;
-    const canUser =
-      createdById == null ||
-      (currentUserId != null && createdById === currentUserId);
-    if (hasActiveSubmitted || closed || !canUser) return;
-    if (approvalDraftSeededForOrderRef.current === id) return;
-    approvalDraftSeededForOrderRef.current = id;
-    setApprovalLineDraftRows(
-      resolvedTeamLeaderForSubmit
-        ? [
-            {
-              id: newApprovalDraftRowId(),
-              approverUserId: resolvedTeamLeaderForSubmit.userId,
-            },
-          ]
-        : [{ id: newApprovalDraftRowId(), approverUserId: null }]
-    );
-  }, [order, id, currentUserId, resolvedTeamLeaderForSubmit]);
-
-  const approverUserSelectOptions = useMemo(() => {
-    return users
-      .filter((u) => u.isActive !== false)
-      .filter((u) => currentUserId == null || u.id !== currentUserId)
-      .map((u) => ({
-        value: String(u.id),
-        label: `${u.name} (사번 ${u.employeeNo})`,
-      }));
-  }, [users, currentUserId]);
-
-  /** 상신 API에 실릴 결재선(미지정 행 제외) — 모달 하단 요약·검증에 공통 사용 */
-  const resolvedSubmitApprovalLines = useMemo(
-    () => buildApprovalLinesFromDraft(approvalLineDraftRows),
-    [approvalLineDraftRows]
-  );
-
-  /** 발주 상신 시 전자결재 모달에 넣을 문서 목업 (실데이터 기반) */
-  const approvalPreviewDocument = useMemo((): ApprovalDocumentMock | null => {
-    if (!order) return null;
-    const p = order as PurchaseOrderDetail;
-    const dept = getPurchaseOrderRequestDepartmentLabel(p);
-    const partnerN = partnerSelectLabel(
-      p.partner as Partner | undefined,
-      countryCodes
-    );
-    const linesItems = (p.orderItems ?? p.items ?? []) as PurchaseOrderItem[];
-    const drafter =
-      p.requesterName?.trim() ||
-      p.createdBy?.name?.trim() ||
-      authUser?.name?.trim() ||
-      "—";
-    const currency = (p.currencyCode ?? "KRW").trim() || "KRW";
-    const bodySummary: string[] = [
-      `거래처: ${partnerN}`,
-      `발주일: ${p.orderDate ?? "—"}`,
-      `통화: ${currency}`,
-    ];
-    if (p.supplyAmount != null && Number.isFinite(Number(p.supplyAmount))) {
-      bodySummary.push(
-        `공급가액(부가세별도): ${formatCurrency(Number(p.supplyAmount), currency)}`
-      );
-    }
-    if (p.totalAmount != null && Number.isFinite(Number(p.totalAmount))) {
-      bodySummary.push(
-        `합계: ${formatCurrency(Number(p.totalAmount), currency)}`
-      );
-    }
-    bodySummary.push(`품목 ${linesItems.length}건`);
-
-    const approvalLines: ApprovalDocumentMock["lines"] = [
-      {
-        order: 0,
-        role: "기안",
-        name: drafter,
-        dept: dept || "—",
-        status: "기안",
-        actedAt: "—",
-        opinion: "상신 예정",
-      },
-    ];
-    approvalLineDraftRows.forEach((row, idx) => {
-      const step = idx + 1;
-      if (row.approverUserId == null) {
-        approvalLines.push({
-          order: step,
-          role: `${step}차 결재`,
-          name: "(미지정)",
-          dept: "—",
-          status: "예정",
-          actedAt: "—",
-          opinion: "—",
-        });
-        return;
-      }
-      const u = users.find((x) => x.id === row.approverUserId);
-      approvalLines.push({
-        order: step,
-        role: `${step}차 결재`,
-        name: u?.name ?? `#${row.approverUserId}`,
-        dept: u?.userOrganizations?.[0]?.organizationUnit?.name ?? "—",
-        status: idx === 0 ? "대기" : "예정",
-        actedAt: "—",
-        opinion: "—",
-      });
-    });
-
-    return {
-      headerBadge: { label: "상신 대기", color: "primary" },
-      documentNo: p.orderNo,
-      title: approvalSubmitTitle.trim() || p.title?.trim() || "발주 결재",
-      docType: "발주 승인",
-      drafter,
-      department: dept || "—",
-      draftAt: p.orderDate ? `${p.orderDate} (발주일)` : "—",
-      bodySummary,
-      lines: approvalLines,
-    };
-  }, [
-    order,
-    authUser?.name,
-    approvalLineDraftRows,
-    users,
-    approvalSubmitTitle,
-    countryCodes,
-  ]);
-
-  const closeApprovalModal = useCallback(() => {
-    setApprovalModalOpen(false);
-    setApprovalComment("");
-    setApprovalAction("submit");
-    setRejectConfirmOpen(false);
-  }, []);
-
-  /**
-   * POST `/purchase-orders/:id/approval/submit|approve`
-   * - submit: `lines`(stepOrder·approverUserId)·`title`·`remark`·`comment`
-   * - approve: 승인과 동시에 발주 종결(PO_CLOSED)
-   */
-  const approvalMutation = useMutation({
-    mutationFn: async (vars: {
-      action: ApprovalModalAction;
-      comment: string;
-      firstApproverUserId?: number | null;
-      title?: string | null;
-      remark?: string | null;
-      lines?: PurchaseOrderApprovalLineInput[] | null;
-    }) => {
-      const trimmed = vars.comment.trim();
-      if (vars.action === "submit") {
-        return submitPurchaseOrderApproval(
-          id,
-          {
-            comment: trimmed || null,
-            firstApproverUserId: vars.firstApproverUserId ?? null,
-            title: vars.title ?? null,
-            remark: vars.remark ?? null,
-            lines: vars.lines ?? null,
-          },
-          accessToken!
-        );
-      }
-      return approvePurchaseOrderApproval(
+  /** 접수 시 발주 상태를 즉시 종결(PO_CLOSED)로 변경 */
+  const receiveMutation = useMutation({
+    mutationFn: async () =>
+      updatePurchaseOrder(
         id,
-        { comment: trimmed || null },
+        {
+          status: "PO_CLOSED",
+          statusChangeComment: "발주 접수로 인한 종결 처리",
+        },
         accessToken!
-      );
-    },
-    onSuccess: (_, vars) => {
-      const msg =
-        vars.action === "submit"
-          ? "결재 상신이 완료되었습니다."
-          : "승인·종결이 완료되었습니다.";
-      toast.success(msg);
-      closeApprovalModal();
+      ),
+    onSuccess: () => {
+      toast.success("접수되어 발주가 종결되었습니다.");
+      setReceiveConfirmOpen(false);
       queryClient.invalidateQueries({ queryKey: ["purchaseOrder", id] });
       queryClient.invalidateQueries({ queryKey: ["purchaseOrders"] });
     },
     onError: (e: Error) =>
-      toast.error(e.message || "결재 처리에 실패했습니다."),
-  });
-
-  const rejectApprovalMutation = useMutation({
-    mutationFn: async ({
-      comment,
-      approvalRequestId,
-    }: {
-      comment: string;
-      approvalRequestId: number | null | undefined;
-    }) => {
-      const trimmed = comment.trim();
-      if (
-        approvalRequestId != null &&
-        Number.isFinite(Number(approvalRequestId))
-      ) {
-        return rejectApprovalRequest(
-          Number(approvalRequestId),
-          { comment: trimmed || null },
-          accessToken!
-        );
-      }
-      return rejectPurchaseOrderApproval(
-        id,
-        { comment: trimmed || null },
-        accessToken!
-      );
-    },
-    onSuccess: () => {
-      setRejectConfirmOpen(false);
-      toast.success("반려 처리되었습니다.");
-      closeApprovalModal();
-      queryClient.invalidateQueries({ queryKey: ["purchaseOrder", id] });
-      queryClient.invalidateQueries({ queryKey: ["purchaseOrders"] });
-    },
-    onError: (e: Error) => {
-      setRejectConfirmOpen(false);
-      toast.error(e.message || "반려 처리에 실패했습니다.");
-    },
+      toast.error(e.message || "접수 처리에 실패했습니다."),
   });
 
   const deliveryMutation = useMutation({
-    mutationFn: (payload: DeliveryCreatePayload) =>
-      createDelivery(id, payload, accessToken!),
+    mutationFn: async (vars: { deliveryPayload: DeliveryCreatePayload }) => {
+      return createDelivery(id, vars.deliveryPayload, accessToken!);
+    },
     onSuccess: () => {
-      toast.success("납품이 등록되었습니다.");
+      toast.success("납품 및 시리얼이 등록되었습니다.");
       setDeliveryModalOpen(false);
       resetDeliveryModalForm();
       queryClient.invalidateQueries({ queryKey: ["purchaseOrderDeliveries", id] });
       queryClient.invalidateQueries({ queryKey: ["purchaseOrder", id] });
     },
-    onError: (e: Error) => toast.error(e.message || "납품 등록에 실패했습니다."),
+    onError: (e: Error) =>
+      toast.error(e.message || "납품/시리얼 등록에 실패했습니다."),
   });
 
   const orderLineSummaries = useMemo(() => {
@@ -733,6 +546,14 @@ export default function OrderDetail() {
       d.currencyCode ?? "KRW"
     );
   }, [order]);
+
+  const orderLines = useMemo(
+    () =>
+      ((order as PurchaseOrderDetail | undefined)?.orderItems ??
+        (order as PurchaseOrderDetail | undefined)?.items ??
+        []) as PurchaseOrderItem[],
+    [order]
+  );
 
   if (orderLoading || !order) {
     return (
@@ -750,28 +571,37 @@ export default function OrderDetail() {
   }
 
   const po = order as PurchaseOrderDetail;
-  /** 팀장 매칭·모달 표시에 쓰는 요청 부서 문자열(API 별칭 통합). 빈 문자열이면 상신 불가 */
+  /** 납품 모달 초기값 등에 쓰는 요청 부서 문자열(API 별칭 통합) */
   const requestDeptLabel = getPurchaseOrderRequestDepartmentLabel(po);
-  /** GET 상세의 orderItems(매퍼가 items와 동일 배열로 정규화) */
-  const orderLines = (po.orderItems ?? po.items ?? []) as PurchaseOrderItem[];
-  const orderLenses = po.orderLenses ?? [];
-  const hasDeliveryTargets = orderLines.length > 0 || orderLenses.length > 0;
+  const hasDeliveryTargets = orderLines.length > 0;
+  const firstOrderLine = orderLines[0];
+  const deliveryHeaderProductName =
+    firstOrderLine?.itemName?.trim() ||
+    firstOrderLine?.productNameSnapshot?.trim() ||
+    firstOrderLine?.definitionNameSnapshot?.trim() ||
+    "-";
+  const deliveryHeaderLensName =
+    firstOrderLine?.lens?.lensName?.trim() ||
+    firstOrderLine?.lensNameSnapshot?.trim() ||
+    "-";
 
   const openDeliveryRegistrationModal = () => {
     const init: Record<string, string> = {};
     for (const line of orderLines) {
-      init[deliveryInputKey("PRODUCT", line.id)] = "";
-    }
-    for (const lensLine of orderLenses) {
-      init[deliveryInputKey("LENS", lensLine.id)] = "";
+      init[deliveryQtyKey(line.id)] = "";
     }
     setDeliveryLineQtyInput(init);
+    setDeliverySerialQtyInput("");
+    setIsSerialRulePopoverOpen(false);
+    setDeliverySerialPreviewRows([]);
     const phase = (deliveries as Delivery[]).length + 1;
     const orderTitle = (po.title ?? "").trim() || po.orderNo || "발주";
     setDeliveryTitle(`${orderTitle} ${phase}차 납품`);
     setDeliveryDate(new Date().toISOString().slice(0, 10));
     setPlannedDeliveryDate("");
     setDeliveryRemark("");
+    setWavelengthCode("");
+    setDetectorId("");
     setDeliveryManagerUserSelectValue("");
     const deptLabel = requestDeptLabel.trim();
     if (deptLabel) {
@@ -783,46 +613,212 @@ export default function OrderDetail() {
     }
     setDeliveryModalOpen(true);
   };
+  const handleGenerateSerialClick = async () => {
+    if (!hasDeliveryTargets) {
+      toast.error("등록할 제품 라인이 없습니다.");
+      return;
+    }
+    const raw = deliverySerialQtyInput.trim();
+    const qty = Number(raw);
+    if (!raw || !Number.isFinite(qty) || qty <= 0 || !Number.isInteger(qty)) {
+      toast.error("납품 수량은 1 이상의 정수로 입력하세요.");
+      return;
+    }
+    if (!wavelengthCode.trim()) {
+      toast.error("파장정보를 선택하세요.");
+      return;
+    }
+    if (!detectorId.trim()) {
+      toast.error("검출기 타입을 선택하세요.");
+      return;
+    }
+    if (!selectedDetector) {
+      toast.error("검출기 정보를 찾을 수 없습니다. 다시 선택하세요.");
+      return;
+    }
+    const normalizedWavelengthCode = wavelengthCode.trim().toUpperCase();
+    const arrayWidth = Number(selectedDetector.arrayWidth);
+    if (!Number.isFinite(arrayWidth) || arrayWidth <= 0) {
+      toast.error("검출기 해상도(가로) 정보가 없습니다.");
+      return;
+    }
+    const resolutionCode = String(Math.trunc(arrayWidth)).padStart(4, "0");
+    const detectorTypeCode = detectorTypeSuffixCode(
+      String(selectedDetector.detectorType ?? "")
+    );
+    if (!detectorTypeCode) {
+      toast.error("검출기 타입 코드(A/A2 등)를 파싱하지 못했습니다.");
+      return;
+    }
+    const yearCode = yearCodeFromDate(deliveryDate.trim());
+    if (!yearCode) {
+      toast.error("제작년도 코드 매핑이 없습니다. (예: 2025→O, 2026→P)");
+      return;
+    }
+    const customerCode = String(po.partner?.code ?? "").trim().toUpperCase();
+    if (!customerCode) {
+      toast.error("고객사 업체코드를 찾을 수 없습니다.");
+      return;
+    }
+    const qtyEps = 1e-9;
+    const nextInput = { ...deliveryLineQtyInput };
+    const nextSerialRows: Array<{
+      key: string;
+      orderItemId: number;
+      lineLabel: string;
+      serialNo: string;
+      sequenceKey: string;
+      detectorElementCode: string;
+      wavelengthCode: string;
+      detectorId: number;
+      serialSnapshot?: Record<string, unknown>;
+    }> = [];
+    let remainingToAssign = qty;
+    const plannedRows: Array<{
+      orderItemId: number;
+      lineLabel: string;
+      assignQty: number;
+      sequenceKey: string;
+      detectorElementCode: string;
+    }> = [];
+    for (const line of orderLines) {
+      if (remainingToAssign <= qtyEps) break;
+      const prev = deliveredByOrderItemId.get(line.id) ?? 0;
+      const lineRemaining = Math.max(0, line.qty - prev);
+      const assignQty = Math.min(
+        Math.max(0, Math.floor(lineRemaining)),
+        Math.floor(remainingToAssign)
+      );
+      nextInput[deliveryQtyKey(line.id)] = assignQty > 0 ? String(assignQty) : "";
+      const baseLabel =
+        line.itemName?.trim() ||
+        line.productNameSnapshot?.trim() ||
+        line.definitionNameSnapshot?.trim() ||
+        (line.productId != null && String(line.productId).trim() !== ""
+          ? `제품 #${line.productId}`
+          : `라인 #${line.id}`);
+      const lineCode =
+        line.businessName?.trim() ||
+        line.businessNameSnapshot?.trim() ||
+        line.versionSnapshot?.trim() ||
+        "";
+      const serialMeta = productSerialMetaById.get(String(line.productId ?? "").trim());
+      const businessCode = serialMeta?.businessCode ?? "";
+      if (!businessCode) {
+        toast.error(
+          `제품 business_code를 찾을 수 없습니다. (${line.itemName ?? "품목"})`
+        );
+        return;
+      }
+      const pitchCode = pitchCodeFromRaw(serialMeta?.pixelPitch ?? "");
+
+      if (!pitchCode) {
+        toast.error(
+          `제품 Pixel Pitch 코드 매핑이 없습니다. (${line.itemName ?? "품목"})`
+        );
+        return;
+      }
+      const detectorElementCode = detectorElementCodeFromBusinessName(lineCode);
+      if (!detectorElementCode) {
+        toast.error(
+          `소자정보를 찾을 수 없습니다. (${line.itemName ?? "품목"})`
+        );
+        return;
+      }
+      const itemTypeCode = itemTypeCodeFromLine(line);
+      const sequenceKey = `${businessCode}${detectorElementInitial(detectorElementCode)}${normalizedWavelengthCode}-${itemTypeCode}${SERIAL_MAKER_CODE}${resolutionCode}${pitchCode}${detectorTypeCode}-${yearCode}${customerCode}`;
+      const lineLabel =
+        !lineCode ||
+        baseLabel.includes(`(${lineCode})`) ||
+        baseLabel.startsWith("제품 #") ||
+        baseLabel.startsWith("라인 #")
+          ? baseLabel
+          : `${baseLabel} (${lineCode})`;
+      plannedRows.push({
+        orderItemId: line.id,
+        lineLabel,
+        assignQty,
+        sequenceKey,
+        detectorElementCode: detectorElementInitial(detectorElementCode),
+      });
+      remainingToAssign -= assignQty;
+    }
+    if (remainingToAssign > qtyEps) {
+      const totalRemaining = orderLines.reduce((sum, line) => {
+        const prev = deliveredByOrderItemId.get(line.id) ?? 0;
+        return sum + Math.max(0, line.qty - prev);
+      }, 0);
+      toast.error(`잔여 수량(${totalRemaining})을 초과했습니다.`);
+      return;
+    }
+    const uniqueSequenceKeys = [...new Set(plannedRows.map((row) => row.sequenceKey))];
+    const nextSequenceBaseByKey = new Map<string, number>();
+    try {
+      const sequenceResults = await Promise.all(
+        uniqueSequenceKeys.map((sequenceKey) =>
+          getPurchaseOrderSerialMaxSequence(id, sequenceKey, accessToken!)
+        )
+      );
+      sequenceResults.forEach((result) => {
+        nextSequenceBaseByKey.set(result.sequenceKey, result.nextSequence);
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "시리얼 시퀀스 조회 중 오류가 발생했습니다.";
+      toast.error(message);
+      return;
+    }
+    const sequenceCounterByKey = new Map<string, number>();
+    plannedRows.forEach((row) => {
+      const startNo = nextSequenceBaseByKey.get(row.sequenceKey) ?? 1;
+      const serialPrefix = row.sequenceKey;
+      for (let i = 0; i < row.assignQty; i += 1) {
+        const offset = sequenceCounterByKey.get(row.sequenceKey) ?? 0;
+        const nextSequenceNo = startNo + offset;
+        sequenceCounterByKey.set(row.sequenceKey, offset + 1);
+        const serialNo = `${serialPrefix}${sequenceText(nextSequenceNo)}`;
+        nextSerialRows.push({
+          key: `oi-${row.orderItemId}-seq-${row.sequenceKey}-${nextSequenceNo}`,
+          orderItemId: row.orderItemId,
+          lineLabel: row.lineLabel,
+          serialNo,
+          sequenceKey: row.sequenceKey,
+          detectorElementCode: row.detectorElementCode,
+          wavelengthCode: normalizedWavelengthCode,
+          detectorId: Number(selectedDetector.id),
+          serialSnapshot: {
+            source: "frontend",
+            detectorElementCode: row.detectorElementCode,
+            wavelengthCode: normalizedWavelengthCode,
+            detectorId: Number(selectedDetector.id),
+            sequenceKey: row.sequenceKey,
+            serialNo,
+            deliveryDate: deliveryDate.trim(),
+            yearCode,
+            detectorTypeCode,
+            customerCode,
+          },
+        });
+      }
+    });
+    setDeliveryLineQtyInput(nextInput);
+    setDeliverySerialPreviewRows(nextSerialRows);
+    toast.success("시리얼 넘버를 발급했습니다.");
+  };
 
   const createdById = po.createdBy?.id;
   const isPoClosed =
     String(po.status ?? po.orderStatus ?? "").trim() === "PO_CLOSED";
   /** `POST .../deliveries` — 백엔드: 발주 status 가 PO_CLOSED 일 때만 허용 */
   const canRegisterDelivery = isPoClosed;
-  const arStatus = String(po.currentApprovalRequest?.status ?? "")
-    .trim()
-    .toUpperCase();
-  const hasSubmittedApproval = Boolean(
-    po.currentApprovalRequest &&
-      arStatus !== "" &&
-      arStatus !== "DRAFT" &&
-      arStatus !== "REJECTED"
-  );
-  const hasApproved = isPoClosed;
-  const isWaitingFirstApproval = hasSubmittedApproval && !hasApproved;
-  /** PENDING 라인 결재자(또는 ADMIN·SYSTEM_MANAGER)에게만 승인·반려 UI — 백엔드 403과 맞춤 */
-  const canPressApprove = canShowPurchaseOrderApproveRejectUi(
-    authUser,
-    currentUserId,
-    po.currentApprovalRequest,
-    isWaitingFirstApproval
-  );
-  const canEditOrder =
-    !isPoClosed &&
-    !hasSubmittedApproval &&
-    (createdById == null ||
-      (currentUserId != null && createdById === currentUserId));
-  const canShowSubmitButton =
-    !isPoClosed &&
-    !hasSubmittedApproval &&
-    (createdById == null ||
-      (currentUserId != null && createdById === currentUserId));
-  const showSubmitTabInModal = canShowSubmitButton;
-  /** 이미 상신된 뒤에는 상신 탭이 없으므로, 상태가 submit으로 남아 있어도 승인으로 취급 */
-  const modalApprovalAction: ApprovalModalAction =
-    approvalAction === "submit" && !showSubmitTabInModal
-      ? "approve"
-      : approvalAction;
+  const isAuthor =
+    createdById == null ||
+    (currentUserId != null && createdById === currentUserId);
+  const canEditOrder = !isPoClosed && isAuthor;
+  /** 미종결·등록자만 접수(즉시 종결) 가능 */
+  const canShowReceiveButton = !isPoClosed && isAuthor;
   const partnerName = partnerSelectLabel(
     po.partner as Partner | undefined,
     countryCodes
@@ -860,22 +856,6 @@ export default function OrderDetail() {
     "w-[11%] min-w-[5.5rem] whitespace-nowrap bg-gray-50 px-3 py-2.5 text-left text-theme-xs font-medium text-gray-600 dark:bg-gray-800/60 dark:text-gray-400";
   const orderSummaryTd = "px-3 py-2.5 text-sm text-gray-900 dark:text-gray-100";
 
-  const canSubmitApprovalLines = resolvedSubmitApprovalLines.length > 0;
-  /*
-   * ============================================================
-   *  APPROVAL DISPLAY TOGGLE (섹션 숨김 전용)
-   *  - 상단 상신/승인 버튼 + 결재 모달: 항상 표시/동작 유지
-   *  - 하단 결재 섹션(결재 요청/결재 카드): 필요 시만 노출
-   *  - 복구할 때는 아래 값을 true 로 변경
-   * ============================================================
-   */
-  const showApprovalSections = false;
-
-  /** 상신 탭: 결재선에 1명 이상 지정 + 사용자 목록 준비됨 */
-  const isApprovalSubmitBlocked =
-    modalApprovalAction === "submit" &&
-    (isUsersLoading || !canSubmitApprovalLines);
-
   return (
     <>
       <PageMeta title={`발주 ${po.orderNo}`} description={`발주 ${po.orderNo} 상세`} />
@@ -892,40 +872,6 @@ export default function OrderDetail() {
                     {orderStatusDisplayName}
                   </dd>
                 </div>
-                <div className="flex min-w-0 max-w-full items-baseline gap-1.5">
-                  <dt className="shrink-0 text-gray-500 dark:text-gray-400">결재 진행</dt>
-                  <dd className="font-semibold text-gray-900 dark:text-white">
-                    {approvalPhaseLabel}
-                  </dd>
-                </div>
-                {po.currentApprovalRequest ? (
-                  <div className="flex min-w-0 max-w-full items-baseline gap-1.5">
-                    <dt className="shrink-0 text-gray-500 dark:text-gray-400">
-                      현재 결재 요청
-                    </dt>
-                    <dd className="min-w-0 font-medium text-gray-900 dark:text-gray-100">
-                      {approvalRequestStatusLabel(
-                        po.currentApprovalRequest.status
-                      )}
-                      {po.currentApprovalRequest.currentStep != null ? (
-                        <span className="text-theme-xs font-normal text-gray-600 dark:text-gray-400">
-                          {" "}
-                          · {po.currentApprovalRequest.currentStep}차 처리 구간
-                        </span>
-                      ) : null}
-                    </dd>
-                  </div>
-                ) : null}
-                {po.currentApprovalRequest ? (
-                  <div className="flex items-baseline gap-1.5">
-                    <dt className="shrink-0 text-gray-500 dark:text-gray-400">
-                      현재 결재자
-                    </dt>
-                    <dd className="font-medium text-gray-900 dark:text-gray-100">
-                      {currentApprovalAssigneeLabel}
-                    </dd>
-                  </div>
-                ) : null}
                 {/* <div className="flex min-w-0 max-w-full items-baseline gap-1.5">
                   <dt className="shrink-0 text-gray-500 dark:text-gray-400">부서</dt>
                   <dd className="max-w-md break-words font-medium text-gray-900 dark:text-gray-100">
@@ -948,30 +894,13 @@ export default function OrderDetail() {
                 ) : null}
               </dl>
               <div className="flex flex-wrap gap-2 sm:shrink-0 sm:justify-end">
-                {canPressApprove ? (
+                {canShowReceiveButton ? (
                   <button
                     type="button"
-                    onClick={() => {
-                      setApprovalAction("approve");
-                      setApprovalComment("");
-                      setApprovalModalOpen(true);
-                    }}
-                    className="inline-flex rounded-lg border border-emerald-600 bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-emerald-700 dark:border-emerald-500 dark:bg-emerald-600 dark:hover:bg-emerald-500"
-                  >
-                    승인
-                  </button>
-                ) : null}
-                {canShowSubmitButton ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setApprovalAction("submit");
-                      setApprovalComment(approvalSubmitRemark);
-                      setApprovalModalOpen(true);
-                    }}
+                    onClick={() => setReceiveConfirmOpen(true)}
                     className="inline-flex rounded-lg border border-brand-500 bg-brand-500 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-brand-600 dark:border-brand-600 dark:hover:bg-brand-600"
                   >
-                    상신
+                    접수
                   </button>
                 ) : null}
                 {canEditOrder ? (
@@ -990,19 +919,6 @@ export default function OrderDetail() {
                 </Link>
               </div>
             </div>
-            {isWaitingFirstApproval ? (
-              <div className="border-b border-emerald-200 bg-emerald-50 px-4 py-2.5 text-theme-sm text-emerald-900 dark:border-emerald-900/50 dark:bg-emerald-950/35 dark:text-emerald-100">
-                결재 요청이 진행 중입니다.{" "}
-                {po.currentApprovalRequest?.currentStep != null ? (
-                  <>
-                    현재 <strong>{po.currentApprovalRequest.currentStep}차</strong> 결재
-                    단계입니다.{" "}
-                  </>
-                ) : null}
-                <strong>승인</strong> 시 단계가 진행되며, 최종 단계까지 완료되면 발주가
-                종결되어 납품을 등록할 수 있습니다.
-              </div>
-            ) : null}
             <div className="overflow-x-auto">
               <table className="w-full min-w-[36rem] border-collapse text-sm">
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
@@ -1221,11 +1137,8 @@ export default function OrderDetail() {
           </div>
         </ComponentCard>
 
-    
-
         <OrderDetailLinesCard
           orderLines={orderLines}
-          orderLenses={orderLenses}
           defaultCurrencyCode={po.currencyCode ?? "KRW"}
           orderLineSummaries={orderLineSummaries}
         />
@@ -1237,290 +1150,19 @@ export default function OrderDetail() {
           formatDeliveryDate={formatDate}
           deliveryStatusDisplayName={deliveryStatusDisplayName}
         />
-
-        {showApprovalSections && po.currentApprovalRequest ? (
-          <CurrentApprovalRequestSection
-            request={po.currentApprovalRequest}
-            orderId={id}
-            orderNo={po.orderNo}
-          />
-        ) : showApprovalSections ? (
-          <ComponentCard title="결재 요청">
-            <PageNotice variant="neutral" className="text-theme-sm">
-              아직 결재 요청이 없습니다. 헤더의 <strong>상신</strong> 버튼에서 결재선을 지정해 결재를 시작할 수
-              있습니다.
-            </PageNotice>
-          </ComponentCard>
-        ) : null}
-
-        {showApprovalSections && canShowSubmitButton ? (
-          <ComponentCard
-            title="결재"
-            desc="발주 정보 저장과 결재 상신은 별도 단계로 진행됩니다."
-            collapsible
-            defaultCollapsed={true}
-          >
-            <PageNotice variant="neutral" className="mb-0 text-theme-sm">
-              <strong>결재선</strong>·결재 제목·상신 메모는 헤더의 <strong>상신</strong>으로 열리는
-              모달 오른쪽 패널에서 지정합니다. 반려 후에는 발주를 수정한 뒤{" "}
-              <strong>다시 상신</strong>할 수 있습니다.
-            </PageNotice>
-          </ComponentCard>
-        ) : null}
       </div>
 
-      {/*
-        결재 모달
-        - 상신 탭: 전자결재 퍼블 모달(넓은 레이아웃) + 하단에서 API 상신
-        - 승인 탭·승인 전용: 기존 컴팩트 모달
-      */}
-      <Modal
-        isOpen={approvalModalOpen}
-        onClose={closeApprovalModal}
-        className={
-          approvalModalOpen && modalApprovalAction === "submit"
-            ? "mx-2 flex max-h-[min(92vh,100dvh)] w-[calc(100%-1rem)] max-w-7xl flex-col overflow-hidden p-0 sm:mx-4"
-            : "mx-4 flex max-h-[min(88vh,100dvh)] w-[calc(100%-2rem)] max-w-5xl flex-col overflow-hidden p-0"
-        }
-      >
-        {approvalModalOpen && modalApprovalAction === "submit" ? (
-          <>
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden lg:flex-row">
-              <div className="flex min-h-0 min-w-0 flex-1 flex-col border-gray-200 dark:border-gray-800 lg:border-r">
-                <div className="flex min-h-0 flex-1 flex-col overflow-hidden pt-14 sm:pt-[3.25rem]">
-                  {approvalPreviewDocument ? (
-                    <ApprovalDetailContent
-                      documentId={`po-${id}`}
-                      variant="modal"
-                      onClose={closeApprovalModal}
-                      documentOverride={approvalPreviewDocument}
-                      showInternalOpinion={false}
-                      embedMode="purchaseOrder"
-                    />
-                  ) : (
-                    <p className="text-theme-sm text-gray-500">
-                      문서 정보를 불러오는 중…
-                    </p>
-                  )}
-                </div>
-              </div>
-              <aside
-                aria-label="상신 정보"
-                className="flex max-h-[min(40vh,22rem)] min-h-0 w-full shrink-0 flex-col overflow-hidden border-t border-gray-200 bg-gray-50/90 dark:border-gray-700 dark:bg-gray-950/70 lg:max-h-none lg:w-[min(100%,24rem)] lg:border-l lg:border-t-0"
-              >
-                <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-4 py-4 sm:px-5 sm:py-5">
-                  <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
-                    상신 정보
-                  </h4>
-                  <p className="mt-1 mb-4 text-theme-xs text-gray-500 dark:text-gray-400">
-                    제목·결재선·메모를 입력한 뒤 하단에서 상신합니다.
-                  </p>
-                  <PurchaseOrderApprovalSubmitPanel
-                    title={approvalSubmitTitle}
-                    onTitleChange={setApprovalSubmitTitle}
-                    remark={approvalSubmitRemark}
-                    onRemarkChange={setApprovalSubmitRemark}
-                    lineRows={approvalLineDraftRows}
-                    setLineRows={setApprovalLineDraftRows}
-                    approverSelectOptions={approverUserSelectOptions}
-                    isUsersLoading={isUsersLoading}
-                  />
-                </div>
-              </aside>
-            </div>
-            <div className="shrink-0 border-t border-gray-200 bg-white px-4 py-4 dark:border-gray-800 dark:bg-gray-900 sm:px-6 sm:py-5">
-              <h3 className="text-base font-semibold text-gray-900 dark:text-white">
-                상신 확인
-              </h3>
-              <p className="mt-1 text-theme-xs text-gray-500 dark:text-gray-400">
-                {po.orderNo} — 왼쪽 요약과 오른쪽 결재선을 확인한 뒤 상신하기를 누르세요.
-              </p>
-              <ApprovalModalAlternateAction
-                show={showSubmitTabInModal}
-                actionLabel="결재 승인으로 바꾸기"
-                onAction={() => setApprovalAction("approve")}
-              />
-              <div className="mt-4">
-                <Label htmlFor="approval-comment">의견 (선택)</Label>
-                <div className="mt-1">
-                  <TextArea
-                    id="approval-comment"
-                    rows={3}
-                    value={approvalComment}
-                    onChange={setApprovalComment}
-                    placeholder="상신 시 전달할 메모가 있으면 입력하세요."
-                  />
-                </div>
-              </div>
-              <div className="mt-5 flex flex-wrap justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={closeApprovalModal}
-                  className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300"
-                >
-                  취소
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (isUsersLoading) {
-                      toast.error("사용자 목록을 불러오는 중입니다. 잠시 후 다시 시도하세요.");
-                      return;
-                    }
-                    const lines = buildApprovalLinesFromDraft(approvalLineDraftRows);
-                    if (lines.length === 0) {
-                      toast.error("상신할 결재자를 한 명 이상 선택하세요.");
-                      return;
-                    }
-                    approvalMutation.mutate({
-                      action: "submit",
-                      comment: approvalComment,
-                      firstApproverUserId: lines[0]!.approverUserId,
-                      title: approvalSubmitTitle.trim() || null,
-                      remark: approvalSubmitRemark.trim() || null,
-                      lines,
-                    });
-                  }}
-                  disabled={approvalMutation.isPending || isApprovalSubmitBlocked}
-                  className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white hover:bg-brand-600 disabled:opacity-50"
-                >
-                  {approvalMutation.isPending ? "처리 중..." : "상신하기"}
-                </button>
-              </div>
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 sm:py-6">
-              {po.currentApprovalRequest ? (
-                <div className="mb-4 flex max-h-[min(62vh,36rem)] flex-col overflow-hidden rounded-lg bg-gray-50/90 dark:bg-gray-950/65">
-                  <div className="shrink-0 border-b border-gray-200 bg-white px-3 py-2.5 dark:border-gray-700 dark:bg-gray-900">
-                    <h2 className="text-sm font-semibold text-gray-900 dark:text-white py-2.5">
-                      <ApprovalRequestCompactSummary
-                        request={po.currentApprovalRequest}
-                      />
-                    </h2>
-                  </div>
-                  <div className="min-h-0 flex-1 border border-gray-200 dark:border-gray-700 overflow-y-auto overscroll-y-contain">
-                    <div className="min-h-0 flex-1 overflow-y-auto p-3">
-                      <ApprovalRequestDetailBody
-                        request={po.currentApprovalRequest}
-                        orderId={id}
-                        orderNo={po.orderNo}
-                        compact
-                        omitCompactSummary
-                      />
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-              <h3 className="pr-10 text-lg font-semibold text-gray-900 dark:text-white">
-                발주 결재
-              </h3>
-              <p className="mt-1 text-theme-sm text-gray-500 dark:text-gray-400">
-                {po.orderNo} · 현재 처리 대기인 단계를 승인하면 다음 단계로 진행됩니다. 반려 시 요청이 종료되며,
-                발주를 수정한 뒤 다시 상신할 수 있습니다. 최종 승인까지 완료되면 발주가 종결됩니다.
-              </p>
-              <ApprovalModalAlternateAction
-                show={showSubmitTabInModal}
-                actionLabel="상신 요청으로 바꾸기"
-                onAction={() => setApprovalAction("submit")}
-              />
-              <div className="mt-4">
-                <Label htmlFor="approval-comment-approve">의견 (선택)</Label>
-                <div className="mt-1">
-                  <TextArea
-                    id="approval-comment-approve"
-                    rows={4}
-                    value={approvalComment}
-                    onChange={setApprovalComment}
-                    placeholder="승인·반려 시 전달할 메모가 있으면 입력하세요."
-                  />
-                </div>
-              </div>
-            </div>
-            <div className="shrink-0 border-t border-gray-200 bg-white px-4 py-4 dark:border-gray-800 dark:bg-gray-900 sm:px-6 sm:py-5">
-              <div className="flex flex-wrap justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={closeApprovalModal}
-                  className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300"
-                >
-                  취소
-                </button>
-                {modalApprovalAction === "approve" ? (
-                  <button
-                    type="button"
-                    onClick={() => setRejectConfirmOpen(true)}
-                    disabled={
-                      rejectConfirmOpen ||
-                      rejectApprovalMutation.isPending ||
-                      approvalMutation.isPending ||
-                      isApprovalSubmitBlocked
-                    }
-                    className="rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 dark:border-red-900/60 dark:bg-gray-900 dark:text-red-400 dark:hover:bg-red-500/10"
-                  >
-                    반려하기
-                  </button>
-                ) : null}
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (modalApprovalAction === "submit") {
-                      if (isUsersLoading) {
-                        toast.error("사용자 목록을 불러오는 중입니다. 잠시 후 다시 시도하세요.");
-                        return;
-                      }
-                      const lines = buildApprovalLinesFromDraft(approvalLineDraftRows);
-                      if (lines.length === 0) {
-                        toast.error("상신할 결재자를 한 명 이상 선택하세요.");
-                        return;
-                      }
-                      approvalMutation.mutate({
-                        action: "submit",
-                        comment: approvalComment,
-                        firstApproverUserId: lines[0]!.approverUserId,
-                        title: approvalSubmitTitle.trim() || null,
-                        remark: approvalSubmitRemark.trim() || null,
-                        lines,
-                      });
-                      return;
-                    }
-                    approvalMutation.mutate({
-                      action: modalApprovalAction,
-                      comment: approvalComment,
-                    });
-                  }}
-                  disabled={approvalMutation.isPending || isApprovalSubmitBlocked}
-                  className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white hover:bg-brand-600 disabled:opacity-50"
-                >
-                  {approvalMutation.isPending
-                    ? "처리 중..."
-                    : modalApprovalAction === "submit"
-                      ? "상신하기"
-                      : "승인하기"}
-                </button>
-              </div>
-            </div>
-          </>
-        )}
-      </Modal>
-
       <ConfirmModal
-        isOpen={rejectConfirmOpen}
-        title="결재 반려"
-        message="이 결재 요청을 반려하시겠습니까? 반려 후에는 발주를 수정한 뒤 재상신해야 합니다."
-        confirmText="반려하기"
+        isOpen={receiveConfirmOpen}
+        title="발주 접수"
+        message="접수하면 발주가 즉시 종결됩니다. 종결 후에는 납품을 등록할 수 있습니다. 계속하시겠습니까?"
+        confirmText="접수하기"
         cancelText="취소"
-        confirmVariant="danger"
-        isConfirming={rejectApprovalMutation.isPending}
-        onClose={() => setRejectConfirmOpen(false)}
-        onConfirm={() => {
-          rejectApprovalMutation.mutate({
-            comment: approvalComment,
-            approvalRequestId: po.currentApprovalRequest?.id,
-          });
-        }}
+        confirmVariant="primary"
+        illustration="check-circle"
+        isConfirming={receiveMutation.isPending}
+        onClose={() => setReceiveConfirmOpen(false)}
+        onConfirm={() => receiveMutation.mutate()}
       />
 
       {/* 납품 등록 모달 */}
@@ -1532,110 +1174,197 @@ export default function OrderDetail() {
         }}
         className="mx-4 max-h-[90vh] max-w-3xl overflow-y-auto p-6"
       >
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">납품 등록</h3>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">납품 계획 등록</h3>
         <p className="mt-1 text-theme-sm text-gray-500 dark:text-gray-400">
-          품목별로 이번 납품 수량을 입력합니다. 잔여 수량을 넘지 않도록 입력하세요.
-          누적 납품은 서버에서 검증합니다.
+           <br/>
         </p>
         <div className="mt-4 space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="sm:col-span-2">
-              <Label htmlFor="delivery-title">납품 제목</Label>
-              <Input
-                id="delivery-title"
-                value={deliveryTitle}
-                onChange={(e) => setDeliveryTitle(e.target.value)}
-                className="mt-1"
-                placeholder="예: 발주제목 1차 납품"
+          <div className="rounded-lg border border-brand-200 bg-brand-50/60 px-3 py-2 text-theme-sm text-brand-700 dark:border-brand-800 dark:bg-brand-900/20 dark:text-brand-300">
+            <span className="font-semibold">발주번호 :</span> {po.orderNo}{" "}
+            <span className="mx-2 text-gray-400">|</span>
+            <span className="font-semibold">제품명 :</span> {deliveryHeaderProductName}{" "}
+            <span className="mx-2 text-gray-400">|</span>
+            <span className="font-semibold">렌즈 :</span> {deliveryHeaderLensName}
+          </div>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div>
+              <div className="flex items-center justify-between gap-2">
+                <Label htmlFor="delivery-date" required>
+                  제품 인계일
+                </Label>
+                <IconTooltip
+                  ariaLabel="제품 인계일 안내"
+                  content="제품 인계일은 제조사업부로부터 검출기를 인계받는 일자를 의미합니다."
+                />
+              </div>
+              <DatePicker
+                id="delivery-date"
+                placeholder="년-월-일"
+                value={deliveryDate}
+                onValueChange={setDeliveryDate}
               />
             </div>
-            <DatePicker
-              id="delivery-date"
-              label="납품일"
-              required
-              placeholder="년-월-일"
-              value={deliveryDate}
-              onValueChange={setDeliveryDate}
-            />
-            <DatePicker
-              id="delivery-planned-date"
-              label="납품 예정일 (선택)"
-              placeholder="년-월-일"
-              value={plannedDeliveryDate}
-              onValueChange={setPlannedDeliveryDate}
-            />
-            <div className="sm:col-span-2 grid gap-4 sm:grid-cols-2">
-              <div>
-                <SearchableSelectWithCreate
-                  id="delivery-manager-department"
-                  label="납품 담당 부서 (선택)"
-                  value={deliveryManagerDeptSelectValue}
-                  onChange={handleDeliveryManagerDeptChange}
-                  options={deliveryManagerDepartmentOptions}
-                  placeholder={
-                    orgTreeLoading
-                      ? "조직도 불러오는 중…"
-                      : "조직도에서 부서 검색·선택"
-                  }
-                  noOptionsMessage="조직도에 등록된 부서가 없습니다."
-                  addTrigger="none"
-                  addButtonLabel=""
-                  onAddClick={() => {}}
-                  isDisabled={orgTreeLoading}
+            <div>
+              <div className="flex items-center justify-between gap-2">
+                <Label htmlFor="delivery-planned-date">납품 예정일 (선택)</Label>
+                <IconTooltip
+                  ariaLabel="납품 예정일 안내"
+                  content="납품 예정일은 해당 납기 건에 대한 예정일을 의미합니다."
                 />
-                {orgTreeError ? (
-                  <p className="mt-1 text-theme-xs text-red-600 dark:text-red-400">
-                    조직도를 불러오지 못했습니다. 저장된 값만 표시될 수 있습니다.
-                  </p>
-                ) : null}
               </div>
-              <div>
-                <SearchableSelectWithCreate
-                  id="delivery-manager-user"
-                  label="납품 담당자 (선택)"
-                  value={deliveryManagerUserSelectValue}
-                  onChange={setDeliveryManagerUserSelectValue}
-                  options={deliveryManagerUserOptions}
-                  placeholder={
-                    deliveryMgrOrgUnitId == null
-                      ? "먼저 부서를 선택하세요"
-                      : deliveryMgrOrgUsersLoading
-                        ? "소속 사용자 불러오는 중…"
-                        : "담당자 검색·선택"
-                  }
-                  noOptionsMessage="이 부서에 표시할 활성 사용자가 없습니다."
-                  addTrigger="none"
-                  addButtonLabel=""
-                  onAddClick={() => {}}
-                  isDisabled={
-                    deliveryMgrOrgUnitId == null || deliveryMgrOrgUsersLoading
-                  }
-                />
-                {deliveryMgrOrgUsersError ? (
-                  <p className="mt-1 text-theme-xs text-red-600 dark:text-red-400">
-                    담당자 목록을 불러오지 못했습니다.
-                  </p>
-                ) : null}
-              </div>
+              <DatePicker
+                id="delivery-planned-date"
+                placeholder="년-월-일"
+                value={plannedDeliveryDate}
+                onValueChange={setPlannedDeliveryDate}
+              />
             </div>
-            <div className="sm:col-span-2">
+            <div>
+              <SearchableSelectWithCreate
+                id="delivery-manager-user"
+                label="담당자"
+                required
+                value={deliveryManagerUserSelectValue}
+                onChange={setDeliveryManagerUserSelectValue}
+                options={deliveryManagerUserOptions}
+                placeholder={
+                  isAuthLoading
+                    ? "담당자 불러오는 중…"
+                    : "담당자 검색·선택"
+                }
+                noOptionsMessage="표시할 담당자가 없습니다."
+                addTrigger="none"
+                addButtonLabel=""
+                onAddClick={() => {}}
+                isDisabled={isAuthLoading}
+              />
+            </div>
+            <div className="sm:col-span-3">
               <Label htmlFor="delivery-remark">비고 (선택)</Label>
-              <Input
+              <TextArea
                 id="delivery-remark"
                 value={deliveryRemark}
-                onChange={(e) => setDeliveryRemark(e.target.value)}
+                rows={3}
+                onChange={setDeliveryRemark}
                 className="mt-1"
               />
             </div>
+            <div className="sm:col-span-3 grid gap-4 sm:grid-cols-2">
+              <SearchableSelectWithCreate
+                id="wavelength-code"
+                label="파장정보"
+                required
+                value={wavelengthCode}
+                onChange={setWavelengthCode}
+                options={wavelengthOptions}
+                placeholder="선택하세요"
+                noOptionsMessage="WAVELENGTH 코드가 없습니다."
+                addTrigger="none"
+                addButtonLabel=""
+                onAddClick={() => {}}
+              />
+              <div>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <Label htmlFor="detector-type-code" required>
+                    검출기 타입
+                  </Label>
+                  <a
+                    href={DETECTOR_TYPE_GUIDE_URL}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-theme-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300"
+                  >
+                    타입 표 확인
+                    <ArrowTopRightOnSquareIcon className="h-4 w-4" />
+                  </a>
+                </div>
+                <SearchableSelectWithCreate
+                  id="detector-type-code"
+                  value={detectorId}
+                  onChange={setDetectorId}
+                  options={detectorTypeOptions}
+                  placeholder="선택하세요"
+                  noOptionsMessage="DETECTOR_TYPE 코드가 없습니다."
+                  addTrigger="none"
+                  addButtonLabel=""
+                  onAddClick={() => {}}
+                />
+              </div>
+            </div>
+            <div className="sm:col-span-3">
+              <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                <div>
+                  <Label htmlFor="delivery-serial-qty" required>
+                    이번 납품 수량
+                  </Label>
+                  <div className="mt-1.5 flex rounded-lg shadow-theme-xs">
+                    <input
+                      id="delivery-serial-qty"
+                      type="text"
+                      inputMode="numeric"
+                      value={deliverySerialQtyInput}
+                      onChange={(e) =>
+                        setDeliverySerialQtyInput(
+                          e.target.value.replace(/\D/g, "")
+                        )
+                      }
+                      placeholder="0"
+                      className="h-11 w-full rounded-l-lg rounded-r-none border border-gray-300 bg-white px-3 text-sm tabular-nums text-gray-900 shadow-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                    />
+                    <span className="inline-flex h-11 items-center rounded-r-lg border border-gray-300 border-l-0 px-3 text-sm font-medium text-gray-700 dark:border-gray-700 dark:text-gray-300">
+                      EA
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void handleGenerateSerialClick();
+                  }}
+                  disabled={!deliverySerialQtyInput.trim()}
+                  className="inline-flex h-11 items-center justify-center rounded-lg bg-brand-500 px-4 text-sm font-medium text-white hover:bg-brand-600 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-600 dark:disabled:bg-gray-700 dark:disabled:text-gray-400"
+                >
+                  시리얼 생성
+                </button>
+              </div>
+            </div>
+
+            <div className="col-span-4 border-b border-gray-200 dark:border-gray-700 my-4"></div>
+            {/* <div className="sm:col-span-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-800/50 dark:text-gray-300">
+              시리얼 Prefix/시퀀스는 서버 템플릿(`DET_STD_V2`)으로 생성됩니다.
+              검출기 타입은 선택한 검출기 ID를 기준으로 서버에서 자동 계산됩니다.
+            </div> */}
           </div>
 
           <div>
-            <p className="text-theme-sm font-medium text-gray-800 dark:text-gray-200">
-              품목별 납품 수량
-            </p>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-theme-sm font-medium text-gray-800 dark:text-gray-200">
+                시리얼 번호 미리보기
+              </p>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setIsSerialRulePopoverOpen((v) => !v)}
+                  className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+                >
+                  시리얼 구성 설명
+                </button>
+                {isSerialRulePopoverOpen ? (
+                  <div className="absolute top-9 right-0 z-20 w-[20rem] rounded-xl border border-gray-200 bg-white p-3 text-left text-xs leading-5 text-gray-700 shadow-lg dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
+                    <p className="font-semibold">시리얼 패턴</p>
+                    <p className="mt-1 break-all">
+                      {`[사업코드][소자1자리][파장]-[품목][제조사][해상도][피치][검출기]-[년도][고객][일련번호4자리]`}
+                    </p>
+                    <p className="mt-2 break-all text-gray-600 dark:text-gray-300">
+                      예: EIL-EI0320MB-PD0001
+                    </p>
+                  </div>
+                ) : null}
+              </div>
+            </div>
             {!hasDeliveryTargets ? (
               <p className="mt-2 text-theme-sm text-amber-700 dark:text-amber-400">
-                납품 등록 가능한 제품/렌즈 라인이 없습니다.
+                납품 등록 가능한 제품 라인이 없습니다.
               </p>
             ) : (
               <div className="mt-2 overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-600">
@@ -1643,131 +1372,43 @@ export default function OrderDetail() {
                   <thead className="bg-gray-50 dark:bg-gray-800/80">
                     <tr>
                       <th className="w-20 px-2 py-2 text-left font-medium text-gray-600 dark:text-gray-400">
-                        구분
+                        순번
                       </th>
                       <th className="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400">
                         라인
                       </th>
-                      <th className="w-24 px-2 py-2 text-right font-medium text-gray-600 dark:text-gray-400">
-                        발주
-                      </th>
-                      <th className="w-24 px-2 py-2 text-right font-medium text-gray-600 dark:text-gray-400">
-                        기납
-                      </th>
-                      <th className="w-24 px-2 py-2 text-right font-medium text-gray-600 dark:text-gray-400">
-                        잔여
-                      </th>
-                      <th className="w-28 px-2 py-2 text-right font-medium text-gray-600 dark:text-gray-400">
-                        이번 납품
+                      <th className="w-56 px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400">
+                        시리얼 번호
                       </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                    {orderLines.map((line) => {
-                      const prev = deliveredByOrderItemId.get(line.id) ?? 0;
-                      const remaining = Math.max(0, line.qty - prev);
-                      const baseLabel =
-                        line.itemName?.trim() ||
-                        line.productNameSnapshot?.trim() ||
-                        line.definitionNameSnapshot?.trim() ||
-                        (line.productId != null && String(line.productId).trim() !== ""
-                          ? `제품 #${line.productId}`
-                          : `라인 #${line.id}`);
-                      const lineCode =
-                        line.businessName?.trim() ||
-                        line.businessNameSnapshot?.trim() ||
-                        line.versionSnapshot?.trim() ||
-                        "";
-                      const label =
-                        !lineCode ||
-                        baseLabel.includes(`(${lineCode})`) ||
-                        baseLabel.startsWith("제품 #") ||
-                        baseLabel.startsWith("라인 #")
-                          ? baseLabel
-                          : `${baseLabel} (${lineCode})`;
-                      return (
-                        <tr key={`product-${line.id}`}>
-                          <td className="px-2 py-2 text-left text-gray-700 dark:text-gray-300">
-                            제품
+                    {deliverySerialPreviewRows.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={3}
+                          className="px-3 py-8 text-center text-gray-500 dark:text-gray-400"
+                        >
+                          시리얼이 생성된 항목이 없습니다.
+                        </td>
+                      </tr>
+                    ) : (
+                      deliverySerialPreviewRows.map((row, index) => (
+                        <tr key={row.key}>
+                          <td className="px-2 py-2 text-left tabular-nums text-gray-700 dark:text-gray-300">
+                            {index + 1}
                           </td>
                           <td className="px-3 py-2 text-gray-900 dark:text-gray-100">
-                            {label}
+                            {row.lineLabel}
                           </td>
-                          <td className="px-2 py-2 text-right tabular-nums text-gray-700 dark:text-gray-300">
-                            {line.qty}
-                          </td>
-                          <td className="px-2 py-2 text-right tabular-nums text-gray-600 dark:text-gray-400">
-                            {prev}
-                          </td>
-                          <td className="px-2 py-2 text-right tabular-nums text-gray-700 dark:text-gray-300">
-                            {remaining}
-                          </td>
-                          <td className="px-2 py-2 text-right">
-                            <input
-                              type="text"
-                              inputMode="decimal"
-                              placeholder="0"
-                              value={
-                                deliveryLineQtyInput[
-                                  deliveryInputKey("PRODUCT", line.id)
-                                ] ?? ""
-                              }
-                              onChange={(e) =>
-                                setDeliveryLineQtyInput((prev) => ({
-                                  ...prev,
-                                  [deliveryInputKey("PRODUCT", line.id)]: e.target.value,
-                                }))
-                              }
-                              className="w-full min-w-[4rem] rounded-md border border-gray-300 bg-white px-2 py-1.5 text-right tabular-nums text-theme-sm disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-                            />
+                          <td className="px-3 py-2">
+                            <code className="text-brand-700 dark:text-brand-300">
+                              {row.serialNo}
+                            </code>
                           </td>
                         </tr>
-                      );
-                    })}
-                    {orderLenses.map((lensLine) => {
-                      const prev = Number(lensLine.deliveredQty ?? 0);
-                      const total = Number(lensLine.qty ?? 0);
-                      const remaining = Math.max(0, total - prev);
-                      return (
-                        <tr key={`lens-${lensLine.id}`}>
-                          <td className="px-2 py-2 text-left text-gray-700 dark:text-gray-300">
-                            렌즈
-                          </td>
-                          <td className="px-3 py-2 text-gray-900 dark:text-gray-100">
-                            {orderLensDisplayName(lensLine)}
-                          </td>
-                          <td className="px-2 py-2 text-right tabular-nums text-gray-700 dark:text-gray-300">
-                            {total}
-                          </td>
-                          <td className="px-2 py-2 text-right tabular-nums text-gray-600 dark:text-gray-400">
-                            {prev}
-                          </td>
-                          <td className="px-2 py-2 text-right tabular-nums text-gray-700 dark:text-gray-300">
-                            {remaining}
-                          </td>
-                          <td className="px-2 py-2 text-right">
-                            <input
-                              type="text"
-                              inputMode="decimal"
-                              placeholder="0"
-                              value={
-                                deliveryLineQtyInput[
-                                  deliveryInputKey("LENS", lensLine.id)
-                                ] ?? ""
-                              }
-                              onChange={(e) =>
-                                setDeliveryLineQtyInput((prev) => ({
-                                  ...prev,
-                                  [deliveryInputKey("LENS", lensLine.id)]:
-                                    e.target.value,
-                                }))
-                              }
-                              className="w-full min-w-[4rem] rounded-md border border-gray-300 bg-white px-2 py-1.5 text-right tabular-nums text-theme-sm disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-                            />
-                          </td>
-                        </tr>
-                      );
-                    })}
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -1789,63 +1430,179 @@ export default function OrderDetail() {
             type="button"
             onClick={() => {
               if (!deliveryDate.trim()) {
-                toast.error("납품일을 입력하세요.");
+                toast.error("제품 인계일을 입력하세요.");
+                return;
+              }
+              if (!wavelengthCode.trim()) {
+                toast.error("파장정보를 선택하세요.");
+                return;
+              }
+              if (!detectorId.trim()) {
+                toast.error("검출기 타입을 선택하세요.");
+                return;
+              }
+              const selectedDetectorId = Number(detectorId);
+              if (!Number.isFinite(selectedDetectorId) || selectedDetectorId <= 0) {
+                toast.error("검출기를 다시 선택하세요.");
+                return;
+              }
+              if (!selectedDetector || Number(selectedDetector.id) !== selectedDetectorId) {
+                toast.error("검출기 정보를 찾을 수 없습니다. 다시 선택하세요.");
+                return;
+              }
+              const arrayWidth = Number(selectedDetector.arrayWidth);
+              if (!Number.isFinite(arrayWidth) || arrayWidth <= 0) {
+                toast.error("검출기 해상도(가로) 정보가 없습니다.");
+                return;
+              }
+              const resolutionCode = String(Math.trunc(arrayWidth)).padStart(4, "0");
+              const detectorTypeCode = detectorTypeSuffixCode(
+                String(selectedDetector.detectorType ?? "")
+              );
+              if (!detectorTypeCode) {
+                toast.error("검출기 타입 코드(A/A2 등)를 파싱하지 못했습니다.");
+                return;
+              }
+              const yearCode = yearCodeFromDate(deliveryDate.trim());
+              if (!yearCode) {
+                toast.error("제작년도 코드 매핑이 없습니다. (예: 2025→O, 2026→P)");
+                return;
+              }
+              const customerCode = String(po.partner?.code ?? "").trim().toUpperCase();
+              if (!customerCode) {
+                toast.error("고객사 업체코드를 찾을 수 없습니다.");
                 return;
               }
               if (!hasDeliveryTargets) {
-                toast.error("등록할 제품/렌즈 라인이 없습니다.");
+                toast.error("등록할 제품 라인이 없습니다.");
+                return;
+              }
+              if (deliverySerialPreviewRows.length === 0) {
+                toast.error("시리얼을 먼저 생성하세요.");
                 return;
               }
               const QTY_EPS = 1e-9;
+              const linesByOrderItemId = new Map<
+                number,
+                {
+                  quantity: number;
+                  sequenceKey: string;
+                  serials: Array<{
+                    serialNo: string;
+                    detectorElementCode: string;
+                    wavelengthCode: string;
+                    detectorId: number;
+                    serialSnapshot?: Record<string, unknown>;
+                  }>;
+                }
+              >();
+              const deliveryProductLog: Array<Record<string, unknown>> = [];
+              for (const row of deliverySerialPreviewRows) {
+                const current = linesByOrderItemId.get(row.orderItemId);
+                if (!current) {
+                  linesByOrderItemId.set(row.orderItemId, {
+                    quantity: 1,
+                    sequenceKey: row.sequenceKey,
+                    serials: [
+                      {
+                        serialNo: row.serialNo,
+                        detectorElementCode: row.detectorElementCode,
+                        wavelengthCode: row.wavelengthCode,
+                        detectorId: row.detectorId,
+                        serialSnapshot: row.serialSnapshot,
+                      },
+                    ],
+                  });
+                  continue;
+                }
+                current.quantity += 1;
+                current.serials.push({
+                  serialNo: row.serialNo,
+                  detectorElementCode: row.detectorElementCode,
+                  wavelengthCode: row.wavelengthCode,
+                  detectorId: row.detectorId,
+                  serialSnapshot: row.serialSnapshot,
+                });
+              }
               const linesPayload: DeliveryCreateLinePayload[] = [];
               for (const line of orderLines) {
-                const raw =
-                  (deliveryLineQtyInput[
-                    deliveryInputKey("PRODUCT", line.id)
-                  ] ?? "").trim();
-                if (!raw) continue;
-                const n = Number(raw);
-                if (!Number.isFinite(n) || n <= 0) {
-                  toast.error("수량은 0보다 큰 숫자로 입력하세요.");
-                  return;
-                }
+                const bundled = linesByOrderItemId.get(line.id);
+                if (!bundled) continue;
                 const prev = deliveredByOrderItemId.get(line.id) ?? 0;
                 const remaining = Math.max(0, line.qty - prev);
-                if (n - remaining > QTY_EPS) {
+                if (bundled.quantity - remaining > QTY_EPS) {
                   toast.error(
                     `잔량을 초과했습니다. (${line.itemName ?? "품목"} · 잔여 ${remaining})`
                   );
                   return;
                 }
-                linesPayload.push({
-                  lineType: "PRODUCT",
-                  lineId: line.id,
-                  quantity: n,
-                });
-              }
-              for (const lensLine of orderLenses) {
-                const raw =
-                  (deliveryLineQtyInput[
-                    deliveryInputKey("LENS", lensLine.id)
-                  ] ?? "").trim();
-                if (!raw) continue;
-                const n = Number(raw);
-                if (!Number.isFinite(n) || n <= 0) {
-                  toast.error("수량은 0보다 큰 숫자로 입력하세요.");
-                  return;
-                }
-                const prev = Number(lensLine.deliveredQty ?? 0);
-                const remaining = Math.max(0, Number(lensLine.qty ?? 0) - prev);
-                if (n - remaining > QTY_EPS) {
+                const biz =
+                  line.businessName?.trim() ||
+                  line.businessNameSnapshot?.trim() ||
+                  "";
+                const serialMeta =
+                  productSerialMetaById.get(String(line.productId ?? "").trim());
+                const businessCode = serialMeta?.businessCode ?? "";
+                if (!businessCode) {
                   toast.error(
-                    `잔량을 초과했습니다. (${orderLensDisplayName(lensLine)} · 잔여 ${remaining})`
+                    `제품 business_code를 찾을 수 없습니다. (${line.itemName ?? "품목"})`
                   );
                   return;
                 }
+                const pitchCode = pitchCodeFromRaw(serialMeta?.pixelPitch ?? "");
+                if (!pitchCode) {
+                  toast.error(
+                    `제품 Pixel Pitch 코드 매핑이 없습니다. (${line.itemName ?? "품목"})`
+                  );
+                  return;
+                }
+                const derivedElement = detectorElementCodeFromBusinessName(biz);
+                if (!derivedElement) {
+                  toast.error(
+                    `소자정보를 사업명에서 찾을 수 없습니다. 사업명에 '_' 뒤 소자 코드가 있어야 합니다. (${line.itemName ?? "품목"})`
+                  );
+                  return;
+                }
+                const itemTypeCode = itemTypeCodeFromLine(line);
+                const sequenceKey = `${businessCode}${detectorElementInitial(derivedElement)}${wavelengthCode
+                  .trim()
+                  .toUpperCase()}-${itemTypeCode}${SERIAL_MAKER_CODE}${resolutionCode}${pitchCode}${detectorTypeCode}-${yearCode}${customerCode}`;
                 linesPayload.push({
-                  lineType: "LENS",
-                  lineId: lensLine.id,
-                  quantity: n,
+                  lineType: "PRODUCT",
+                  lineId: line.id,
+                  quantity: bundled.quantity,
+                  sequenceKey,
+                  serials: bundled.serials.map((serial) => ({
+                    serialNo: serial.serialNo,
+                    detectorElementCode: serial.detectorElementCode,
+                    wavelengthCode: serial.wavelengthCode,
+                    detectorId: serial.detectorId,
+                    serialSnapshot:
+                      serial.serialSnapshot ?? {
+                        source: "frontend",
+                        detectorElementCode: serial.detectorElementCode,
+                        wavelengthCode: serial.wavelengthCode,
+                        detectorId: serial.detectorId,
+                      },
+                  })),
+                });
+                deliveryProductLog.push({
+                  orderItemId: line.id,
+                  productId: line.productId,
+                  itemName: line.itemName ?? null,
+                  productNameSnapshot: line.productNameSnapshot ?? null,
+                  definitionNameSnapshot: line.definitionNameSnapshot ?? null,
+                  businessName: biz || null,
+                  derivedDetectorElement: derivedElement,
+                  lensName:
+                    line.lens?.lensName?.trim() ||
+                    line.lensNameSnapshot?.trim() ||
+                    null,
+                  orderQty: line.qty,
+                  thisDeliveryQty: bundled.quantity,
+                  wavelengthCode: wavelengthCode.trim(),
+                  detectorId: selectedDetectorId,
+                  sequenceKey,
                 });
               }
               if (linesPayload.length === 0) {
@@ -1862,7 +1619,16 @@ export default function OrderDetail() {
                   deliveryManagerUserSelectValue
                 ),
               };
-              deliveryMutation.mutate(payload);
+              console.log("[납품 등록] 제품 정보", {
+                발주번호: po.orderNo,
+                납품제목: deliveryTitle.trim() || null,
+                제품인계일: deliveryDate.trim(),
+                납품예정일: plannedDeliveryDate.trim() || null,
+                품목: deliveryProductLog,
+              });
+              deliveryMutation.mutate({
+                deliveryPayload: payload,
+              });
             }}
             disabled={
               deliveryMutation.isPending || !hasDeliveryTargets
@@ -1873,6 +1639,7 @@ export default function OrderDetail() {
           </button>
         </div>
       </Modal>
+
     </>
   );
 }

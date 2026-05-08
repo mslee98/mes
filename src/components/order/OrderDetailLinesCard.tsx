@@ -1,3 +1,4 @@
+import { Link } from "react-router";
 import ComponentCard from "../common/ComponentCard";
 import {
   Table,
@@ -11,14 +12,10 @@ import {
   OrderLineAmountSummary,
   type LineAmountSummary,
 } from "../../lib/orderLineAmountSummary";
-import type {
-  PurchaseOrderItem,
-  PurchaseOrderLensLine,
-} from "../../api/purchaseOrder";
+import type { PurchaseOrderItem } from "../../api/purchaseOrder";
 
 type OrderDetailLinesCardProps = {
   orderLines: PurchaseOrderItem[];
-  orderLenses: PurchaseOrderLensLine[];
   defaultCurrencyCode: string;
   orderLineSummaries: LineAmountSummary[];
 };
@@ -43,16 +40,58 @@ function getOrderLineDisplayName(item: PurchaseOrderItem): string {
   return `${baseName} (${lineCode})`;
 }
 
-function getOrderLensDisplayName(lens: PurchaseOrderLensLine): string {
+function getLineLensDisplayName(item: PurchaseOrderItem): string {
   const lensName =
-    lens.lens?.lensName?.trim() || lens.lensNameSnapshot?.trim() || "";
+    item.lens?.lensName?.trim() || item.lensNameSnapshot?.trim() || "";
   if (lensName) return lensName;
-  return lens.lensId?.trim() ? `렌즈 #${lens.lensId}` : "-";
+  if (item.lensId?.trim()) return `렌즈 #${item.lensId}`;
+  return "-";
+}
+
+function lineLinkClassName() {
+  return "inline-block max-w-full truncate font-medium text-brand-600 underline-offset-2 hover:underline dark:text-brand-400";
+}
+
+function ProductLineLink({ item }: { item: PurchaseOrderItem }) {
+  const label = getOrderLineDisplayName(item);
+  const productId = String(item.productId ?? "").trim();
+  if (!productId) {
+    return (
+      <span className="font-medium text-gray-900 dark:text-white">{label}</span>
+    );
+  }
+  return (
+    <Link
+      to={`/products/${encodeURIComponent(productId)}`}
+      className={lineLinkClassName()}
+      title={label}
+    >
+      {label}
+    </Link>
+  );
+}
+
+function LensLineLink({ item }: { item: PurchaseOrderItem }) {
+  const label = getLineLensDisplayName(item);
+  const lensId = String(item.lensId ?? item.lens?.id ?? "").trim();
+  if (!lensId || label === "-") {
+    return (
+      <span className="text-gray-500 dark:text-gray-400">{label}</span>
+    );
+  }
+  return (
+    <Link
+      to={`/lenses/${encodeURIComponent(lensId)}`}
+      className={`${lineLinkClassName()} font-normal`}
+      title={label}
+    >
+      {label}
+    </Link>
+  );
 }
 
 export function OrderDetailLinesCard({
   orderLines,
-  orderLenses,
   defaultCurrencyCode,
   orderLineSummaries,
 }: OrderDetailLinesCardProps) {
@@ -70,19 +109,25 @@ export function OrderDetailLinesCard({
               <TableRow className="hover:bg-transparent">
                 <TableCell
                   isHeader
-                  className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[22%]"
+                  className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[18%]"
                 >
                   제품/사업 명
                 </TableCell>
                 <TableCell
                   isHeader
-                  className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[15%]"
+                  className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[14%]"
+                >
+                  렌즈
+                </TableCell>
+                <TableCell
+                  isHeader
+                  className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[14%]"
                 >
                   단위 · 수량
                 </TableCell>
                 <TableCell
                   isHeader
-                  className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[18%]"
+                  className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[16%]"
                 >
                   통화 · 단가
                 </TableCell>
@@ -94,7 +139,7 @@ export function OrderDetailLinesCard({
                 </TableCell>
                 <TableCell
                   isHeader
-                  className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[25%]"
+                  className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[22%]"
                 >
                   비고
                 </TableCell>
@@ -110,7 +155,7 @@ export function OrderDetailLinesCard({
               {orderLines.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={6}
+                    colSpan={7}
                     className="px-3 py-6 text-center text-theme-sm text-gray-500 dark:text-gray-400"
                   >
                     등록된 발주 라인이 없습니다.
@@ -124,8 +169,11 @@ export function OrderDetailLinesCard({
                       key={item.id}
                       className="align-middle hover:bg-transparent"
                     >
-                      <TableCell className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-900 dark:text-white">
-                        {getOrderLineDisplayName(item)}
+                      <TableCell className="min-w-0 max-w-[18rem] whitespace-nowrap px-3 py-3 text-center align-middle">
+                        <ProductLineLink item={item} />
+                      </TableCell>
+                      <TableCell className="min-w-0 max-w-[14rem] px-3 py-3 text-center align-middle">
+                        <LensLineLink item={item} />
                       </TableCell>
                       <TableCell className="px-3 py-3 text-center align-middle tabular-nums text-gray-800 dark:text-gray-200">
                         <span>{item.unit ?? "-"}</span>
@@ -160,104 +208,6 @@ export function OrderDetailLinesCard({
           </Table>
         </div>
 
-        <div className="relative overflow-x-auto border-b dark:border-gray-800">
-          <div className="mb-2 flex items-center justify-between px-1">
-            <h4 className="text-theme-sm font-medium text-gray-800 dark:text-gray-200">
-              렌즈 라인
-            </h4>
-          </div>
-          <Table className="w-full text-center text-sm text-gray-900 dark:text-white md:table-fixed">
-            <TableHeader className="border-b border-gray-100 dark:border-white/5">
-              <TableRow className="hover:bg-transparent">
-                <TableCell
-                  isHeader
-                  className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[22%]"
-                >
-                  렌즈
-                </TableCell>
-                <TableCell
-                  isHeader
-                  className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[15%]"
-                >
-                  단위 · 수량
-                </TableCell>
-                <TableCell
-                  isHeader
-                  className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[18%]"
-                >
-                  통화 · 단가
-                </TableCell>
-                <TableCell
-                  isHeader
-                  className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[14%]"
-                >
-                  금액
-                </TableCell>
-                <TableCell
-                  isHeader
-                  className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[25%]"
-                >
-                  비고
-                </TableCell>
-                <TableCell
-                  isHeader
-                  className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[6%]"
-                >
-                  납품
-                </TableCell>
-              </TableRow>
-            </TableHeader>
-            <TableBody className="divide-y divide-gray-200 dark:divide-gray-800">
-              {orderLenses.length === 0 ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={6}
-                    className="px-3 py-6 text-center text-theme-sm text-gray-500 dark:text-gray-400"
-                  >
-                    등록된 렌즈 라인이 없습니다.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                orderLenses.map((lens) => {
-                  const lineCc = lens.currencyCode ?? defaultCurrencyCode ?? "KRW";
-                  return (
-                    <TableRow
-                      key={lens.id}
-                      className="align-middle hover:bg-transparent"
-                    >
-                      <TableCell className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-900 dark:text-white">
-                        {getOrderLensDisplayName(lens)}
-                      </TableCell>
-                      <TableCell className="px-3 py-3 text-center align-middle tabular-nums text-gray-800 dark:text-gray-200">
-                        <span>{lens.quantityUnitCode ?? lens.unit ?? "-"}</span>
-                        <span className="mx-1 text-gray-300 dark:text-gray-600">·</span>
-                        <span>{lens.qty}</span>
-                      </TableCell>
-                      <TableCell className="px-3 py-3 text-center align-middle tabular-nums text-gray-800 dark:text-gray-200">
-                        <span className="text-gray-500 dark:text-gray-400">{lineCc}</span>
-                        <span className="mx-1 text-gray-300 dark:text-gray-600">·</span>
-                        <span>
-                          {lens.unitPrice != null
-                            ? formatCurrency(lens.unitPrice, lineCc)
-                            : "-"}
-                        </span>
-                      </TableCell>
-                      <TableCell className="px-3 py-3 text-center align-middle font-medium tabular-nums text-gray-900 dark:text-white">
-                        {lens.amount != null ? formatCurrency(lens.amount, lineCc) : "-"}
-                      </TableCell>
-                      <TableCell className="px-3 py-3 text-center align-middle text-gray-600 dark:text-gray-400">
-                        {lens.remark ?? lens.note ?? "-"}
-                      </TableCell>
-                      <TableCell className="px-3 py-3 text-center align-middle tabular-nums text-gray-800 dark:text-gray-200">
-                        {lens.deliveredQty ?? 0}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
-              )}
-            </TableBody>
-          </Table>
-        </div>
         <div className="relative inline-flex w-full items-center justify-center">
           <hr className="my-8 h-px w-64 max-w-full border-0 bg-gray-200 dark:bg-gray-700" />
           <span className="absolute left-1/2 -translate-x-1/2 bg-white px-3 text-sm font-medium text-gray-600 dark:bg-[#171F2F] dark:text-gray-400">

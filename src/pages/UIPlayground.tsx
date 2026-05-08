@@ -13,6 +13,8 @@ import DatePicker from "../components/form/date-picker";
 import ActiveToggle from "../components/form/ActiveToggle";
 import FormActionBar from "../components/form/FormActionBar";
 import { EnvelopeIcon, UserIcon } from "../icons";
+import IconTooltip from "../components/ui/tooltip/IconTooltip";
+import ButtonTooltip from "../components/ui/tooltip/ButtonTooltip";
 import { useAuth } from "../hooks/useAuth";
 import { usePartnersQuery } from "../hooks/usePartnersQuery";
 import { usePartnerCommonCodes } from "../hooks/usePartnerCommonCodes";
@@ -105,6 +107,27 @@ export default function UIPlayground() {
             <Button variant="outline">Outline</Button>
             <Button size="sm">Small</Button>
             <Button disabled>Disabled</Button>
+          </div>
+        </ComponentCard>
+
+        <ComponentCard
+          title="Tooltip"
+          desc="공통 Tooltip 코어를 기반으로 아이콘형/버튼형 트리거를 사용하는 예시입니다."
+        >
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-700 dark:text-gray-200">
+                아이콘형 안내
+              </span>
+              <IconTooltip
+                ariaLabel="아이콘형 툴팁 데모"
+                content="아이콘형 툴팁은 라벨 보조 설명이나 필드 맥락 안내에 사용합니다."
+              />
+            </div>
+            <ButtonTooltip
+              label="버튼형 툴팁"
+              content="버튼형 툴팁은 CTA 클릭 전 간단한 사전 안내를 제공할 때 사용합니다."
+            />
           </div>
         </ComponentCard>
 

@@ -1,10 +1,9 @@
 import type {
   PurchaseOrderCreatePayload,
   PurchaseOrderItemPayload,
-  PurchaseOrderLensLinePayload,
   PurchaseOrderUpdatePayload,
 } from "../../../api/purchaseOrder";
-import type { ItemRow, LensItemRow } from "../types";
+import type { ItemRow } from "../types";
 
 type BuildCreatePayloadParams = {
   title: string;
@@ -25,7 +24,6 @@ type BuildCreatePayloadParams = {
   /** 입력란 값 → null 이면 미전송에 가깝게 null */
   exchangeRate: number | null;
   validItems: ItemRow[];
-  validLensItems: LensItemRow[];
   parseLineUnitPrice: (display: string) => number;
 };
 
@@ -47,28 +45,16 @@ export function buildCreatePayload({
   supplyAmount,
   exchangeRate,
   validItems,
-  validLensItems,
   parseLineUnitPrice,
 }: BuildCreatePayloadParams): PurchaseOrderCreatePayload {
   const lines = validItems.map(
     (row): PurchaseOrderItemPayload => ({
       productId: row.productId.trim(),
+      lensId: row.lensId.trim() ? row.lensId.trim() : null,
       qty: row.qty,
       unitPrice: parseLineUnitPrice(row.unitPrice),
       unit: row.unitCode.trim() || null,
       currencyCode: row.currencyCode.trim() || "KRW",
-      remark: row.remark.trim() || null,
-    })
-  );
-  const lensLines = validLensItems.map(
-    (row): PurchaseOrderLensLinePayload => ({
-      ...(row.lineId ? { id: row.lineId } : {}),
-      lensId: row.lensId.trim(),
-      qty: row.qty,
-      unitPrice: parseLineUnitPrice(row.unitPrice),
-      unit: row.unitCode.trim() || null,
-      currencyCode: row.currencyCode.trim() || "KRW",
-      requestDeliveryDate: row.requestDeliveryDate.trim() || null,
       remark: row.remark.trim() || null,
     })
   );
@@ -93,12 +79,6 @@ export function buildCreatePayload({
     exchangeRateDate: orderDate || null,
     items: lines,
     lines,
-    ...(lensLines.length > 0
-      ? {
-          lensLines,
-          lensItems: lensLines,
-        }
-      : {}),
   };
 }
 
@@ -121,7 +101,6 @@ type BuildUpdatePayloadParams = {
   exchangeRate: number | null;
   /** 서버가 허용하면 발주 수정 시 라인 전체 갱신용 */
   validItems?: ItemRow[];
-  validLensItems?: LensItemRow[];
   parseLineUnitPrice?: (display: string) => number;
 };
 
@@ -143,7 +122,6 @@ export function buildUpdatePayload({
   supplyAmount,
   exchangeRate,
   validItems,
-  validLensItems,
   parseLineUnitPrice,
 }: BuildUpdatePayloadParams): PurchaseOrderUpdatePayload {
   const parsePrice =
@@ -157,6 +135,7 @@ export function buildUpdatePayload({
     validItems?.map(
       (row): PurchaseOrderItemPayload => ({
         productId: row.productId.trim(),
+        lensId: row.lensId.trim() ? row.lensId.trim() : null,
         qty: row.qty,
         unitPrice: parsePrice(row.unitPrice),
         unit: row.unitCode.trim() || null,
@@ -164,23 +143,6 @@ export function buildUpdatePayload({
         remark: row.remark.trim() || null,
       })
     ) ?? undefined;
-
-  const lensLines =
-    validLensItems != null
-      ? validLensItems.map(
-          (row): PurchaseOrderLensLinePayload => ({
-            ...(row.lineId ? { id: row.lineId } : {}),
-            lensId: row.lensId.trim(),
-            qty: row.qty,
-            unitPrice: parsePrice(row.unitPrice),
-            unit: row.unitCode.trim() || null,
-            currencyCode: row.currencyCode.trim() || "KRW",
-            requestDeliveryDate: row.requestDeliveryDate.trim() || null,
-            remark: row.remark.trim() || null,
-          })
-        )
-      : undefined;
-  const hasLensLinesPatch = validLensItems != null;
 
   return {
     title: title.trim(),
@@ -201,11 +163,5 @@ export function buildUpdatePayload({
     exchangeRate,
     exchangeRateDate: orderDate || null,
     ...(lines && lines.length > 0 ? { items: lines, lines } : {}),
-    ...(hasLensLinesPatch
-      ? {
-          lensLines,
-          lensItems: lensLines,
-        }
-      : {}),
   };
 }

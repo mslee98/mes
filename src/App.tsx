@@ -1,4 +1,11 @@
-import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation } from "react-router";
+import {
+  BrowserRouter,
+  Navigate,
+  Outlet,
+  Route,
+  Routes,
+  useLocation,
+} from "react-router";
 import { useEffect, useRef } from "react";
 
 import AppLayout from "./layout/AppLayout";
@@ -34,7 +41,12 @@ import NotFound from "./pages/NotFound";
 import Delivery from "./pages/Delivery";
 import DeliveryDetail from "./pages/DeliveryDetail";
 import UIPlayground from "./pages/UIPlayground";
+import IddcaTypeTable from "./pages/IddcaTypeTable";
 import BugBoard from "./pages/BugBoard";
+import DetectorSeriesForm from "./pages/DetectorSeriesForm";
+import DetectorDetail from "./pages/DetectorDetail";
+import Detectors from "./pages/Detectors";
+import DetectorForm from "./pages/DetectorForm";
 // import DashboardMaterial from "./pages/DashboardMaterial";
 // import DashboardExecutive from "./pages/DashboardExecutive";
 // import DashboardTeamLead from "./pages/DashboardTeamLead";
@@ -107,6 +119,33 @@ function App() {
               <Route path="products/new" element={<ProductForm />} />
               <Route path="products/:productId" element={<ProductDetail />} />
               <Route path="products" element={<Products />} />
+
+              <Route path="detector-series/new" element={<DetectorSeriesForm />} />
+              <Route
+                path="detector-series-form"
+                element={<Navigate to="/detector-series/new" replace />}
+              />
+              <Route
+                path="detector-series/:seriesId/edit"
+                element={<DetectorSeriesForm />}
+              />
+              <Route
+                path="detector-series"
+                element={<Navigate to="/detectors" replace />}
+              />
+
+              <Route path="detectors/new" element={<DetectorForm />} />
+              <Route
+                path="detector-form"
+                element={<Navigate to="/detectors/new" replace />}
+              />
+              <Route path="detectors/:detectorId/edit" element={<DetectorForm />} />
+              <Route path="detectors/:detectorId" element={<DetectorDetail />} />
+              <Route path="detectors" element={<Detectors />} />
+              <Route path="iddca-type-table" element={<IddcaTypeTable />} />
+              
+
+
               <Route path="lenses/:lensId/edit" element={<LensForm />} />
               <Route path="lenses/new" element={<LensForm />} />
               <Route path="lenses/:lensId" element={<LensDetail />} />

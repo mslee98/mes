@@ -35,43 +35,6 @@ const defaultContextValue: KeycloakAuthContextValue = {
 
 const KeycloakAuthContext = createContext<KeycloakAuthContextValue>(defaultContextValue);
 
-function parseJwtPayload(token: string): Record<string, unknown> | null {
-  const [, payload] = token.split(".");
-  if (!payload) return null;
-
-  try {
-    const base64 = payload.replace(/-/g, "+").replace(/_/g, "/");
-    const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
-    const decoded = atob(padded);
-    return JSON.parse(decoded) as Record<string, unknown>;
-  } catch {
-    return null;
-  }
-}
-
-function firstNonEmptyString(
-  payload: Record<string, unknown> | null,
-  keys: string[],
-  fallback = "-"
-): string {
-  if (!payload) return fallback;
-  for (const key of keys) {
-    const value = payload[key];
-    if (typeof value === "string" && value.trim().length > 0) {
-      return value.trim();
-    }
-  }
-  return fallback;
-}
-
-function displayName(payload: Record<string, unknown> | null): string {
-  return firstNonEmptyString(
-    payload,
-    ["name", "family_name", "given_name", "preferred_username"],
-    "-"
-  );
-}
-
 function displayLabelFromCodePair(value: unknown): string | undefined {
   if (typeof value !== "string") return undefined;
   const trimmed = value.trim();
@@ -106,15 +69,15 @@ function KeycloakStateBridge({ children }: { children: ReactNode }) {
   const { employeeNoClaim } = useMemo(() => readKeycloakEnv(), []);
   const [synced, setSynced] = useState<{ token: string; user: AuthUser | null } | null>(null);
 
-  useEffect(() => {
-    console.groupCollapsed("[Keycloak] state snapshot");
-    console.log("initialized:", initialized);
-    console.log("authenticated:", keycloak.authenticated);
-    console.log("hasAccessToken:", Boolean(keycloak.token));
-    console.log("hasIdToken:", Boolean(keycloak.idToken));
-    console.log("hasRefreshToken:", Boolean(keycloak.refreshToken));
-    console.groupEnd();
-  }, [initialized, keycloak.authenticated, keycloak.token, keycloak.idToken, keycloak.refreshToken]);
+  // useEffect(() => {
+  //   console.groupCollapsed("[Keycloak] state snapshot");
+  //   console.log("initialized:", initialized);
+  //   console.log("authenticated:", keycloak.authenticated);
+  //   console.log("hasAccessToken:", Boolean(keycloak.token));
+  //   console.log("hasIdToken:", Boolean(keycloak.idToken));
+  //   console.log("hasRefreshToken:", Boolean(keycloak.refreshToken));
+  //   console.groupEnd();
+  // }, [initialized, keycloak.authenticated, keycloak.token, keycloak.idToken, keycloak.refreshToken]);
 
   useEffect(() => {
     setAuthAccessToken(keycloak.token ?? null);
@@ -153,20 +116,10 @@ function KeycloakStateBridge({ children }: { children: ReactNode }) {
           // /auth/me 응답에 user가 없으면 토큰 매핑 사용자로 폴백한다.
           setSynced({ token: activeToken, user: tokenUser });
         }
-
-        if (!import.meta.env.DEV) return;
-        console.groupCollapsed("[Auth API] /auth/me");
-        console.log(me);
-        console.groupEnd();
-      } catch (error) {
+      } catch {
         if (cancelled) return;
         // 동기화 실패 시에도 토큰 기반 최소 사용자 정보는 유지한다.
         setSynced({ token: activeToken, user: tokenUser });
-        if (import.meta.env.DEV) {
-          console.groupCollapsed("[Auth API] /auth/me error");
-          console.error(error);
-          console.groupEnd();
-        }
       }
     })();
 
@@ -202,13 +155,13 @@ function KeycloakStateBridge({ children }: { children: ReactNode }) {
 
   const login = useCallback(async () => {
     const redirectUri = loginRedirectUri();
-    console.log("[Keycloak] login redirectUri", redirectUri);
+    // console.log("[Keycloak] login redirectUri", redirectUri);
     await keycloak.login({ redirectUri });
   }, [keycloak]);
 
   const logout = useCallback(async () => {
     const redirectUri = postLogoutRedirectUri();
-    console.log("[Keycloak] logout redirectUri", redirectUri);
+    // console.log("[Keycloak] logout redirectUri", redirectUri);
     await keycloak.logout({ redirectUri });
     setAuthAccessToken(null);
   }, [keycloak]);
@@ -241,7 +194,6 @@ export function KeycloakProvider({ children }: { children: ReactNode }) {
   const enabled = isKeycloakAuthEnabled();
   const keycloak = useMemo(() => (enabled ? getOrCreateKeycloakClient() : null), [enabled]);
   const initOptions = useMemo(() => (enabled ? buildKeycloakInitOptions() : undefined), [enabled]);
-  
 
   if (!enabled || !keycloak || !initOptions) {
     return (
@@ -255,40 +207,10 @@ export function KeycloakProvider({ children }: { children: ReactNode }) {
     <ReactKeycloakProvider
       authClient={keycloak}
       initOptions={initOptions}
-      onEvent={(event, error) => {
-        console.groupCollapsed("[Keycloak] provider event");
-        console.log("event:", event);
-        console.log("error:", error ?? null);
-        console.log("enabled:", enabled);
-        console.log("realm:", keycloak.realm);
-        console.log("clientId:", keycloak.clientId);
-        console.groupEnd();
-      }}
+      onEvent={() => {}}
       onTokens={(tokens) => {
         const accessToken = tokens?.token ?? null;
         setAuthAccessToken(accessToken);
-
-        console.groupCollapsed("[Keycloak] provider tokens");
-        console.log("hasAccessToken:", Boolean(tokens?.token));
-        console.log("hasRefreshToken:", Boolean(tokens?.refreshToken));
-        console.log("hasIdToken:", Boolean(tokens?.idToken));
-        console.log("tokenParsed:", keycloak.tokenParsed ?? null);
-        console.log("idTokenParsed:", keycloak.idTokenParsed ?? null);
-        console.groupEnd();
-
-        if (!import.meta.env.DEV || !accessToken) return;
-        const parsed = parseJwtPayload(accessToken);
-        const employeeNo = firstNonEmptyString(parsed, [
-          "preferred_username",
-          "user_employee_no",
-        ]);
-        const jobFamily = firstNonEmptyString(parsed, ["job_categories"]);
-        const jobTitle = firstNonEmptyString(parsed, ["job_positions"]);
-        const koreanName = displayName(parsed);
-        console.groupCollapsed("[Keycloak] 사번 | 직군 | 직급 | 한글 이름");
-        console.log(`${employeeNo} | ${jobFamily} | ${jobTitle} | ${koreanName}`);
-        console.log(parsed);
-        console.groupEnd();
       }}
     >
       <KeycloakStateBridge>{children}</KeycloakStateBridge>

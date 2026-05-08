@@ -82,6 +82,12 @@ export const COMMON_CODE_GROUP_PARTNER_DEFENSE_MARKET =
   "PARTNER_DEFENSE_MARKET";
 /** 국가 — `GET /api/common-codes/groups/COUNTRY/codes` */
 export const COMMON_CODE_GROUP_COUNTRY = "COUNTRY";
+/** 검출기 소자 정보 — `GET /api/common-codes/groups/DETECTOR_ELEMENT/codes` */
+export const COMMON_CODE_GROUP_DETECTOR_ELEMENT = "DETECTOR_ELEMENT";
+/** 파장 정보 — `GET /api/common-codes/groups/WAVELENGTH/codes` */
+export const COMMON_CODE_GROUP_WAVELENGTH = "WAVELENGTH";
+/** 검출기 타입 — `GET /api/common-codes/groups/DETECTOR_TYPE/codes` */
+export const COMMON_CODE_GROUP_DETECTOR_TYPE = "DETECTOR_TYPE";
 /** 활성 항목만, value=code·label=name (목록은 API에서 sortOrder·id 순 정렬됨) */
 export function commonCodesToSelectOptions(
   items: CommonCodeItem[]

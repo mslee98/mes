@@ -1,0 +1,204 @@
+import { useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate, useParams } from "react-router";
+import toast from "react-hot-toast";
+import PageMeta from "../components/common/PageMeta";
+import PageBreadcrumb from "../components/common/PageBreadCrumb";
+import ComponentCard from "../components/common/ComponentCard";
+import DetailPageState from "../components/common/DetailPageState";
+import Label from "../components/form/Label";
+import Input from "../components/form/input/InputField";
+import TextArea from "../components/form/input/TextArea";
+import ActiveToggle from "../components/form/ActiveToggle";
+import FormActionBar from "../components/form/FormActionBar";
+import { useAuth } from "../hooks/useAuth";
+import { useProductPermissions } from "../hooks/useProductPermissions";
+import {
+  createDetectorSeries,
+  getDetectorSeriesList,
+  updateDetectorSeries,
+} from "../api/detectorSeries";
+
+export default function DetectorSeriesForm() {
+  const { seriesId } = useParams();
+  const isNew = seriesId == null || seriesId === "new";
+  const idNum = isNew ? NaN : Number(String(seriesId ?? "").trim());
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { accessToken, isLoading: isAuthLoading } = useAuth();
+  const { canManageProducts } = useProductPermissions();
+
+  const [code, setCode] = useState("");
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [sortOrder, setSortOrder] = useState("0");
+  const [isActive, setIsActive] = useState(true);
+
+  const { data: seriesList = [], isLoading: isListLoading } = useQuery({
+    queryKey: ["detectorSeries", true],
+    queryFn: () =>
+      getDetectorSeriesList(accessToken as string, { includeInactive: true }),
+    enabled: !isNew && !!accessToken && !isAuthLoading && Number.isFinite(idNum),
+  });
+
+  const existing = !isNew
+    ? seriesList.find((s) => s.id === idNum)
+    : undefined;
+
+  useEffect(() => {
+    if (!existing) return;
+    setCode(existing.code ?? "");
+    setName(existing.name ?? "");
+    setDescription(existing.description ?? "");
+    setSortOrder(String(existing.sortOrder ?? 0));
+    setIsActive(existing.isActive !== false);
+  }, [existing]);
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      const sortParsed = Number.parseInt(sortOrder, 10);
+      const sort =
+        Number.isFinite(sortParsed) && sortParsed >= 0 ? sortParsed : 0;
+      if (isNew) {
+        return createDetectorSeries(accessToken as string, {
+          code: code.trim(),
+          name: name.trim(),
+          description: description.trim() || null,
+          sortOrder: sort,
+          isActive,
+        });
+      }
+      return updateDetectorSeries(accessToken as string, idNum, {
+        code: code.trim(),
+        name: name.trim(),
+        description: description.trim() || null,
+        sortOrder: sort,
+        isActive,
+      });
+    },
+    onSuccess: (saved) => {
+      toast.success(isNew ? "시리즈를 등록했습니다." : "시리즈를 저장했습니다.");
+      queryClient.invalidateQueries({ queryKey: ["detectorSeries"] });
+      if (isNew) {
+        navigate("/detectors", { replace: true });
+        return;
+      }
+      navigate(`/detector-series/${saved.id}/edit`, { replace: true });
+    },
+    onError: (err: unknown) => {
+      const msg = err instanceof Error ? err.message : "저장에 실패했습니다.";
+      toast.error(msg);
+    },
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!canManageProducts) {
+      toast.error("제품 관리 권한(product.manage)이 없습니다.");
+      return;
+    }
+    if (!code.trim() || !name.trim()) {
+      toast.error("코드와 이름은 필수입니다.");
+      return;
+    }
+    saveMutation.mutate();
+  };
+
+  const pending = saveMutation.isPending;
+  const loadError = !isNew && !isListLoading && !existing && Number.isFinite(idNum);
+
+  if (!canManageProducts) {
+    return (
+      <DetailPageState
+        title="검출기 시리즈"
+        description="검출기 시리즈 마스터"
+        pageTitle="검출기 시리즈"
+        invalidMessage="제품 관리 권한(product.manage)이 필요합니다."
+      />
+    );
+  }
+
+  if (loadError) {
+    return (
+      <DetailPageState
+        title="검출기 시리즈 수정"
+        description="검출기 시리즈 마스터"
+        pageTitle="검출기 시리즈 수정"
+        invalidMessage="시리즈를 찾을 수 없습니다. 목록에서 다시 선택해 주세요."
+      />
+    );
+  }
+
+  return (
+    <>
+      <PageMeta
+        title={isNew ? "검출기 시리즈 등록" : "검출기 시리즈 수정"}
+        description="검출기 시리즈"
+      />
+      <PageBreadcrumb
+        pageTitle={isNew ? "시리즈 등록" : "시리즈 수정"}
+      />
+      <form onSubmit={handleSubmit}>
+        <ComponentCard title={isNew ? "시리즈 등록" : "시리즈 수정"}>
+          {isListLoading && !isNew ? (
+            <p className="text-sm text-gray-500">불러오는 중…</p>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <Label htmlFor="series-code">코드 *</Label>
+                <Input
+                  id="series-code"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  placeholder="예: HD_SERIES_A"
+                />
+              </div>
+              <div>
+                <Label htmlFor="series-name">이름 *</Label>
+                <Input
+                  id="series-name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="표시 이름"
+                />
+              </div>
+              <div>
+                <Label htmlFor="series-sort">정렬 순서</Label>
+                <Input
+                  id="series-sort"
+                  type="number"
+                  min="0"
+                  value={sortOrder}
+                  onChange={(e) => setSortOrder(e.target.value)}
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <Label htmlFor="series-desc">설명</Label>
+                <TextArea
+                  id="series-desc"
+                  rows={3}
+                  value={description}
+                  onChange={setDescription}
+                  placeholder="선택 사항"
+                />
+              </div>
+              <div className="sm:col-span-2 flex items-center pt-1">
+                <ActiveToggle
+                  id="series-active"
+                  checked={isActive}
+                  onChange={setIsActive}
+                />
+              </div>
+            </div>
+          )}
+          <FormActionBar
+            submitLabel={isNew ? "등록" : "저장"}
+            isPending={pending}
+            submitDisabled={!accessToken || isListLoading}
+            cancelTo="/detectors"
+          />
+        </ComponentCard>
+      </form>
+    </>
+  );
+}

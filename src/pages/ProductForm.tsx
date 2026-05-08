@@ -19,6 +19,7 @@ import FormActionBar from "../components/form/FormActionBar";
 import { TrashBinIcon } from "../icons";
 import { useAuth } from "../hooks/useAuth";
 import {
+  checkProductBusinessCode,
   createProduct,
   deleteProductFile,
   getProduct,
@@ -34,6 +35,7 @@ const ARRAY_TYPE_PRESET: Record<"QVGA" | "VGA" | "SXGA", { width: string; height
   VGA: { width: "640", height: "480" },
   SXGA: { width: "1280", height: "1024" },
 };
+const BUSINESS_CODE_REGEX = /^[A-Z]{1,2}$/;
 
 function normalizeNumberLike(raw: string) {
   const sanitized = raw.replace(/[^\d.]/g, "");
@@ -57,6 +59,7 @@ export default function ProductForm() {
   const queryClient = useQueryClient();
   const { accessToken, isLoading: isAuthLoading } = useAuth();
 
+  const [businessCode, setBusinessCode] = useState("");
   const [businessName, setBusinessName] = useState("");
   const [productName, setProductName] = useState("");
   const [productType, setProductType] = useState<"ENGINE" | "CAMERA">("ENGINE");
@@ -69,6 +72,7 @@ export default function ProductForm() {
   const [isActive, setIsActive] = useState(true);
   const [pendingFilesForCreate, setPendingFilesForCreate] = useState<File[]>([]);
   const [deleteTargetFileId, setDeleteTargetFileId] = useState<number | null>(null);
+  const [verifiedBusinessCode, setVerifiedBusinessCode] = useState("");
 
   const {
     data: existing,
@@ -84,6 +88,7 @@ export default function ProductForm() {
     queryFn: () => getProductFiles(id, accessToken as string),
     enabled: !isNew && !!accessToken && !isAuthLoading && id !== "",
   });
+  const normalizedBusinessCode = businessCode.trim().toUpperCase();
 
   const uploadErrorMessage = (error: unknown) => {
     const message = error instanceof Error ? error.message : "";
@@ -99,6 +104,7 @@ export default function ProductForm() {
   useEffect(() => {
     if (!existing) return;
     queueMicrotask(() => {
+      setBusinessCode(String(existing.businessCode ?? "").trim().toUpperCase());
       setBusinessName(existing.businessName ?? "");
       setProductName(existing.productName ?? "");
       setProductType(existing.productType ?? "ENGINE");
@@ -113,12 +119,14 @@ export default function ProductForm() {
       );
       setDescription(existing.description ?? "");
       setIsActive(existing.isActive !== false);
+      setVerifiedBusinessCode(String(existing.businessCode ?? "").trim().toUpperCase());
     });
   }, [existing]);
 
   const updateMutation = useMutation({
     mutationFn: () =>
       updateProduct(id, accessToken as string, {
+        businessCode: normalizedBusinessCode,
         businessName: businessName.trim(),
         productName: productName.trim(),
         productType,
@@ -142,6 +150,7 @@ export default function ProductForm() {
   const createMutation = useMutation({
     mutationFn: () =>
       createProduct(accessToken as string, {
+        businessCode: normalizedBusinessCode,
         businessName: businessName.trim(),
         productName: productName.trim(),
         productType,
@@ -189,6 +198,25 @@ export default function ProductForm() {
     },
     onError: (error: Error) => toast.error(uploadErrorMessage(error)),
   });
+  const businessCodeCheckMutation = useMutation({
+    mutationFn: () =>
+      checkProductBusinessCode(
+        accessToken as string,
+        normalizedBusinessCode,
+        isNew ? undefined : id
+      ),
+    onSuccess: (result) => {
+      if (!result.available) {
+        setVerifiedBusinessCode("");
+        toast.error("이미 사용 중인 사업코드입니다.");
+        return;
+      }
+      setVerifiedBusinessCode(result.businessCode);
+      toast.success("사용 가능한 사업코드입니다.");
+    },
+    onError: (error: Error) =>
+      toast.error(error.message || "사업코드 중복 확인에 실패했습니다."),
+  });
   const openDeleteConfirm = (fileLinkId: number) => {
     setDeleteTargetFileId(fileLinkId);
   };
@@ -208,6 +236,7 @@ export default function ProductForm() {
     if (
       !validateRequiredFields(
         [
+          { value: normalizedBusinessCode, message: "사업코드를 입력하세요." },
           { value: businessName, message: "사업명을 입력하세요." },
           { value: productName, message: "제품명을 입력하세요." },
           { value: arrayType, message: "배열 타입을 선택하세요." },
@@ -229,6 +258,14 @@ export default function ProductForm() {
       toast.error("Pixel Pitch는 0보다 커야 합니다.");
       return;
     }
+    if (!BUSINESS_CODE_REGEX.test(normalizedBusinessCode)) {
+      toast.error("사업코드는 영문 대문자 1~2자리만 입력하세요. (예: A, ZZ)");
+      return;
+    }
+    if (verifiedBusinessCode !== normalizedBusinessCode) {
+      toast.error("사업코드 중복 확인을 완료해 주세요.");
+      return;
+    }
     if (isNew) {
       createMutation.mutate();
       return;
@@ -243,6 +280,9 @@ export default function ProductForm() {
     const preset = ARRAY_TYPE_PRESET[next];
     setArrayWidth(preset.width);
     setArrayHeight(preset.height);
+  };
+  const handleDuplicateCheckClick = () => {
+    businessCodeCheckMutation.mutate();
   };
 
   if (!isNew && !id) {
@@ -297,6 +337,52 @@ export default function ProductForm() {
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="min-w-0">
               <FormField
+                id="product-business-code"
+                label="사업코드"
+                required
+                reserveHelpSpace
+                control={
+                  <div className="mt-1.5 flex w-full rounded-lg shadow-theme-xs">
+                    <div className="min-w-0 flex-1">
+                      <Input
+                        id="product-business-code"
+                        value={businessCode}
+                        onChange={(e) => {
+                          setBusinessCode(
+                            e.target.value
+                              .toUpperCase()
+                              .replace(/[^A-Z]/g, "")
+                              .slice(0, 2)
+                          );
+                          setVerifiedBusinessCode("");
+                        }}
+                        placeholder="예: A, ZZ"
+                        maxLength={2}
+                        className="rounded-r-none shadow-none"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleDuplicateCheckClick}
+                      disabled={
+                        !BUSINESS_CODE_REGEX.test(normalizedBusinessCode) ||
+                        businessCodeCheckMutation.isPending
+                      }
+                      className="inline-flex h-11 items-center rounded-r-lg border border-gray-300 border-l-0 px-3 text-sm font-medium text-white bg-brand-500 hover:bg-brand-600 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400 dark:border-gray-700"
+                    >
+                      {businessCodeCheckMutation.isPending ? "확인 중..." : "중복 확인"}
+                    </button>
+                  </div>
+                }
+                helpText={
+                  verifiedBusinessCode === normalizedBusinessCode
+                    ? "중복 확인이 완료되었습니다."
+                    : "우측 버튼으로 중복 확인을 진행합니다."
+                }
+              />
+            </div>
+            <div className="min-w-0">
+              <FormField
                 label="사업명"
                 required
                 reserveHelpSpace
@@ -308,7 +394,7 @@ export default function ProductForm() {
                 }
               />
             </div>
-            <div className="min-w-0">
+            <div className="min-w-0 sm:col-span-2">
               <FormField
                 label="제품명"
                 required

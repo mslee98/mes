@@ -13,14 +13,7 @@ import { isKeycloakAuthEnabled } from "./config/keycloakEnv.ts"
 
 export function AppWithAuth() {
   const keycloakOn = isKeycloakAuthEnabled();
-  console.group("[ENV CHECK]");
-  console.log("MODE:", import.meta.env.MODE);
-  console.log("VITE_KEYCLOAK_ENABLED:", import.meta.env.VITE_KEYCLOAK_ENABLED);
-  console.log("VITE_KEYCLOAK_URL:", import.meta.env.VITE_KEYCLOAK_URL);
-  console.log("VITE_KEYCLOAK_REALM:", import.meta.env.VITE_KEYCLOAK_REALM);
-  console.log("VITE_KEYCLOAK_CLIENT_ID:", import.meta.env.VITE_KEYCLOAK_CLIENT_ID);
-  console.log("keycloakOn:", keycloakOn);
-  console.groupEnd();
+ 
   return keycloakOn ? (
     <AppWrapper>
       <App />

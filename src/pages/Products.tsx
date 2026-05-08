@@ -201,6 +201,12 @@ export default function Products() {
                   isHeader
                   className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400"
                 >
+                  사업코드
+                </TableCell>
+                <TableCell
+                  isHeader
+                  className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400"
+                >
                   사업명
                 </TableCell>
                 <TableCell
@@ -244,6 +250,9 @@ export default function Products() {
                     }
                   }}
                 >
+                  <TableCell className="px-5 py-4 text-sm text-gray-500 dark:text-gray-400">
+                    <code>{String(p.businessCode ?? "").trim() || "-"}</code>
+                  </TableCell>
                   <TableCell className="px-5 py-4 text-sm text-gray-500 dark:text-gray-400">
                     {p.businessName || "-"}
                   </TableCell>
