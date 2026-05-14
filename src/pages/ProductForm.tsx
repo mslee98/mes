@@ -512,13 +512,11 @@ export default function ProductForm() {
                     <FileUploadDropzone
                       onSelectFiles={(selected) =>
                         setPendingFilesForCreate((prev) =>
-                          [...prev, ...selected].slice(0, 10)
+                          [...prev, ...selected].slice(0, 20)
                         )
                       }
                       onError={toast.error}
                       disabled={pending}
-                      maxFileSizeMb={50}
-                      maxFiles={10}
                       multiple
                       buttonLabel="파일 선택"
                       uploadGuideText="파일을 선택하면 등록 시 함께 업로드됩니다."
@@ -570,8 +568,6 @@ export default function ProductForm() {
                       onSelectFiles={(selected) => fileUploadMutation.mutate(selected)}
                       onError={toast.error}
                       disabled={fileUploadMutation.isPending || fileDeleteMutation.isPending}
-                      maxFileSizeMb={50}
-                      maxFiles={10}
                       multiple
                       buttonLabel="파일 선택"
                       uploadGuideText="아래 버튼을 눌러 파일을 업로드하세요."

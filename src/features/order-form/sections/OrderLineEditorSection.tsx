@@ -126,7 +126,10 @@ export default function OrderLineEditorSection({
                   isHeader
                   className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[20%]"
                 >
-                  제품 *
+                  제품
+                  <span className="ml-1 align-middle text-error-500 dark:text-error-400">
+                    *
+                  </span>
                 </TableCell>
                 <TableCell
                   isHeader
@@ -138,13 +141,19 @@ export default function OrderLineEditorSection({
                   isHeader
                   className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[18%]"
                 >
-                  단위 · 수량 *
+                  단위 · 수량
+                  <span className="ml-1 align-middle text-error-500 dark:text-error-400">
+                    *
+                  </span>
                 </TableCell>
                 <TableCell
                   isHeader
                   className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[20%]"
                 >
-                  통화 · 단가 *
+                  통화 · 단가
+                  <span className="ml-1 align-middle text-error-500 dark:text-error-400">
+                    *
+                  </span>
                 </TableCell>
                 <TableCell
                   isHeader

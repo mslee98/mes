@@ -1,13 +1,16 @@
-﻿import { useQuery } from "@tanstack/react-query";
-import { Link, useParams } from "react-router";
+﻿import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link, useNavigate, useParams } from "react-router";
+import toast from "react-hot-toast";
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import ComponentCard from "../components/common/ComponentCard";
+import ConfirmModal from "../components/common/ConfirmModal";
 import DetailPageState from "../components/common/DetailPageState";
 import Badge from "../components/ui/badge/Badge";
 import { useAuth } from "../hooks/useAuth";
 import { useProductPermissions } from "../hooks/useProductPermissions";
-import { getDetector, type DetectorDetail } from "../api/detectors";
+import { deleteDetector, getDetector, type DetectorDetail } from "../api/detectors";
 import {
   COMMON_CODE_GROUP_COUNTRY,
   labelForCommonCode,
@@ -53,6 +56,9 @@ function textListOrDash(value: string[] | null | undefined): string {
 export default function DetectorDetailPage() {
   const { detectorId } = useParams();
   const id = Number(String(detectorId ?? "").trim());
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const { accessToken, isLoading: isAuthLoading } = useAuth();
   const { canReadProducts, canManageProducts } = useProductPermissions();
 
@@ -75,6 +81,22 @@ export default function DetectorDetailPage() {
       canReadProducts &&
       Number.isFinite(id) &&
       id > 0,
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: () => deleteDetector(accessToken as string, id),
+    onSuccess: () => {
+      toast.success("검출기가 삭제되었습니다.");
+      void queryClient.invalidateQueries({ queryKey: ["detectors"] });
+      void queryClient.removeQueries({ queryKey: ["detector", id] });
+      setDeleteOpen(false);
+      navigate("/detectors");
+    },
+    onError: (e: unknown) => {
+      const message =
+        e instanceof Error ? e.message : "검출기를 삭제하지 못했습니다.";
+      toast.error(message);
+    },
   });
 
   if (!Number.isFinite(id) || id <= 0) {
@@ -159,6 +181,15 @@ export default function DetectorDetailPage() {
                 수정
               </Link>
             ) : null}
+            {canManageProducts ? (
+              <button
+                type="button"
+                onClick={() => setDeleteOpen(true)}
+                className="rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:bg-gray-900 dark:text-red-400 dark:hover:bg-red-950/30"
+              >
+                삭제
+              </button>
+            ) : null}
             <Link
               to="/detectors"
               className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-white/[0.03]"
@@ -202,6 +233,20 @@ export default function DetectorDetailPage() {
           <DetailRow label="수정일" value={formatDateTime(item.updatedAt)} />
         </dl>
       </ComponentCard>
+
+      <ConfirmModal
+        isOpen={deleteOpen}
+        title="검출기 삭제"
+        message={`검출기「${item.detectorType || `#${item.id}`}」을(를) 삭제하면 복구할 수 없습니다. 다른 데이터에서 참조 중이면 삭제되지 않을 수 있습니다. 계속할까요?`}
+        confirmText="삭제"
+        confirmVariant="danger"
+        illustration="trash"
+        isConfirming={deleteMutation.isPending}
+        onClose={() => {
+          if (!deleteMutation.isPending) setDeleteOpen(false);
+        }}
+        onConfirm={() => deleteMutation.mutate()}
+      />
     </>
   );
 }

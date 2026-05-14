@@ -865,7 +865,7 @@ export default function OrderForm() {
 
   const addPendingFileForCreate = (files: File[]) => {
     if (files.length === 0) return;
-    setPendingFilesForCreate((prev) => [...prev, ...files]);
+    setPendingFilesForCreate((prev) => [...prev, ...files].slice(0, 20));
     toast.success(`첨부 대기 목록에 ${files.length}건 추가되었습니다.`);
   };
 

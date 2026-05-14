@@ -4,12 +4,14 @@ import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import ComponentCard from "../components/common/ComponentCard";
 import Badge from "../components/ui/badge/Badge";
+import { DangerSoftTag } from "../components/ui/tag/DangerSoftTag";
 import Button from "../components/ui/button/Button";
 import Label from "../components/form/Label";
 import Input from "../components/form/input/InputField";
 import InputAddonField from "../components/form/InputAddonField";
 import TextArea from "../components/form/input/TextArea";
 import DatePicker from "../components/form/date-picker";
+import TimePickerInput from "../components/form/TimePickerInput";
 import ActiveToggle from "../components/form/ActiveToggle";
 import FormActionBar from "../components/form/FormActionBar";
 import { EnvelopeIcon, UserIcon } from "../icons";
@@ -21,6 +23,7 @@ import { usePartnerCommonCodes } from "../hooks/usePartnerCommonCodes";
 import { PARTNER_TYPE_SUPPLIER, PARTNER_SUPPLIER_SEGMENT_OTHER } from "../lib/partnerPredicates";
 import { partnerSelectLabel } from "../lib/partnerDisplay";
 import { validateRequiredFields } from "../lib/formValidation";
+import { Modal } from "../components/ui/modal";
 
 export default function UIPlayground() {
   const { accessToken, isLoading: isAuthLoading } = useAuth();
@@ -32,7 +35,10 @@ export default function UIPlayground() {
   const [username, setUsername] = useState("");
   const [website, setWebsite] = useState("");
   const [weight, setWeight] = useState("");
-
+  const [timeOnSelect, setTimeOnSelect] = useState("09:30");
+  const [timeOnSave, setTimeOnSave] = useState("14:00");
+  const [modalDemoOpen, setModalDemoOpen] = useState(false);
+  const [demoMonth, setDemoMonth] = useState("");
   const queryEnabled = !!accessToken && !isAuthLoading;
   const { countryCodes } = usePartnerCommonCodes(accessToken, queryEnabled);
   const {
@@ -84,6 +90,7 @@ export default function UIPlayground() {
           </p>
           <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
             최근 공통화 항목: <code>ActiveToggle</code>, <code>FormActionBar</code>,{" "}
+            <code>TimePickerInput</code>, <code>DatePicker monthOnly</code>,{" "}
             <code>validateRequiredFields</code>, <code>usePartnersQuery</code>
           </p>
         </ComponentCard>
@@ -101,10 +108,51 @@ export default function UIPlayground() {
           </div>
         </ComponentCard>
 
+        <ComponentCard
+          title="DangerSoftTag"
+          desc="시맨틱 danger 소프트 — bg-danger-soft, text-fg-danger-strong. 지연 등 경고 라벨용."
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            <DangerSoftTag>Danger</DangerSoftTag>
+            <DangerSoftTag>지연 3일</DangerSoftTag>
+          </div>
+        </ComponentCard>
+
+        <ComponentCard
+          title="Modal"
+          desc="`header`에 제목·서브타이틀을 넣으면 좌측에 표시되고, 우측에 닫기(X)가 한 줄에 배치됩니다. 그 아래 border로 본문과 구분됩니다."
+        >
+          <Button type="button" size="sm" onClick={() => setModalDemoOpen(true)}>
+            모달 예시 열기
+          </Button>
+          <Modal
+            isOpen={modalDemoOpen}
+            onClose={() => setModalDemoOpen(false)}
+            className="mx-4 max-w-md p-6"
+            header={
+              <>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  공정 처리
+                </h3>
+                <p className="mt-1 text-theme-sm text-gray-600 dark:text-gray-400">
+                  헤더 아래 구분선 다음이 본문 영역입니다.
+                </p>
+              </>
+            }
+          >
+            <p className="text-theme-sm text-gray-700 dark:text-gray-300">
+              본문: 폼·타임라인 등 실제 콘텐츠를 이곳에 둡니다.
+            </p>
+          </Modal>
+        </ComponentCard>
+
         <ComponentCard title="Button">
           <div className="flex flex-wrap items-center gap-2">
             <Button>Primary</Button>
             <Button variant="outline">Outline</Button>
+            <Button variant="outlineBrand" size="xs">
+              Outline brand
+            </Button>
             <Button size="sm">Small</Button>
             <Button disabled>Disabled</Button>
           </div>
@@ -154,6 +202,22 @@ export default function UIPlayground() {
                 placeholder="년-월-일"
               />
             </div>
+            <div>
+              <DatePicker
+                id="ui-month-only"
+                label="월만 선택 (flatpickr monthSelect)"
+                value={demoMonth ? `${demoMonth}-01` : ""}
+                monthOnly
+                onValueChange={(v) => setDemoMonth(String(v ?? "").slice(0, 7))}
+                compact
+              />
+              <p className="mt-1.5 text-theme-xs text-gray-500 dark:text-gray-400">
+                값:{" "}
+                <code className="text-gray-800 dark:text-gray-200">
+                  {demoMonth || "—"}
+                </code>
+              </p>
+            </div>
             <div className="sm:col-span-2">
               <Label
                 htmlFor="ui-memo"
@@ -186,6 +250,9 @@ export default function UIPlayground() {
               setName("");
               setMemo("");
               setDueDate("");
+              setDemoMonth("");
+              setTimeOnSelect("09:30");
+              setTimeOnSave("14:00");
               setActive(true);
               setEmail("");
               setUsername("");
@@ -202,6 +269,54 @@ export default function UIPlayground() {
               validateRequiredFields 데모 실행
             </button>
           </FormActionBar>
+        </ComponentCard>
+
+        <ComponentCard
+          title="TimePickerInput"
+          desc="12시간제 패널. commitMode로 즉시 반영(onSelect, 기본) 또는 저장 시 반영(onSave)을 선택합니다. onSelect에서는 분을 고르면 자동 반영 후 패널이 닫힙니다."
+        >
+          <div className="grid gap-6 sm:grid-cols-2">
+            <div>
+              <TimePickerInput
+                id="ui-time-on-select"
+                label='즉시 반영 (commitMode="onSelect", 기본)'
+                value={timeOnSelect}
+                onChange={setTimeOnSelect}
+                commitMode="onSelect"
+              />
+              <p className="mt-2 text-theme-xs text-gray-500 dark:text-gray-400">
+                현재 값:{" "}
+                <code className="text-gray-800 dark:text-gray-200">
+                  {timeOnSelect || "—"}
+                </code>
+              </p>
+            </div>
+            <div>
+              <TimePickerInput
+                id="ui-time-on-save"
+                label='저장 시 반영 (commitMode="onSave")'
+                value={timeOnSave}
+                onChange={setTimeOnSave}
+                commitMode="onSave"
+                closeOnMinuteSelect={false}
+              />
+              <p className="mt-2 text-theme-xs text-gray-500 dark:text-gray-400">
+                현재 값:{" "}
+                <code className="text-gray-800 dark:text-gray-200">
+                  {timeOnSave || "—"}
+                </code>
+              </p>
+            </div>
+            <div className="sm:col-span-2">
+              <TimePickerInput
+                id="ui-time-compact"
+                label="compact (표·모달용)"
+                value={timeOnSelect}
+                onChange={setTimeOnSelect}
+                compact
+              />
+            </div>
+          </div>
         </ComponentCard>
 
         <ComponentCard

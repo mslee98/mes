@@ -1,5 +1,5 @@
 /**
- * 검출기 마스터 — `GET/POST/PATCH /api/detectors` (product.read / product.manage)
+ * 검출기 마스터 — `GET/POST/PATCH/DELETE /api/detectors` (product.read / product.manage)
  */
 import { createApiError } from "../lib/apiError";
 import type { Partner } from "./purchaseOrder";
@@ -356,4 +356,22 @@ export async function updateDetector(
     throw await createApiError(res, "검출기를 수정하지 못했습니다.");
   }
   return mapDetectorFromApi(await res.json());
+}
+
+/** DELETE /api/detectors/:id — 성공 시 204, 본문 없음 */
+export async function deleteDetector(
+  accessToken: string,
+  id: number
+): Promise<void> {
+  const res = await fetchAuthorized(
+    `${API_BASE}/detectors/${id}`,
+    {
+      method: "DELETE",
+      headers: authHeaders(accessToken),
+      credentials: "include",
+    },
+    accessToken
+  );
+  if (res.ok && res.status === 204) return;
+  throw await createApiError(res, "검출기를 삭제하지 못했습니다.");
 }

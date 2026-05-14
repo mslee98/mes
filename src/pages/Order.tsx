@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useCommonCodesByGroup } from "../hooks/useCommonCodesByGroup";
 import { usePartnerListFilter } from "../hooks/usePartnerListFilter";
+import { useOrderCommonCodes } from "../hooks/useOrderCommonCodes";
 import { Link, useNavigate } from "react-router";
 import flatpickr from "flatpickr";
 import "flatpickr/dist/flatpickr.css";
@@ -10,7 +10,7 @@ import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import PageMeta from "../components/common/PageMeta";
 import Select from "../components/form/Select";
 import SearchableSelectWithCreate from "../components/form/SearchableSelectWithCreate";
-import PartnerQuickCreateModal from "../components/form/PartnerQuickCreateModal";
+import { PartnerCountryCell } from "../components/partner/PartnerCountryCell";
 import {
   Table,
   TableBody,
@@ -37,13 +37,9 @@ import {
   type PurchaseOrderListItem,
   type Partner,
 } from "../api/purchaseOrder";
-import {
-  COMMON_CODE_GROUP_PURCHASE_ORDER_STATUS,
-  COMMON_CODE_GROUP_APPROVAL_STATUS,
-  COMMON_CODE_GROUP_COUNTRY,
-  commonCodesToSelectOptions,
-} from "../api/commonCode";
+import { commonCodesToSelectOptions } from "../api/commonCode";
 import { partnerSelectLabel } from "../lib/partnerDisplay";
+import { FileIcon } from "../icons";
 import { badgeColorFromKoStatusLabel } from "../lib/badgeStatusColor";
 // import { formatCurrency } from "../lib/formatCurrency";
 
@@ -56,24 +52,20 @@ export default function Order() {
   const [searchOptionsOpen, setSearchOptionsOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
   const [orderStatus, setOrderStatus] = useState("");
-  const [approvalStatus, setApprovalStatus] = useState("");
   const [dateStart, setDateStart] = useState("");
   const [dateEnd, setDateEnd] = useState("");
   const [searchKey, setSearchKey] = useState(0);
   const dateRangeInputRef = useRef<HTMLInputElement>(null);
   const flatpickrAnchorRef = useRef<HTMLDivElement>(null);
 
-  const { data: countryCodes = [] } = useCommonCodesByGroup(
-    COMMON_CODE_GROUP_COUNTRY,
-    accessToken,
-    { enabled: !!accessToken && !isAuthLoading }
-  );
+  const {
+    countryCodes,
+    purchaseOrderStatusCodes: orderStatusCodes,
+  } = useOrderCommonCodes(accessToken, !!accessToken && !isAuthLoading);
 
   const {
     partnerId,
     setPartnerId,
-    partnerCreateOpen,
-    setPartnerCreateOpen,
     partnerFilterOptions,
     partnerFieldKey,
     remountPartnerField,
@@ -83,7 +75,6 @@ export default function Order() {
     countryCodes,
   });
 
-  /** 서버는 `?status=` 만 지원. `approvalStatus`는 아래 클라이언트 필터에서만 사용 */
   const listParams = useMemo(
     () => ({
       partnerId: partnerId || undefined,
@@ -97,18 +88,6 @@ export default function Order() {
     queryFn: () => getPurchaseOrders(accessToken!, listParams),
     enabled: !!accessToken && !isAuthLoading,
   });
-
-  const { data: orderStatusCodes = [] } = useCommonCodesByGroup(
-    COMMON_CODE_GROUP_PURCHASE_ORDER_STATUS,
-    accessToken,
-    { enabled: !!accessToken && !isAuthLoading }
-  );
-
-  const { data: approvalStatusCodes = [] } = useCommonCodesByGroup(
-    COMMON_CODE_GROUP_APPROVAL_STATUS,
-    accessToken,
-    { enabled: !!accessToken && !isAuthLoading }
-  );
 
   useEffect(() => {
     if (!dateRangeInputRef.current) return;
@@ -146,12 +125,6 @@ export default function Order() {
     return list;
   }, [orderStatusCodes]);
 
-  const approvalStatusOptions = useMemo(() => {
-    const list: { value: string; label: string }[] = [{ value: "", label: "전체" }];
-    commonCodesToSelectOptions(approvalStatusCodes).forEach((o) => list.push(o));
-    return list;
-  }, [approvalStatusCodes]);
-
   const filteredByKeywordAndDate = useMemo(() => {
     let list = orders as PurchaseOrderListItem[];
     const kw = searchKeyword.trim().toLowerCase();
@@ -176,13 +149,8 @@ export default function Order() {
     if (dateEnd) {
       list = list.filter((o) => o.orderDate <= dateEnd);
     }
-    if (approvalStatus) {
-      list = list.filter(
-        (o) => String(o.approvalStatus ?? "").trim() === approvalStatus
-      );
-    }
     return list;
-  }, [orders, searchKeyword, dateStart, dateEnd, approvalStatus, countryCodes]);
+  }, [orders, searchKeyword, dateStart, dateEnd, countryCodes]);
 
   const totalCount = filteredByKeywordAndDate.length;
   const pagination = usePagination({ totalCount, initialPageSize: PAGE_SIZE });
@@ -196,7 +164,6 @@ export default function Order() {
     setSearchKeyword("");
     setPartnerId("");
     setOrderStatus("");
-    setApprovalStatus("");
     setDateStart("");
     setDateEnd("");
     remountPartnerField();
@@ -208,12 +175,6 @@ export default function Order() {
     if (!c) return "미지정";
     return orderStatusCodes.find((x) => x.code === c)?.name ?? c;
   };
-  const getApprovalStatusName = (code: string | undefined) => {
-    const c = code?.trim();
-    if (!c) return "미승인";
-    return approvalStatusCodes.find((x) => x.code === c)?.name ?? c;
-  };
-
   return (
     <>
       <PageMeta
@@ -230,7 +191,7 @@ export default function Order() {
               search={
                 <DataListSearchInput
                   id="simple-search"
-                  placeholder="발주번호, 제목, 거래처명 검색"
+                  placeholder="발주번호, 제목, 고객명 검색"
                   value={searchKeyword}
                   onChange={setSearchKeyword}
                 />
@@ -310,17 +271,15 @@ export default function Order() {
               <div key={`partner-${partnerFieldKey}`} className="min-w-0 flex-1 sm:max-w-[12rem]">
                 <SearchableSelectWithCreate
                   id={`order-list-partner-${partnerFieldKey}`}
-                  label="거래처"
+                  label="고객"
                   value={partnerId}
                   onChange={setPartnerId}
                   options={partnerFilterOptions}
                   placeholder="전체 또는 검색"
                   compact
-                  addTrigger="popover"
-                  popoverDescription="필터에 쓸 거래처가 없으면 정보 아이콘에서 등록한 뒤 목록이 갱신됩니다."
-                  popoverAriaLabel="거래처 등록 안내"
-                  addButtonLabel="거래처 등록"
-                  onAddClick={() => setPartnerCreateOpen(true)}
+                  addTrigger="none"
+                  addButtonLabel="고객 등록"
+                  onAddClick={() => {}}
                 />
               </div>
               <div key={`orderStatus-${searchKey}`} className="min-w-0 flex-1 sm:max-w-[12rem]">
@@ -331,16 +290,6 @@ export default function Order() {
                   placeholder="전체"
                   defaultValue={orderStatus}
                   onChange={setOrderStatus}
-                />
-              </div>
-              <div key={`approvalStatus-${searchKey}`} className="min-w-0 flex-1 sm:max-w-[12rem]">
-                <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">승인 상태</label>
-                <Select
-                  size="sm"
-                  options={approvalStatusOptions}
-                  placeholder="전체"
-                  defaultValue={approvalStatus}
-                  onChange={setApprovalStatus}
                 />
               </div>
               <div key={`date-range-${searchKey}`} className="min-w-0 flex-1 sm:max-w-[14rem]">
@@ -387,17 +336,20 @@ export default function Order() {
                 <TableRow>
                   <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">발주번호</TableCell>
                   <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">제목</TableCell>
-                  <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">거래처</TableCell>
+                  <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">고객</TableCell>
                   <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">발주일자</TableCell>
                   <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">요청납기</TableCell>
                   <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-center text-theme-xs dark:text-gray-400">발주 상태</TableCell>
-                  <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-center text-theme-xs dark:text-gray-400">승인 상태</TableCell>
+                  <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-center text-theme-xs dark:text-gray-400">
+                    첨부
+                    <span className="sr-only">첨부 파일 여부</span>
+                  </TableCell>
                 </TableRow>
               </TableHeader>
               <TableBody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
                 {pageList.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="px-5 py-8 text-center text-theme-sm text-gray-500 dark:text-gray-400">
+                    <TableCell colSpan={7} className="px-5 py-8 text-center text-theme-sm text-gray-500 dark:text-gray-400">
                       검색 조건에 맞는 발주가 없습니다.
                     </TableCell>
                   </TableRow>
@@ -414,10 +366,11 @@ export default function Order() {
                       </TableCell>
                       <TableCell className="px-4 py-3 text-gray-700 text-start text-theme-sm truncate dark:text-gray-300 max-w-[15rem]" >{row.title ?? "-"}</TableCell>
                       <TableCell className="px-4 py-3 text-gray-500 text-theme-sm dark:text-gray-400">
-                        {partnerSelectLabel(
-                          row.partner as Partner | undefined,
-                          countryCodes
-                        )}
+                        <PartnerCountryCell
+                          partner={row.partner as Partner | undefined}
+                          countryCodes={countryCodes}
+                          variant="orderList"
+                        />
                       </TableCell>
                       <TableCell className="px-4 py-3 text-gray-500 text-theme-sm dark:text-gray-400 ">
                         {row.orderDate?.trim() ? row.orderDate : "-"}
@@ -430,10 +383,15 @@ export default function Order() {
                           {getOrderStatusName(row.orderStatus)}
                         </Badge>
                       </TableCell>
-                      <TableCell className="px-4 py-3 text-center">
-                        <Badge size="sm" color={badgeColorFromKoStatusLabel(getApprovalStatusName(row.approvalStatus))}>
-                          {getApprovalStatusName(row.approvalStatus)}
-                        </Badge>
+                      <TableCell className="px-4 py-3 text-center align-middle text-gray-500 dark:text-gray-400">
+                        {row.hasAttachments ? (
+                          <span className="inline-flex justify-center" title="첨부 있음">
+                            <FileIcon className="h-5 w-5 text-gray-600 dark:text-gray-300" aria-hidden />
+                            <span className="sr-only">첨부 있음</span>
+                          </span>
+                        ) : (
+                          "—"
+                        )}
                       </TableCell>
                     </TableRow>
                   ))
@@ -444,11 +402,6 @@ export default function Order() {
         </ListPageLayout>
       </div>
 
-      <PartnerQuickCreateModal
-        isOpen={partnerCreateOpen}
-        onClose={() => setPartnerCreateOpen(false)}
-        onCreated={(p) => setPartnerId(String(p.id))}
-      />
     </>
   );
 }

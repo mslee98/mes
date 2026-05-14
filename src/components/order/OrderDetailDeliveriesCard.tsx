@@ -20,7 +20,7 @@ export function OrderDetailDeliveriesCard({
 }: OrderDetailDeliveriesCardProps) {
   return (
     <ComponentCard
-      title="납품 목록"
+      title="납품 실적"
       collapsible
       defaultCollapsed={true}
       headerEnd={
@@ -35,7 +35,7 @@ export function OrderDetailDeliveriesCard({
           onClick={onRegisterDeliveryClick}
           className="rounded-lg border border-brand-500 bg-white px-3 py-1.5 text-sm font-medium text-brand-600 hover:bg-brand-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-brand-600 dark:bg-gray-800 dark:text-brand-400"
         >
-          납품 등록
+          실제 납품 등록
         </button>
       }
     >

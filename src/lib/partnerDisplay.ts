@@ -1,4 +1,4 @@
-import type { Partner } from "../api/purchaseOrder";
+import type { Partner, PartnerSummary } from "../api/purchaseOrder";
 import type { CommonCodeItem } from "../api/commonCode";
 import { labelForCommonCode } from "../api/commonCode";
 
@@ -14,4 +14,25 @@ export function partnerSelectLabel(
   const code = (p.code ?? "").trim() || "—";
   const name = (p.name ?? "").trim() || "—";
   return `${country} | ${code} | ${name}`;
+}
+
+/** `partnerSummary` → `Partner` (표시·국기 URL용) */
+export function partnerFromSummary(s: PartnerSummary): Partner {
+  return {
+    id: String(s.id ?? ""),
+    code: String(s.code ?? ""),
+    name: String(s.name ?? ""),
+    countryCode: s.countryCode ?? undefined,
+  };
+}
+
+export function partnerSummaryHasDisplayableFields(
+  s: PartnerSummary | null | undefined
+): boolean {
+  if (s == null || typeof s !== "object") return false;
+  return (
+    String(s.name ?? "").trim() !== "" ||
+    String(s.code ?? "").trim() !== "" ||
+    String(s.countryCode ?? "").trim() !== ""
+  );
 }

@@ -30,7 +30,7 @@ import {
   type CommonCodeItem,
 } from "../api/commonCode";
 import { type Partner } from "../api/purchaseOrder";
-import { partnerCountryFlagUrl } from "../lib/partnerCountryOptions";
+import { PartnerCountryCell } from "../components/partner/PartnerCountryCell";
 
 const STATUS_FILTER_OPTIONS = [
   { value: "all", label: "전체" },
@@ -64,35 +64,6 @@ function formatPartnerCoreClassificationCell(
     partner.supplierSegment
   );
   return `${partnerTypeLabel} / ${supplierSegmentLabel}`;
-}
-
-function renderPartnerCountryCell(
-  partner: Partner,
-  countryCodes: CommonCodeItem[]
-): React.ReactNode {
-  const countryCode = String(partner.countryCode ?? "").trim().toUpperCase();
-  const label = labelForCommonCode(countryCodes, partner.countryCode);
-  const flagUrl = countryCode ? partnerCountryFlagUrl(countryCode) : undefined;
-  return (
-    <div className="flex items-center gap-2">
-      {flagUrl ? (
-        <img
-          src={flagUrl}
-          alt=""
-          className="h-5 w-[1.375rem] shrink-0 rounded-sm object-cover"
-          decoding="async"
-        />
-      ) : (
-        <span
-          className="inline-flex h-5 w-[1.375rem] shrink-0 items-center justify-center rounded-sm bg-gray-100 text-[10px] font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400"
-          aria-hidden
-        >
-          ···
-        </span>
-      )}
-      <span>{label}</span>
-    </div>
-  );
 }
 
 export default function Partners() {
@@ -340,7 +311,7 @@ export default function Partners() {
                     )}
                   </TableCell>
                   <TableCell className="px-5 py-4 text-sm text-gray-500 dark:text-gray-400">
-                    {renderPartnerCountryCell(p, countryCodes)}
+                    <PartnerCountryCell partner={p} countryCodes={countryCodes} />
                   </TableCell>
                   <TableCell className="px-5 py-4 text-sm text-gray-500 dark:text-gray-400">
                     {formatPartnerContactCell(p)}

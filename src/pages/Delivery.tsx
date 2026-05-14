@@ -285,37 +285,37 @@ export default function Delivery() {
                 <TableRow>
                   <TableCell
                     isHeader
-                    className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
+                    className="px-3 py-1 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
                   >
                     납품
                   </TableCell>
                   <TableCell
                     isHeader
-                    className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
+                    className="px-3 py-1 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
                   >
                     발주번호
                   </TableCell>
                   <TableCell
                     isHeader
-                    className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
+                    className="px-3 py-1 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
                   >
                     발주 제목
                   </TableCell>
                   <TableCell
                     isHeader
-                    className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
+                    className="px-3 py-1 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
                   >
                     거래처
                   </TableCell>
                   <TableCell
                     isHeader
-                    className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
+                    className="px-3 py-1 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
                   >
                     납품일
                   </TableCell>
                   <TableCell
                     isHeader
-                    className="px-5 py-3 font-medium text-gray-500 text-center text-theme-xs dark:text-gray-400"
+                    className="px-3 py-1 font-medium text-gray-500 text-center text-theme-xs dark:text-gray-400"
                   >
                     납품 상태
                   </TableCell>
@@ -325,8 +325,8 @@ export default function Delivery() {
                 {displayRows.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={7}
-                      className="px-5 py-8 text-center text-theme-sm text-gray-500 dark:text-gray-400"
+                      colSpan={6}
+                      className="px-3 py-4 text-center text-theme-sm text-gray-500 dark:text-gray-400"
                     >
                       {(data?.items ?? []).length === 0
                         ? "조건에 맞는 납품이 없습니다."
@@ -338,20 +338,20 @@ export default function Delivery() {
                     const oid = deliveryOrderId(row);
                     return (
                       <TableRow key={row.id}>
-                        <TableCell className="px-5 py-4 text-start text-theme-sm sm:px-6">
+                        <TableCell className="px-3 text-start align-middle text-theme-sm">
                           <Link
                             to={`/delivery/${row.id}`}
-                            className="block rounded-md outline-offset-2 hover:text-brand-600 focus-visible:ring-2 focus-visible:ring-brand-400 dark:hover:text-brand-400"
+                            className="flex flex-col gap-0.5 rounded-md leading-tight outline-offset-2 hover:text-brand-600 focus-visible:ring-2 focus-visible:ring-brand-400 dark:hover:text-brand-400"
                           >
-                            <div className="font-medium text-brand-600 hover:underline dark:text-brand-400">
+                            <span className="font-medium text-brand-600 hover:underline dark:text-brand-400">
                               {row.deliveryNo?.trim() || `#${row.id}`}
-                            </div>
-                            <div className="text-theme-xs text-gray-500 dark:text-gray-400">
+                            </span>
+                            <span className="text-theme-xs leading-tight text-gray-500 dark:text-gray-400">
                               {row.title?.trim() || "-"}
-                            </div>
+                            </span>
                           </Link>
                         </TableCell>
-                        <TableCell className="px-4 py-3 text-start text-theme-sm">
+                        <TableCell className="px-3 text-start align-middle text-theme-sm">
                           {oid != null ? (
                             <Link
                               to={`/order/${oid}`}
@@ -363,7 +363,7 @@ export default function Delivery() {
                             <span className="text-gray-500">{deliveryOrderNo(row)}</span>
                           )}
                         </TableCell>
-                        <TableCell className="px-4 py-3 text-gray-700 text-start text-theme-sm dark:text-gray-300">
+                        <TableCell className="px-3 text-gray-700 text-start align-middle text-theme-sm dark:text-gray-300">
                           {oid != null ? (
                             <Link
                               to={`/order/${oid}`}
@@ -375,13 +375,13 @@ export default function Delivery() {
                             deliveryOrderTitle(row)
                           )}
                         </TableCell>
-                        <TableCell className="px-4 py-3 text-gray-500 text-theme-sm dark:text-gray-400">
+                        <TableCell className="px-3 text-gray-500 text-theme-sm align-middle dark:text-gray-400">
                           {partnerLabel(row, countryCodes)}
                         </TableCell>
-                        <TableCell className="px-4 py-3 text-gray-500 text-theme-sm dark:text-gray-400">
+                        <TableCell className="px-3 text-gray-500 text-theme-sm align-middle dark:text-gray-400">
                           {row.deliveryDate?.trim() ? row.deliveryDate : "-"}
                         </TableCell>
-                        <TableCell className="px-4 py-3 text-center">
+                        <TableCell className="px-3  text-center align-middle">
                           <Badge
                             size="sm"
                             color={badgeColorFromKoStatusLabel(getDeliveryStatusName(row.status))}

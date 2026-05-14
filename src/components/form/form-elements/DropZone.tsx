@@ -56,11 +56,11 @@ const DropzoneComponent: React.FC = () => {
 
             {/* Text Content */}
             <h4 className="mb-3 font-semibold text-gray-800 text-theme-xl dark:text-white/90">
-              {isDragActive ? "Drop Files Here" : "Drag & Drop Files Here"}
+              {isDragActive ? "여기에 파일을 놓으세요" : "파일을 끌어다 놓으세요"}
             </h4>
 
             <span className=" text-center mb-5 block w-full max-w-[290px] text-sm text-gray-700 dark:text-gray-400">
-              Drag and drop your PNG, JPG, WebP, SVG images here or browse
+              PNG, JPG, WebP, SVG 파일을 드래그하거나 선택하세요
             </span>
 
             <span className="font-medium underline text-theme-sm text-brand-500">

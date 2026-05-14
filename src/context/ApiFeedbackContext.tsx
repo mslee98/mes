@@ -51,6 +51,11 @@ export default function ApiFeedbackProvider({
         isOpen={forbiddenError !== null}
         onClose={handleGoBack}
         className="mx-4 max-w-md p-6 sm:p-8"
+        header={
+          <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">
+            접근 권한이 없습니다
+          </h3>
+        }
       >
         <div className="text-center">
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-error-50 text-error-600 dark:bg-error-500/10 dark:text-error-400">
@@ -76,10 +81,7 @@ export default function ApiFeedbackProvider({
               <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" />
             </svg>
           </div>
-          <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">
-            접근 권한이 없습니다
-          </h3>
-          <p className="mt-3 text-sm leading-6 text-gray-500 dark:text-gray-400">
+          <p className="text-sm leading-6 text-gray-500 dark:text-gray-400">
             권한이 없습니다. 관리자에게 문의하세요.
           </p>
           {forbiddenError?.message &&

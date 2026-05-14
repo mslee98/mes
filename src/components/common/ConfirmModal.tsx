@@ -54,6 +54,11 @@ export default function ConfirmModal({
       onClose={onClose}
       onCloseButtonClick={onCloseButtonClick}
       className="mx-4 max-w-md p-6 text-center sm:p-8"
+      header={
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+          {title}
+        </h3>
+      }
     >
       <div
         className={`mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full ${illustrationCircleClass}`}
@@ -65,10 +70,7 @@ export default function ConfirmModal({
         )}
       </div>
 
-      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-        {title}
-      </h3>
-      <p className="mt-3 text-sm leading-6 text-gray-500 dark:text-gray-300">
+      <p className="text-sm leading-6 text-gray-500 dark:text-gray-300">
         {message}
       </p>
 

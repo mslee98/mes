@@ -14,6 +14,7 @@ import { ScrollToTop } from "./components/common/ScrollToTop";
 import AuthEntry from "./pages/AuthEntry";
 import Order from "./pages/Order";
 import OrderDetail from "./pages/OrderDetail";
+import DeliveryPlanDetail from "./pages/DeliveryPlanDetail";
 import OrderForm from "./pages/OrderForm";
 import Organization from "./pages/Organization";
 import Menu from "./pages/Menu";
@@ -38,7 +39,7 @@ import ApiFeedbackProvider from "./context/ApiFeedbackContext";
 import { useAuth } from "./hooks/useAuth";
 import { useKeycloakAuth } from "./context/KeycloakProvider";
 import NotFound from "./pages/NotFound";
-import Delivery from "./pages/Delivery";
+import DeliveryUnits from "./pages/DeliveryUnits";
 import DeliveryDetail from "./pages/DeliveryDetail";
 import UIPlayground from "./pages/UIPlayground";
 import IddcaTypeTable from "./pages/IddcaTypeTable";
@@ -158,9 +159,13 @@ function App() {
               <Route path="order" element={<Order />} />
               <Route path="order/new" element={<OrderForm />} />
               <Route path="order/:orderId" element={<OrderDetail />} />
+              <Route
+                path="order/:orderId/plan/:planId"
+                element={<DeliveryPlanDetail />}
+              />
               <Route path="order/:orderId/edit" element={<OrderForm />} />
 
-              <Route path="delivery" element={<Delivery />} />
+              <Route path="delivery" element={<DeliveryUnits />} />
               <Route path="delivery/:deliveryId" element={<DeliveryDetail />} />
               <Route path="bug-board" element={<BugBoard />} />
 

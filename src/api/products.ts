@@ -1,5 +1,5 @@
 /**
- * 대표 제품(Product) API — `GET/POST/PATCH /api/products`.
+ * 대표 제품(Product) API — `GET/POST/PATCH/DELETE /api/products`.
  * 제품 정의 등 레거시 API는 `src/deprecated-inactive/api/productDefinitionsLegacy.ts`.
  */
 import { createApiError } from "../lib/apiError";
@@ -295,6 +295,24 @@ export async function updateProduct(
     throw await createApiError(res, "제품을 수정하지 못했습니다.");
   }
   return mapProduct(await res.json());
+}
+
+/** DELETE /api/products/:id — 성공 시 204, 본문 없음 */
+export async function deleteProduct(
+  id: string,
+  accessToken: string
+): Promise<void> {
+  const res = await fetchAuthorized(
+    `${API_BASE}/products/${id}`,
+    {
+      method: "DELETE",
+      headers: authHeaders(accessToken),
+      credentials: "include",
+    },
+    accessToken
+  );
+  if (res.ok && res.status === 204) return;
+  throw await createApiError(res, "대표 제품을 삭제하지 못했습니다.");
 }
 
 export async function uploadProductFiles(

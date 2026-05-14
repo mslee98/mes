@@ -209,7 +209,7 @@ export default function Lenses() {
   };
   const addPendingFilesForCreate = (files: File[]) => {
     if (files.length === 0) return;
-    setPendingFilesForCreate((prev) => [...prev, ...files].slice(0, 10));
+    setPendingFilesForCreate((prev) => [...prev, ...files].slice(0, 20));
     toast.success(`첨부 대기 목록에 ${files.length}건 추가되었습니다.`);
   };
   const removePendingCreateFile = (index: number) => {
@@ -342,8 +342,6 @@ export default function Lenses() {
                 onSelectFiles={addPendingFilesForCreate}
                 onError={toast.error}
                 disabled={createMutation.isPending}
-                maxFileSizeMb={50}
-                maxFiles={10}
                 multiple
                 buttonLabel="파일 선택"
                 uploadGuideText="파일을 선택하면 등록 시 함께 업로드됩니다."

@@ -66,6 +66,7 @@ import { ReactComponent as UserGroupIcon } from "./user-group.svg?react";
 import { ReactComponent as ArrowDownTrayIcon } from "./arrow-down-tray.svg?react";
 import { ReactComponent as ArrowTopRightOnSquareIcon } from "./arrow-top-right-on-square.svg?react";
 import { ReactComponent as BugAntIcon } from "./bug-ant.svg?react";
+
 export {
   ErrorHexaIcon,
   AlertHexaIcon,
