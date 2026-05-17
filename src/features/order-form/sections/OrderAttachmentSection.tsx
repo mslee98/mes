@@ -43,8 +43,6 @@ export default function OrderAttachmentSection({
             onSelectFiles={onSelectCreateFiles}
             onError={onError}
             disabled={isPending}
-            maxFileSizeMb={50}
-            maxFiles={10}
             multiple
             buttonLabel="파일 선택"
             uploadGuideText="파일을 먼저 선택하면 등록 시 자동으로 함께 업로드됩니다."
@@ -89,8 +87,6 @@ export default function OrderAttachmentSection({
             onSelectFiles={onUploadExistingFiles}
             onError={onError}
             disabled={isFileUploadPending}
-            maxFileSizeMb={50}
-            maxFiles={10}
             multiple
             buttonLabel="파일 선택"
             uploadGuideText="아래 버튼을 눌러 파일을 업로드하세요."

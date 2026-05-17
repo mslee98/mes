@@ -184,6 +184,10 @@
   --color-error-900: #7a271a;
   --color-error-950: #55160c;
 
+  /** 시맨틱 danger — 소프트 배경 태그(지연 등). `bg-danger-soft` / `text-fg-danger-strong` */
+  --color-danger-soft: #fef3f2;
+  --color-fg-danger-strong: #b42318;
+
   --color-warning-25: #fffcf5;
   --color-warning-50: #fffaeb;
   --color-warning-100: #fef0c7;
@@ -251,6 +255,45 @@
   }
   body {
     @apply relative font-normal font-outfit z-1 bg-gray-50 dark:bg-gray-900;
+  }
+}
+
+@keyframes process-pipeline-pulse-strong {
+  0%,
+  100% {
+    box-shadow: 0 0 0 3px rgb(54 65 245 / 0.38), 0 0 18px rgb(70 95 255 / 0.22);
+  }
+  50% {
+    box-shadow: 0 0 0 7px rgb(70 95 255 / 0.12), 0 0 26px rgb(70 95 255 / 0.28);
+  }
+}
+
+@keyframes process-pipeline-pulse-soft {
+  0%,
+  100% {
+    box-shadow: 0 0 0 2px rgb(54 65 245 / 0.22), 0 0 10px rgb(70 95 255 / 0.12);
+  }
+  50% {
+    box-shadow: 0 0 0 5px rgb(70 95 255 / 0.08), 0 0 16px rgb(70 95 255 / 0.18);
+  }
+}
+
+@layer utilities {
+  .process-pipeline-node-pulse-strong {
+    animation: process-pipeline-pulse-strong 2s ease-in-out infinite;
+  }
+  .process-pipeline-node-pulse-soft {
+    animation: process-pipeline-pulse-soft 2.3s ease-in-out infinite;
+  }
+  /** 스크롤바는 숨기고 휠·터치·트랙패드 스크롤은 그대로 */
+  .process-pipeline-viewport-scroll {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .process-pipeline-viewport-scroll::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
   }
 }
 
@@ -476,6 +519,55 @@
   box-shadow: 0px 4px 8px -2px rgba(16, 24, 40, 0.1),
     0px 2px 4px -2px rgba(16, 24, 40, 0.06) !important;
   z-index: 9999 !important;
+}
+
+/* monthSelect 플러그인: 기본 flatpickr 달력과 동일 너비(라이브러리 기본 307.875px) */
+.flatpickr-calendar.flatpickr-monthSelect-theme-light,
+.flatpickr-calendar.flatpickr-monthSelect-theme-dark {
+  width: 307.875px !important;
+  max-width: min(100vw - 1.5rem, 307.875px);
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+/* monthSelect: rContainer가 inline-block이라 그리드가 좁아짐 → 가로 전체 사용 */
+.flatpickr-calendar.flatpickr-monthSelect-theme-light .flatpickr-innerContainer,
+.flatpickr-calendar.flatpickr-monthSelect-theme-dark .flatpickr-innerContainer {
+  width: 100% !important;
+}
+
+.flatpickr-calendar.flatpickr-monthSelect-theme-light .flatpickr-rContainer,
+.flatpickr-calendar.flatpickr-monthSelect-theme-dark .flatpickr-rContainer {
+  display: block !important;
+  width: 100% !important;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+/* monthSelect: 12개월을 현재 패널 너비 기준 3열×4행 */
+.flatpickr-calendar.flatpickr-monthSelect-theme-light .flatpickr-monthSelect-months,
+.flatpickr-calendar.flatpickr-monthSelect-theme-dark .flatpickr-monthSelect-months {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  column-gap: 6px;
+  row-gap: 4px;
+  margin: 10px 0 6px 0;
+  width: 100% !important;
+  box-sizing: border-box;
+}
+
+.flatpickr-calendar.flatpickr-monthSelect-theme-light .flatpickr-monthSelect-month,
+.flatpickr-calendar.flatpickr-monthSelect-theme-dark .flatpickr-monthSelect-month {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  width: 100% !important;
+  max-width: 100%;
+  margin: 0 !important;
+  padding: 8px 4px !important;
+  box-sizing: border-box;
+  text-align: center;
 }
 .dark .flatpickr-calendar {
   box-shadow: 0px 12px 16px -4px rgba(16, 24, 40, 0.08),

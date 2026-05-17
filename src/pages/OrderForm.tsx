@@ -12,6 +12,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { useParams, useNavigate } from "react-router";
+import toast from "react-hot-toast";
 import { notify } from "../lib/notify";
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
@@ -865,8 +866,8 @@ export default function OrderForm() {
 
   const addPendingFileForCreate = (files: File[]) => {
     if (files.length === 0) return;
-    setPendingFilesForCreate((prev) => [...prev, ...files]);
-    notify.success(`첨부 대기 목록에 ${files.length}건 추가되었습니다.`);
+    setPendingFilesForCreate((prev) => [...prev, ...files].slice(0, 20));
+    toast.success(`첨부 대기 목록에 ${files.length}건 추가되었습니다.`);
   };
 
   const removePendingFileForCreate = (targetIndex: number) => {

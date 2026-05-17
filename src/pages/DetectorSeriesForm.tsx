@@ -5,6 +5,7 @@ import { notify } from "../lib/notify";
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import ComponentCard from "../components/common/ComponentCard";
+import ConfirmModal from "../components/common/ConfirmModal";
 import DetailPageState from "../components/common/DetailPageState";
 import Label from "../components/form/Label";
 import Input from "../components/form/input/InputField";
@@ -15,6 +16,7 @@ import { useAuth } from "../hooks/useAuth";
 import { useProductPermissions } from "../hooks/useProductPermissions";
 import {
   createDetectorSeries,
+  deleteDetectorSeries,
   getDetectorSeriesList,
   updateDetectorSeries,
 } from "../api/detectorSeries";
@@ -28,6 +30,7 @@ export default function DetectorSeriesForm() {
   const { accessToken, isLoading: isAuthLoading } = useAuth();
   const { canManageProducts } = useProductPermissions();
 
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -91,6 +94,22 @@ export default function DetectorSeriesForm() {
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: () => deleteDetectorSeries(accessToken as string, idNum),
+    onSuccess: () => {
+      toast.success("시리즈와 소속 검출기가 삭제되었습니다.");
+      void queryClient.invalidateQueries({ queryKey: ["detectorSeries"] });
+      void queryClient.invalidateQueries({ queryKey: ["detectors"] });
+      setDeleteOpen(false);
+      navigate("/detectors");
+    },
+    onError: (err: unknown) => {
+      const msg =
+        err instanceof Error ? err.message : "시리즈를 삭제하지 못했습니다.";
+      toast.error(msg);
+    },
+  });
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!canManageProducts) {
@@ -104,7 +123,7 @@ export default function DetectorSeriesForm() {
     saveMutation.mutate();
   };
 
-  const pending = saveMutation.isPending;
+  const pending = saveMutation.isPending || deleteMutation.isPending;
   const loadError = !isNew && !isListLoading && !existing && Number.isFinite(idNum);
 
   if (!canManageProducts) {
@@ -129,6 +148,13 @@ export default function DetectorSeriesForm() {
     );
   }
 
+  const seriesTitleForDelete =
+    existing?.name?.trim() ||
+    existing?.code?.trim() ||
+    (Number.isFinite(idNum) ? `#${idNum}` : "이 시리즈");
+
+  const deleteConfirmMessage = `시리즈「${seriesTitleForDelete}」을(를) 삭제합니다. 이 시리즈에 속한 검출기는 데이터베이스 규칙에 따라 함께 삭제됩니다. 납품 계획 또는 제품 시리얼에 연결된 검출기가 하나라도 있으면 삭제되지 않습니다. 삭제 후에는 복구할 수 없습니다. 계속할까요?`;
+
   return (
     <>
       <PageMeta
@@ -139,7 +165,21 @@ export default function DetectorSeriesForm() {
         pageTitle={isNew ? "시리즈 등록" : "시리즈 수정"}
       />
       <form onSubmit={handleSubmit}>
-        <ComponentCard title={isNew ? "시리즈 등록" : "시리즈 수정"}>
+        <ComponentCard
+          title={isNew ? "시리즈 등록" : "시리즈 수정"}
+          headerEnd={
+            !isNew ? (
+              <button
+                type="button"
+                onClick={() => setDeleteOpen(true)}
+                disabled={pending || isListLoading || !accessToken}
+                className="rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-red-900/40 dark:bg-gray-900 dark:text-red-400 dark:hover:bg-red-950/30"
+              >
+                시리즈 삭제
+              </button>
+            ) : null
+          }
+        >
           {isListLoading && !isNew ? (
             <p className="text-sm text-gray-500">불러오는 중…</p>
           ) : (
@@ -193,12 +233,30 @@ export default function DetectorSeriesForm() {
           )}
           <FormActionBar
             submitLabel={isNew ? "등록" : "저장"}
-            isPending={pending}
-            submitDisabled={!accessToken || isListLoading}
+            isPending={saveMutation.isPending}
+            submitDisabled={
+              !accessToken || isListLoading || deleteMutation.isPending
+            }
             cancelTo="/detectors"
           />
         </ComponentCard>
       </form>
+
+      {!isNew ? (
+        <ConfirmModal
+          isOpen={deleteOpen}
+          title="검출기 시리즈 삭제"
+          message={deleteConfirmMessage}
+          confirmText="삭제"
+          confirmVariant="danger"
+          illustration="trash"
+          isConfirming={deleteMutation.isPending}
+          onClose={() => {
+            if (!deleteMutation.isPending) setDeleteOpen(false);
+          }}
+          onConfirm={() => deleteMutation.mutate()}
+        />
+      ) : null}
     </>
   );
 }

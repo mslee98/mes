@@ -189,6 +189,24 @@ export async function updateLens(
   return mapLens(await res.json());
 }
 
+/** DELETE /api/lenses/:id — 성공 시 204, 본문 없음 */
+export async function deleteLens(
+  id: string,
+  accessToken: string
+): Promise<void> {
+  const res = await fetchAuthorized(
+    `${API_BASE}/lenses/${id}`,
+    {
+      method: "DELETE",
+      headers: authHeaders(accessToken),
+      credentials: "include",
+    },
+    accessToken
+  );
+  if (res.ok && res.status === 204) return;
+  throw await createApiError(res, "렌즈를 삭제하지 못했습니다.");
+}
+
 export async function uploadLensFiles(
   lensId: string,
   files: File[],

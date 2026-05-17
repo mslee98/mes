@@ -24,6 +24,7 @@ import { useCommonCodesByGroup } from "../hooks/useCommonCodesByGroup";
 import { usePartnersQuery } from "../hooks/usePartnersQuery";
 import {
   COMMON_CODE_GROUP_COUNTRY,
+  COMMON_CODE_GROUP_DETECTOR_TYPE,
   commonCodesToSelectOptions,
   labelForCommonCode,
 } from "../api/commonCode";
@@ -153,6 +154,32 @@ export default function DetectorForm() {
     accessToken,
     { enabled: !!accessToken && !isAuthLoading }
   );
+
+  const { data: detectorTypeCodes = [] } = useCommonCodesByGroup(
+    COMMON_CODE_GROUP_DETECTOR_TYPE,
+    accessToken,
+    { enabled: !!accessToken && !isAuthLoading }
+  );
+
+  const detectorTypeSelectOptions = useMemo(() => {
+    const base = commonCodesToSelectOptions(detectorTypeCodes);
+    const t = detectorType.trim();
+    if (
+      t &&
+      !base.some(
+        (o) => o.value.trim().toUpperCase() === t.toUpperCase()
+      )
+    ) {
+      return [
+        ...base,
+        {
+          value: t,
+          label: `${t} (저장된 값, 목록에 없음)`,
+        },
+      ];
+    }
+    return base;
+  }, [detectorTypeCodes, detectorType]);
 
   const countryOptions = useMemo<SearchableSelectOption[]>(() => {
     const opts = commonCodesToSelectOptions(countryCodes).map((item) => ({
@@ -325,6 +352,19 @@ export default function DetectorForm() {
       if (!dt) {
         throw new Error("검출기 타입은 필수입니다.");
       }
+      const activeDetectorTypes = detectorTypeCodes.filter(
+        (c) => c.isActive !== false
+      );
+      if (activeDetectorTypes.length > 0) {
+        const ok = activeDetectorTypes.some(
+          (c) => String(c.code ?? "").trim().toUpperCase() === dt.toUpperCase()
+        );
+        if (!ok) {
+          throw new Error(
+            "검출기 타입은 DETECTOR_TYPE 공통코드(활성)에서 선택해야 합니다."
+          );
+        }
+      }
       const ccRaw = countryCode.trim().toUpperCase();
       const countryPayload = ccRaw === "" ? null : ccRaw;
       const selectedLegacy = tryDecodeLegacyCustomer(customerPartnerSelectValue);
@@ -477,7 +517,9 @@ export default function DetectorForm() {
           ) : (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="sm:col-span-2">
-                <Label htmlFor="detector-series">검출기 시리즈 *</Label>
+                <Label htmlFor="detector-series" required>
+                  검출기 시리즈
+                </Label>
                 <Select
                   id="detector-series"
                   options={seriesSelectOptions}
@@ -487,16 +529,20 @@ export default function DetectorForm() {
                 />
               </div>
               <div className="sm:col-span-2">
-                <Label htmlFor="detector-type">검출기 타입 *</Label>
-                <Input
+                <Label htmlFor="detector-type" required>
+                  검출기 타입
+                </Label>
+                <Select
                   id="detector-type"
+                  options={detectorTypeSelectOptions}
                   value={detectorType}
-                  onChange={(e) => setDetectorType(e.target.value)}
-                  placeholder="유니크 타입 문자열"
+                  onChange={setDetectorType}
+                  placeholder={
+                    detectorTypeSelectOptions.length === 0
+                      ? "공통코드 로딩 중…"
+                      : "DETECTOR_TYPE 선택"
+                  }
                 />
-                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  DB 유니크 제약(UQ_detectors_type)이 있어 중복 시 저장이 거절될 수 있습니다.
-                </p>
               </div>
               <div className="sm:col-span-2">
                 <SearchableSelectWithCreate

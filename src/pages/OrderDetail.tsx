@@ -1,16 +1,25 @@
-import { useState, useMemo, useCallback, useEffect, startTransition } from "react";
+import {
+  useState,
+  useMemo,
+  useCallback,
+  useEffect,
+  useRef,
+  startTransition,
+} from "react";
 import {
   useQuery,
   useMutation,
   useQueryClient,
 } from "@tanstack/react-query";
-import { Link, useParams } from "react-router";
-import { notify } from "../lib/notify";
+import { Link, useNavigate, useParams } from "react-router";
+import toast from "react-hot-toast";
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import ComponentCard from "../components/common/ComponentCard";
 import { OrderDetailLinesCard } from "../components/order/OrderDetailLinesCard";
-import { OrderDetailDeliveriesCard } from "../components/order/OrderDetailDeliveriesCard";
+// import { OrderDetailDeliveriesCard } from "../components/order/OrderDetailDeliveriesCard";
+import { OrderDetailDeliveryPlansCard } from "../components/order/OrderDetailDeliveryPlansCard";
+import { OrderDetailLinkUnitsModal } from "../components/order/OrderDetailLinkUnitsModal";
 import ConfirmModal from "../components/common/ConfirmModal";
 import LoadingLottie from "../components/common/LoadingLottie";
 import { Modal } from "../components/ui/modal";
@@ -21,6 +30,8 @@ import {
   getPurchaseOrderFiles,
   getDeliveries,
   createDelivery,
+  createDeliveryPlan,
+  getPurchaseOrderDeliveryPlans,
   getPurchaseOrderSerialMaxSequence,
   aggregateDeliveredQtyByOrderItemId,
   getPurchaseOrderRequestDepartmentLabel,
@@ -30,13 +41,12 @@ import {
   type PurchaseOrderItem,
   type Delivery,
   type DeliveryCreatePayload,
+  type DeliveryPlan,
   type DeliveryCreateLinePayload,
   type Partner,
 } from "../api/purchaseOrder";
 import { API_BASE } from "../api/apiBase";
 import {
-  COMMON_CODE_GROUP_PURCHASE_ORDER_STATUS,
-  COMMON_CODE_GROUP_DELIVERY_STATUS,
   COMMON_CODE_GROUP_COUNTRY,
   COMMON_CODE_GROUP_WAVELENGTH,
 } from "../api/commonCode";
@@ -48,13 +58,22 @@ import Label from "../components/form/Label";
 import DatePicker from "../components/form/date-picker";
 import SearchableSelectWithCreate from "../components/form/SearchableSelectWithCreate";
 import TextArea from "../components/form/input/TextArea";
-import { formatCurrency, normalizeCurrencyCode } from "../lib/formatCurrency";
+import { formatCurrency } from "../lib/formatCurrency";
 import { lineItemsToAmountSummaries } from "../lib/orderLineAmountSummary";
 import { fileTypeIconSrc } from "../lib/fileTypeIcon";
-import { formatDateTimeKo, formatDateYmd } from "../lib/dateFormat";
+import { formatDateYmd } from "../lib/dateFormat";
 import { buildApiFileUrl, downloadFileWithAuth } from "../lib/fileDownload";
 import { ReactComponent as ArrowDownTrayIcon } from "../icons/arrow-down-tray.svg?react";
-import { ArrowTopRightOnSquareIcon } from "../icons";
+import {
+  ArrowTopRightOnSquareIcon,
+  ListIcon,
+  PencilIcon,
+  PlusIcon,
+  GroupIcon,
+  CalenderIcon,
+  DollarLineIcon,
+  TruckIcon,
+} from "../icons";
 import IconTooltip from "../components/ui/tooltip/IconTooltip";
 import { getUsers } from "../api/user";
 import {
@@ -188,20 +207,85 @@ function detectorElementInitial(code: string): string {
   return normalized.slice(0, 1);
 }
 
+function firstLineProductWithBusiness(
+  line: PurchaseOrderItem | undefined
+): string {
+  if (!line) return "-";
+  const baseLabel =
+    line.itemName?.trim() ||
+    line.productNameSnapshot?.trim() ||
+    line.definitionNameSnapshot?.trim() ||
+    (line.productId != null && String(line.productId).trim() !== ""
+      ? `제품 #${line.productId}`
+      : `라인 #${line.id}`);
+  const lineCode =
+    line.businessName?.trim() ||
+    line.businessNameSnapshot?.trim() ||
+    line.versionSnapshot?.trim() ||
+    "";
+  if (
+    !lineCode ||
+    baseLabel.includes(`(${lineCode})`) ||
+    baseLabel.startsWith("제품 #") ||
+    baseLabel.startsWith("라인 #")
+  ) {
+    return baseLabel;
+  }
+  return `${baseLabel} (${lineCode})`;
+}
+
+function compactYmdForPlanTitle(planned: string, delivery: string): string {
+  const src = planned.trim() ? planned.trim() : delivery.trim();
+  let ymd = formatDateYmd(src || undefined, { emptyFallback: "" });
+  if (!ymd || ymd === "-") {
+    ymd = formatDateYmd(new Date().toISOString(), { emptyFallback: "" });
+  }
+  return ymd.replace(/-/g, "");
+}
+
+function buildDeliveryPlanAutoTitle(opts: {
+  plannedDeliveryDate: string;
+  deliveryDate: string;
+  lines: PurchaseOrderItem[];
+  nextPlanSeq: number;
+}): string {
+  const compact = compactYmdForPlanTitle(
+    opts.plannedDeliveryDate,
+    opts.deliveryDate
+  );
+  const productSeg = firstLineProductWithBusiness(opts.lines[0]);
+  const totalQty = opts.lines.reduce(
+    (s, l) => s + (Number(l.qty) || 0),
+    0
+  );
+  return `${compact}-${productSeg}-${totalQty} ${opts.nextPlanSeq}차 납품계획`;
+}
+
 /**
- * 접수/납품 — 현재 UX
+ * 접수 / 납품 계획 / 실제 납품
  * -----------------------------------------------------------------
  * - 접수: PUT `.../purchase-orders/:id` (status=PO_CLOSED) — 발주 즉시 종결.
- * - 납품: POST `.../deliveries` — `order.status === PO_CLOSED` 일 때만 백엔드에서 허용.
+ * - 납품 계획: POST `.../delivery-plans` — 실제 납품과 동일 본문(`DeliveryCreatePayload`), 종결 후 등록, 상세는 `/order/:id/plan/:planId`.
+ * - 실제 납품: POST `.../deliveries` — `PO_CLOSED` 일 때만 허용; 저장 후 Unit 연결 모달에서 `delivery-items/:id/units`.
+ *
+ * UI: 과거 테이블형 상세(`?layout=classic`)는 제거됨 — 카드형 요약 레이아웃만 유지합니다.
  */
-
 export default function OrderDetail() {
   const { orderId } = useParams();
   const id = String(orderId ?? "").trim();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user: authUser, accessToken, isLoading: isAuthLoading } = useAuth();
 
+  /** 납품 모달: 실제 납품 vs 납품 계획 — 동일 폼·동일 `DeliveryCreatePayload`, 호출 API만 다름 */
+  const [deliveryModalPurpose, setDeliveryModalPurpose] = useState<
+    "actual" | "plan"
+  >("actual");
   const [deliveryModalOpen, setDeliveryModalOpen] = useState(false);
+  const [linkUnitsModalOpen, setLinkUnitsModalOpen] = useState(false);
+  const [linkUnitsDelivery, setLinkUnitsDelivery] = useState<Delivery | null>(
+    null
+  );
   const [deliveryTitle, setDeliveryTitle] = useState("");
   const [deliveryDate, setDeliveryDate] = useState("");
   const [plannedDeliveryDate, setPlannedDeliveryDate] = useState("");
@@ -232,6 +316,8 @@ export default function OrderDetail() {
       serialSnapshot?: Record<string, unknown>;
     }>
   >([]);
+  /** 시리얼 미리보기가 있을 때, 생성 시점과 다른 입력이 되면 미리보기를 무효화 */
+  const lastSerialDepsWhenPreviewRef = useRef<string | null>(null);
   const resetDeliveryModalForm = useCallback(() => {
     setDeliveryTitle("");
     setDeliveryDate("");
@@ -246,6 +332,23 @@ export default function OrderDetail() {
     setIsSerialRulePopoverOpen(false);
     setDeliverySerialPreviewRows([]);
   }, []);
+
+  const updateDeliverySerialPreviewSerialNo = useCallback(
+    (index: number, nextSerialNo: string) => {
+      setDeliverySerialPreviewRows((prev) => {
+        if (index < 0 || index >= prev.length) return prev;
+        const copy = [...prev];
+        const row = copy[index];
+        const serialSnapshot =
+          row.serialSnapshot && typeof row.serialSnapshot === "object"
+            ? { ...row.serialSnapshot, serialNo: nextSerialNo }
+            : row.serialSnapshot;
+        copy[index] = { ...row, serialNo: nextSerialNo, serialSnapshot };
+        return copy;
+      });
+    },
+    []
+  );
 
   /** 접수(종결) 확인 모달 */
   const [receiveConfirmOpen, setReceiveConfirmOpen] = useState(false);
@@ -268,15 +371,21 @@ export default function OrderDetail() {
     enabled: !!accessToken && id !== "",
   });
 
+  const { data: poDeliveryPlans = [] } = useQuery({
+    queryKey: ["purchaseOrderDeliveryPlans", id],
+    queryFn: () => getPurchaseOrderDeliveryPlans(id, accessToken!),
+    enabled: !!accessToken && !isAuthLoading && id !== "",
+  });
+
+  const nextDeliveryPlanSeq = useMemo(
+    () =>
+      Math.max(0, ...poDeliveryPlans.map((p) => p.planSeq ?? 0)) + 1,
+    [poDeliveryPlans]
+  );
+
   const deliveredByOrderItemId = useMemo(
     () => aggregateDeliveredQtyByOrderItemId(deliveries as Delivery[]),
     [deliveries]
-  );
-
-  const { data: purchaseOrderStatusCodes = [] } = useCommonCodesByGroup(
-    COMMON_CODE_GROUP_PURCHASE_ORDER_STATUS,
-    accessToken,
-    { enabled: !!accessToken && !isAuthLoading }
   );
 
   const { data: countryCodes = [] } = useCommonCodesByGroup(
@@ -285,11 +394,13 @@ export default function OrderDetail() {
     { enabled: !!accessToken && !isAuthLoading }
   );
 
+  /* 납품 실적 카드 비표시 시 DELIVERY_STATUS 코드 불필요 — 카드 복구 시 함께 해제
   const { data: deliveryStatusCodes = [] } = useCommonCodesByGroup(
     COMMON_CODE_GROUP_DELIVERY_STATUS,
     accessToken,
     { enabled: !!accessToken && !isAuthLoading }
   );
+  */
   const { data: wavelengthCodes = [] } = useCommonCodesByGroup(
     COMMON_CODE_GROUP_WAVELENGTH,
     accessToken,
@@ -444,14 +555,7 @@ export default function OrderDetail() {
     deliveryManagerUserSelectValue,
   ]);
 
-  const orderStatusDisplayName = useMemo(() => {
-    if (!order) return "-";
-    const d = order as PurchaseOrderDetail;
-    const code = String(d.status ?? d.orderStatus ?? "").trim();
-    const hit = purchaseOrderStatusCodes.find((c) => c.code === code);
-    return hit?.name || code || "-";
-  }, [order, purchaseOrderStatusCodes]);
-
+  /* 납품 실적 카드 전용 — 카드 복구 시 함께 해제
   const deliveryStatusDisplayName = useCallback(
     (statusCode: string | null | undefined) => {
       const code = String(statusCode ?? "").trim();
@@ -461,6 +565,7 @@ export default function OrderDetail() {
     },
     [deliveryStatusCodes]
   );
+  */
 
   /** 접수 시 발주 상태를 즉시 종결(PO_CLOSED)로 변경 */
   const receiveMutation = useMutation({
@@ -474,28 +579,55 @@ export default function OrderDetail() {
         accessToken!
       ),
     onSuccess: () => {
-      notify.success("접수되어 발주가 종결되었습니다.");
+      toast.success("접수되어 발주가 종결되었습니다.");
       setReceiveConfirmOpen(false);
       queryClient.invalidateQueries({ queryKey: ["purchaseOrder", id] });
       queryClient.invalidateQueries({ queryKey: ["purchaseOrders"] });
     },
     onError: (e: Error) =>
-      notify.error(e.message || "접수 처리에 실패했습니다."),
+      toast.error(e.message || "접수 처리에 실패했습니다."),
   });
 
   const deliveryMutation = useMutation({
-    mutationFn: async (vars: { deliveryPayload: DeliveryCreatePayload }) => {
+    mutationFn: async (vars: {
+      deliveryPayload: DeliveryCreatePayload;
+      purpose: "actual" | "plan";
+    }) => {
+      if (vars.purpose === "plan") {
+        return createDeliveryPlan(id, vars.deliveryPayload, accessToken!);
+      }
       return createDelivery(id, vars.deliveryPayload, accessToken!);
     },
-    onSuccess: () => {
-      notify.success("납품 및 시리얼이 등록되었습니다.");
+    onSuccess: (data, vars) => {
+      if (vars.purpose === "plan") {
+        const plan = data as DeliveryPlan;
+        toast.success("납품 계획이 등록되었습니다.");
+        setDeliveryModalOpen(false);
+        resetDeliveryModalForm();
+        setDeliveryModalPurpose("actual");
+        queryClient.invalidateQueries({ queryKey: ["purchaseOrder", id] });
+        queryClient.invalidateQueries({
+          queryKey: ["purchaseOrderDeliveryPlans", id],
+        });
+        navigate(`/order/${id}/plan/${plan.id}`);
+        return;
+      }
+      const delivery = data as Delivery;
+      toast.success("납품 및 시리얼이 등록되었습니다.");
       setDeliveryModalOpen(false);
       resetDeliveryModalForm();
       queryClient.invalidateQueries({ queryKey: ["purchaseOrderDeliveries", id] });
       queryClient.invalidateQueries({ queryKey: ["purchaseOrder", id] });
+      setLinkUnitsDelivery(delivery);
+      setLinkUnitsModalOpen(true);
     },
-    onError: (e: Error) =>
-      notify.error(e.message || "납품/시리얼 등록에 실패했습니다."),
+    onError: (e: Error, vars) =>
+      toast.error(
+        e.message ||
+          (vars.purpose === "plan"
+            ? "납품 계획 등록에 실패했습니다."
+            : "납품/시리얼 등록에 실패했습니다.")
+      ),
   });
 
   const orderLineSummaries = useMemo(() => {
@@ -503,7 +635,7 @@ export default function OrderDetail() {
     const d = order as PurchaseOrderDetail;
     return lineItemsToAmountSummaries(
       d.orderItems ?? d.items ?? [],
-      normalizeCurrencyCode(d.currencyCode)
+      d.currencyCode ?? "KRW"
     );
   }, [order]);
 
@@ -514,6 +646,59 @@ export default function OrderDetail() {
         []) as PurchaseOrderItem[],
     [order]
   );
+
+  useEffect(() => {
+    if (!deliveryModalOpen || deliveryModalPurpose !== "plan") return;
+    startTransition(() => {
+      setDeliveryTitle(
+        buildDeliveryPlanAutoTitle({
+          plannedDeliveryDate,
+          deliveryDate,
+          lines: orderLines,
+          nextPlanSeq: nextDeliveryPlanSeq,
+        })
+      );
+    });
+  }, [
+    deliveryModalOpen,
+    deliveryModalPurpose,
+    plannedDeliveryDate,
+    deliveryDate,
+    orderLines,
+    nextDeliveryPlanSeq,
+  ]);
+
+  useEffect(() => {
+    const snap = JSON.stringify({
+      deliveryDate,
+      wavelengthCode,
+      detectorId,
+      deliverySerialQtyInput,
+      deliveryLineQtyInput,
+    });
+    if (deliverySerialPreviewRows.length === 0) {
+      lastSerialDepsWhenPreviewRef.current = null;
+      return;
+    }
+    if (lastSerialDepsWhenPreviewRef.current === null) {
+      lastSerialDepsWhenPreviewRef.current = snap;
+      return;
+    }
+    if (lastSerialDepsWhenPreviewRef.current !== snap) {
+      lastSerialDepsWhenPreviewRef.current = snap;
+      startTransition(() => {
+        setDeliverySerialPreviewRows([]);
+        setIsSerialRulePopoverOpen(false);
+      });
+    }
+  }, [
+    deliveryDate,
+    wavelengthCode,
+    detectorId,
+    deliverySerialQtyInput,
+    deliveryLineQtyInput,
+    deliverySerialPreviewRows.length,
+  ]);
 
   if (orderLoading || !order) {
     return (
@@ -545,7 +730,8 @@ export default function OrderDetail() {
     firstOrderLine?.lensNameSnapshot?.trim() ||
     "-";
 
-  const openDeliveryRegistrationModal = () => {
+  const openDeliveryRegistrationModal = (purpose: "actual" | "plan") => {
+    setDeliveryModalPurpose(purpose);
     const init: Record<string, string> = {};
     for (const line of orderLines) {
       init[deliveryQtyKey(line.id)] = "";
@@ -554,10 +740,22 @@ export default function OrderDetail() {
     setDeliverySerialQtyInput("");
     setIsSerialRulePopoverOpen(false);
     setDeliverySerialPreviewRows([]);
-    const phase = (deliveries as Delivery[]).length + 1;
     const orderTitle = (po.title ?? "").trim() || po.orderNo || "발주";
-    setDeliveryTitle(`${orderTitle} ${phase}차 납품`);
-    setDeliveryDate(new Date().toISOString().slice(0, 10));
+    const initialDeliveryDate = new Date().toISOString().slice(0, 10);
+    if (purpose === "plan") {
+      setDeliveryTitle(
+        buildDeliveryPlanAutoTitle({
+          plannedDeliveryDate: "",
+          deliveryDate: initialDeliveryDate,
+          lines: orderLines,
+          nextPlanSeq: nextDeliveryPlanSeq,
+        })
+      );
+    } else {
+      const phase = (deliveries as Delivery[]).length + 1;
+      setDeliveryTitle(`${orderTitle} ${phase}차 납품`);
+    }
+    setDeliveryDate(initialDeliveryDate);
     setPlannedDeliveryDate("");
     setDeliveryRemark("");
     setWavelengthCode("");
@@ -575,31 +773,31 @@ export default function OrderDetail() {
   };
   const handleGenerateSerialClick = async () => {
     if (!hasDeliveryTargets) {
-      notify.error("등록할 제품 라인이 없습니다.");
+      toast.error("등록할 제품 라인이 없습니다.");
       return;
     }
     const raw = deliverySerialQtyInput.trim();
     const qty = Number(raw);
     if (!raw || !Number.isFinite(qty) || qty <= 0 || !Number.isInteger(qty)) {
-      notify.error("납품 수량은 1 이상의 정수로 입력하세요.");
+      toast.error("납품 수량은 1 이상의 정수로 입력하세요.");
       return;
     }
     if (!wavelengthCode.trim()) {
-      notify.error("파장정보를 선택하세요.");
+      toast.error("파장정보를 선택하세요.");
       return;
     }
     if (!detectorId.trim()) {
-      notify.error("검출기 타입을 선택하세요.");
+      toast.error("검출기 타입을 선택하세요.");
       return;
     }
     if (!selectedDetector) {
-      notify.error("검출기 정보를 찾을 수 없습니다. 다시 선택하세요.");
+      toast.error("검출기 정보를 찾을 수 없습니다. 다시 선택하세요.");
       return;
     }
     const normalizedWavelengthCode = wavelengthCode.trim().toUpperCase();
     const arrayWidth = Number(selectedDetector.arrayWidth);
     if (!Number.isFinite(arrayWidth) || arrayWidth <= 0) {
-      notify.error("검출기 해상도(가로) 정보가 없습니다.");
+      toast.error("검출기 해상도(가로) 정보가 없습니다.");
       return;
     }
     const resolutionCode = String(Math.trunc(arrayWidth)).padStart(4, "0");
@@ -607,17 +805,17 @@ export default function OrderDetail() {
       String(selectedDetector.detectorType ?? "")
     );
     if (!detectorTypeCode) {
-      notify.error("검출기 타입 코드(A/A2 등)를 파싱하지 못했습니다.");
+      toast.error("검출기 타입 코드(A/A2 등)를 파싱하지 못했습니다.");
       return;
     }
     const yearCode = yearCodeFromDate(deliveryDate.trim());
     if (!yearCode) {
-      notify.error("제작년도 코드 매핑이 없습니다. (예: 2025→O, 2026→P)");
+      toast.error("제작년도 코드 매핑이 없습니다. (예: 2025→O, 2026→P)");
       return;
     }
     const customerCode = String(po.partner?.code ?? "").trim().toUpperCase();
     if (!customerCode) {
-      notify.error("고객사 업체코드를 찾을 수 없습니다.");
+      toast.error("고객사 업체코드를 찾을 수 없습니다.");
       return;
     }
     const qtyEps = 1e-9;
@@ -665,7 +863,7 @@ export default function OrderDetail() {
       const serialMeta = productSerialMetaById.get(String(line.productId ?? "").trim());
       const businessCode = serialMeta?.businessCode ?? "";
       if (!businessCode) {
-        notify.error(
+        toast.error(
           `제품 business_code를 찾을 수 없습니다. (${line.itemName ?? "품목"})`
         );
         return;
@@ -673,14 +871,14 @@ export default function OrderDetail() {
       const pitchCode = pitchCodeFromRaw(serialMeta?.pixelPitch ?? "");
 
       if (!pitchCode) {
-        notify.error(
+        toast.error(
           `제품 Pixel Pitch 코드 매핑이 없습니다. (${line.itemName ?? "품목"})`
         );
         return;
       }
       const detectorElementCode = detectorElementCodeFromBusinessName(lineCode);
       if (!detectorElementCode) {
-        notify.error(
+        toast.error(
           `소자정보를 찾을 수 없습니다. (${line.itemName ?? "품목"})`
         );
         return;
@@ -708,7 +906,7 @@ export default function OrderDetail() {
         const prev = deliveredByOrderItemId.get(line.id) ?? 0;
         return sum + Math.max(0, line.qty - prev);
       }, 0);
-      notify.error(`잔여 수량(${totalRemaining})을 초과했습니다.`);
+      toast.error(`잔여 수량(${totalRemaining})을 초과했습니다.`);
       return;
     }
     const uniqueSequenceKeys = [...new Set(plannedRows.map((row) => row.sequenceKey))];
@@ -727,7 +925,7 @@ export default function OrderDetail() {
         error instanceof Error
           ? error.message
           : "시리얼 시퀀스 조회 중 오류가 발생했습니다.";
-      notify.error(message);
+      toast.error(message);
       return;
     }
     const sequenceCounterByKey = new Map<string, number>();
@@ -765,7 +963,7 @@ export default function OrderDetail() {
     });
     setDeliveryLineQtyInput(nextInput);
     setDeliverySerialPreviewRows(nextSerialRows);
-    notify.success("시리얼 넘버를 발급했습니다.");
+    toast.success("시리얼 넘버를 발급했습니다.");
   };
 
   const createdById = po.createdBy?.id;
@@ -786,8 +984,7 @@ export default function OrderDetail() {
   const partnerFlagUrl = partnerCountryFlagUrl(
     String((po.partner as Partner | undefined)?.countryCode ?? "")
   );
-  const normalizedHeaderCurrency = normalizeCurrencyCode(po.currencyCode);
-  const isForeignHeaderCurrency = normalizedHeaderCurrency !== "KRW";
+  const headerCurrency = po.currencyCode ?? "KRW";
   const supplyAmountValue =
     po.supplyAmount != null && Number.isFinite(Number(po.supplyAmount))
       ? Number(po.supplyAmount)
@@ -799,326 +996,318 @@ export default function OrderDetail() {
       : null);
   const totalAmountWithVat =
     subtotalForVat != null ? subtotalForVat * 1.1 : null;
-  const exchangeRateValue = Number(po.exchangeRate ?? NaN);
-  const hasExchangeRate =
-    Number.isFinite(exchangeRateValue) && exchangeRateValue > 0;
-  const exchangeRateDateLabel = formatDateYmd(po.exchangeRateDate ?? po.orderDate, {
-    emptyFallback: "-",
-  });
-  const supplyAmountKrw =
-    supplyAmountValue != null && isForeignHeaderCurrency && hasExchangeRate
-      ? supplyAmountValue * exchangeRateValue
-      : null;
-  const totalAmountKrw =
-    totalAmountWithVat != null && isForeignHeaderCurrency && hasExchangeRate
-      ? totalAmountWithVat * exchangeRateValue
-      : null;
-  const orderSummaryTh =
-    "w-[11%] min-w-[5.5rem] whitespace-nowrap bg-gray-50 px-3 py-2.5 text-left text-theme-xs font-medium text-gray-600 dark:bg-gray-800/60 dark:text-gray-400";
-  const orderSummaryTd = "px-3 py-2.5 text-sm text-gray-900 dark:text-gray-100";
+  const planCount = poDeliveryPlans.length;
+  const deliveryOverviewText =
+    planCount === 0 ? "납품계획 없음" : `납품계획 ${planCount}건`;
+  const totalWithVatDisplay =
+    totalAmountWithVat != null
+      ? `${formatCurrency(totalAmountWithVat, headerCurrency)} (부가세 포함)`
+      : "—";
 
   return (
     <>
       <PageMeta title={`발주 ${po.orderNo}`} description={`발주 ${po.orderNo} 상세`} />
       <PageBreadcrumb pageTitle={`발주 상세 · ${po.orderNo}`} />
 
-      <div className="space-y-6">
-        <ComponentCard title="발주 정보" collapsible>
-          <div className="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
-            <div className="flex flex-col gap-3 border-b border-gray-100 bg-gray-50/90 px-4 py-3 dark:border-white/10 dark:bg-white/[0.04] sm:flex-row sm:items-center sm:justify-between">
-              <dl className="flex min-w-0 flex-wrap gap-x-5 gap-y-2 text-theme-xs">
-                <div className="flex min-w-0 max-w-full items-baseline gap-1.5">
-                  <dt className="shrink-0 text-gray-500 dark:text-gray-400">발주 상태</dt>
-                  <dd className="font-semibold text-gray-900 dark:text-white">
-                    {orderStatusDisplayName}
-                  </dd>
+      <div className="space-y-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
+            <h1 className="flex flex-wrap items-baseline gap-2 text-xl font-semibold tracking-tight text-gray-900 dark:text-white sm:gap-2.5 sm:text-2xl">
+              <span>발주 상세</span>
+              <span className="font-mono text-lg font-medium text-gray-700 dark:text-gray-300">
+                {po.orderNo}
+              </span>
+            </h1>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5 lg:justify-end">
+            <Link
+              to="/order"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700/80"
+            >
+              <ListIcon className="size-4 shrink-0" aria-hidden />
+              목록
+            </Link>
+            {canEditOrder ? (
+              <Link
+                to={`/order/${id}/edit`}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700/80"
+              >
+                <PencilIcon className="size-4 shrink-0" aria-hidden />
+                수정
+              </Link>
+            ) : null}
+            {canShowReceiveButton ? (
+              <button
+                type="button"
+                onClick={() => setReceiveConfirmOpen(true)}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-brand-500 bg-white px-2.5 py-1.5 text-sm font-medium text-brand-600 shadow-theme-xs hover:bg-brand-50 dark:border-brand-600 dark:bg-gray-800 dark:text-brand-400 dark:hover:bg-brand-500/10"
+              >
+                접수
+              </button>
+            ) : null}
+            <button
+              type="button"
+              disabled={!canRegisterDelivery}
+              title={
+                canRegisterDelivery
+                  ? undefined
+                  : "발주가 종결(PO_CLOSED)된 뒤에만 등록할 수 있습니다."
+              }
+              onClick={() => openDeliveryRegistrationModal("plan")}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-brand-500 px-2.5 py-1.5 text-sm font-medium text-white shadow-theme-xs hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-45 dark:bg-brand-600 dark:hover:bg-brand-500"
+            >
+              <PlusIcon className="size-4 shrink-0" aria-hidden />
+              납품 계획 만들기
+            </button>
+          </div>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="flex min-h-[7.25rem] flex-col justify-center rounded-xl border border-gray-100 bg-white p-3.5 shadow-theme-xs dark:border-white/10 dark:bg-white/[0.02] sm:min-h-[7.75rem] sm:p-4">
+            <div className="flex items-center gap-3">
+              <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-gray-100 text-gray-700 shadow-inner dark:bg-white/[0.08] dark:text-gray-200 sm:size-14">
+                <GroupIcon className="size-7 sm:size-8" aria-hidden />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-semibold tracking-wide text-gray-500 dark:text-gray-400">
+                  거래처
+                </p>
+                <div className="mt-1 flex items-center gap-2 text-sm font-medium leading-snug text-gray-900 dark:text-white">
+                  {partnerFlagUrl ? (
+                    <img
+                      src={partnerFlagUrl}
+                      alt=""
+                      className="h-5 w-[1.375rem] shrink-0 rounded-sm object-cover"
+                      decoding="async"
+                    />
+                  ) : null}
+                  <span className="min-w-0 truncate">{partnerName}</span>
                 </div>
-                {/* <div className="flex min-w-0 max-w-full items-baseline gap-1.5">
-                  <dt className="shrink-0 text-gray-500 dark:text-gray-400">부서</dt>
-                  <dd className="max-w-md break-words font-medium text-gray-900 dark:text-gray-100">
-                    {requestDeptLabel || "-"}
-                  </dd>
-                </div> */}
-                <div className="flex items-baseline gap-1.5">
-                  <dt className="shrink-0 text-gray-500 dark:text-gray-400">담당</dt>
-                  <dd className="font-medium text-gray-900 dark:text-gray-100">
-                    {po.requesterName?.trim() || "-"}
-                  </dd>
-                </div>
-                {po.createdBy?.name ? (
-                  <div className="flex items-baseline gap-1.5">
-                    <dt className="shrink-0 text-gray-500 dark:text-gray-400">등록</dt>
-                    <dd className="font-medium text-gray-900 dark:text-gray-100">
-                      {po.createdBy.name}
-                    </dd>
-                  </div>
-                ) : null}
-              </dl>
-              <div className="flex flex-wrap gap-2 sm:shrink-0 sm:justify-end">
-                {canShowReceiveButton ? (
-                  <button
-                    type="button"
-                    onClick={() => setReceiveConfirmOpen(true)}
-                    className="inline-flex rounded-lg border border-brand-500 bg-brand-500 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-brand-600 dark:border-brand-600 dark:hover:bg-brand-600"
-                  >
-                    접수
-                  </button>
-                ) : null}
-                {canEditOrder ? (
-                  <Link
-                    to={`/order/${id}/edit`}
-                    className="inline-flex rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
-                  >
-                    수정
-                  </Link>
-                ) : null}
-                <Link
-                  to="/order"
-                  className="inline-flex rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
-                >
-                  목록
-                </Link>
               </div>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[36rem] border-collapse text-sm">
-              <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                <tr>
-                  <th scope="row" className={orderSummaryTh}>
-                    발주번호
-                  </th>
-                  <td className={orderSummaryTd}>{po.orderNo}</td>
-                  <th scope="row" className={orderSummaryTh}>
-                    제목
-                  </th>
-                  <td className={orderSummaryTd}>{po.title?.trim() || "-"}</td>
-                </tr>
-                <tr>
-                  <th scope="row" className={orderSummaryTh}>
-                    거래처
-                  </th>
-                  <td className={orderSummaryTd}>
-                    <div className="flex items-center gap-2">
-                      {partnerFlagUrl ? (
-                        <img
-                          src={partnerFlagUrl}
-                          alt=""
-                          className="h-5 w-[1.375rem] shrink-0 rounded-sm object-cover"
-                          decoding="async"
-                        />
-                      ) : null}
-                      <span>{partnerName}</span>
-                    </div>
-                  </td>
-                  <th scope="row" className={orderSummaryTh}>
-                    발주일
-                  </th>
-                  <td className={orderSummaryTd}>
-                    {formatDateYmd(po.orderDate, { emptyFallback: "-" })}
-                  </td>
-                </tr>
-                <tr>
-                  <th scope="row" className={orderSummaryTh}>
-                    업체 발주번호
-                  </th>
-                  <td className={orderSummaryTd}>
-                    {po.vendorOrderNo?.trim() || "—"}
-                  </td>
-                  <th scope="row" className={orderSummaryTh}>
-                    고객요청납기일
-                  </th>
-                  <td className={orderSummaryTd}>
-                    {formatDateYmd(po.dueDate, { emptyFallback: "-" })}
-                  </td>
-                </tr>
-                {po.vendorRequest ? (
-                  <tr>
-                    <th
-                      scope="row"
-                      className={`${orderSummaryTh} align-top`}
-                    >
-                      업체 요청사항
-                    </th>
-                    <td className={orderSummaryTd} colSpan={3}>
-                      <span className="whitespace-pre-wrap">{po.vendorRequest}</span>
-                    </td>
-                  </tr>
-                ) : null}
-                {po.specialNote ? (
-                  <tr>
-                    <th
-                      scope="row"
-                      className={`${orderSummaryTh} align-top`}
-                    >
-                      특이사항
-                    </th>
-                    <td className={orderSummaryTd} colSpan={3}>
-                      <span className="whitespace-pre-wrap">{po.specialNote}</span>
-                    </td>
-                  </tr>
-                ) : null}
-                <tr>
-                  <th scope="row" className={orderSummaryTh}>
-                    공급가액
-                  </th>
-                  <td
-                    className={`${orderSummaryTd} font-medium tabular-nums`}
-                    colSpan={3}
-                  >
-                    {supplyAmountValue != null ? (
-                      <>
-                        {formatCurrency(supplyAmountValue, normalizedHeaderCurrency)}
-                        <span className="ml-1.5 text-theme-xs font-normal text-gray-500 dark:text-gray-400">
-                          ({normalizedHeaderCurrency})
-                        </span>
-                        {isForeignHeaderCurrency ? (
-                          <span className="mt-1 block text-theme-xs font-normal text-gray-500 dark:text-gray-400">
-                            {supplyAmountKrw != null ? (
-                              <>
-                                환산(기준환율{" "}
-                                {formatCurrency(exchangeRateValue, "KRW", {
-                                  withSymbol: false,
-                                })}
-                                원, {exchangeRateDateLabel}){" "}
-                                {formatCurrency(supplyAmountKrw, "KRW")}
-                              </>
-                            ) : (
-                              "환산값 없음 (환율 미등록)"
-                            )}
-                          </span>
-                        ) : null}
-                      </>
-                    ) : (
-                      "—"
-                    )}
-                  </td>
-                </tr>
-                <tr>
-                  <th scope="row" className={orderSummaryTh}>
-                    합계
-                  </th>
-                  <td
-                    className={`${orderSummaryTd} font-medium tabular-nums`}
-                    colSpan={3}
-                  >
-                    {totalAmountWithVat != null ? (
-                      <>
-                        {formatCurrency(totalAmountWithVat, normalizedHeaderCurrency)}
-                        <span className="ml-1.5 text-theme-xs font-normal text-gray-500 dark:text-gray-400">
-                          ({normalizedHeaderCurrency})
-                        </span>
-                        {isForeignHeaderCurrency ? (
-                          <span className="mt-1 block text-theme-xs font-normal text-gray-500 dark:text-gray-400">
-                            {totalAmountKrw != null ? (
-                              <>
-                                환산(기준환율{" "}
-                                {formatCurrency(exchangeRateValue, "KRW", {
-                                  withSymbol: false,
-                                })}
-                                원, {exchangeRateDateLabel}){" "}
-                                {formatCurrency(totalAmountKrw, "KRW")}
-                              </>
-                            ) : (
-                              "환산값 없음 (환율 미등록)"
-                            )}
-                          </span>
-                        ) : null}
-                      </>
-                    ) : (
-                      "—"
-                    )}
-                  </td>
-                </tr>
-                {po.memo != null && String(po.memo).trim() !== "" ? (
-                  <tr>
-                    <th
-                      scope="row"
-                      className={`${orderSummaryTh} align-top`}
-                    >
-                      메모
-                    </th>
-                    <td className={orderSummaryTd} colSpan={3}>
-                      <span className="whitespace-pre-wrap">{String(po.memo)}</span>
-                    </td>
-                  </tr>
-                ) : null}
-                <tr>
-                  <th scope="row" className={`${orderSummaryTh} align-top`}>
-                    첨부파일
-                  </th>
-                  <td className={orderSummaryTd} colSpan={3}>
-                    {(files as PurchaseOrderFile[]).length === 0 ? (
-                      <span className="text-gray-500">첨부파일이 없습니다.</span>
-                    ) : (
-                      <ul className="space-y-2">
-                        {(files as PurchaseOrderFile[]).map((f) => (
-                          <li key={f.id} className="flex items-center gap-2">
-                            <img
-                              src={fileTypeIconSrc(String(f.fileName ?? ""))}
-                              alt=""
-                              className="h-5 w-5 shrink-0"
-                              decoding="async"
-                            />
-                            <span className="min-w-0 truncate text-gray-900 dark:text-gray-100">
-                              {f.fileName}
-                            </span>
-                            <div className="flex shrink-0 items-center gap-2">
-                              <span className="text-theme-xs text-gray-500">
-                                {formatDateTimeKo(f.uploadedAt ?? f.createdAt ?? "", {
-                                  emptyFallback: "",
-                                })}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={async () => {
-                                  try {
-                                    await downloadFileWithAuth({
-                                      fileUrl: buildApiFileUrl(
-                                        f.filePath ?? "",
-                                        API_BASE
-                                      ),
-                                      fileName: f.fileName ?? "attachment",
-                                      accessToken: accessToken!,
-                                    });
-                                  } catch (error) {
-                                    const message =
-                                      error instanceof Error
-                                        ? error.message
-                                        : "첨부파일 다운로드에 실패했습니다.";
-                                    notify.error(message);
-                                  }
-                                }}
-                                title="첨부파일 다운로드"
-                                aria-label="첨부파일 다운로드"
-                                className="inline-flex size-8 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-brand-50 hover:text-brand-600 dark:hover:bg-brand-500/10 dark:hover:text-brand-400"
-                              >
-                                <ArrowDownTrayIcon className="size-4" aria-hidden />
-                              </button>
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+          </div>
+          <div className="flex min-h-[7.25rem] flex-col justify-center rounded-xl border border-gray-100 bg-white p-3.5 shadow-theme-xs dark:border-white/10 dark:bg-white/[0.02] sm:min-h-[7.75rem] sm:p-4">
+            <div className="flex items-center gap-3">
+              <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-gray-100 text-gray-700 shadow-inner dark:bg-white/[0.08] dark:text-gray-200 sm:size-14">
+                <CalenderIcon className="size-7 sm:size-8" aria-hidden />
+              </div>
+              <div className="min-w-0 flex-1 space-y-1 text-sm leading-snug text-gray-900 dark:text-white">
+                <p className="text-xs font-semibold tracking-wide text-gray-500 dark:text-gray-400">
+                  일정
+                </p>
+                <p>
+                  <span className="text-gray-500 dark:text-gray-400">발주일</span>{" "}
+                  {formatDateYmd(po.orderDate, { emptyFallback: "-" })}
+                </p>
+                <p>
+                  <span className="text-gray-500 dark:text-gray-400">요청 납기</span>{" "}
+                  {formatDateYmd(po.dueDate, { emptyFallback: "-" })}
+                </p>
+              </div>
             </div>
+          </div>
+          <div className="flex min-h-[7.25rem] flex-col justify-center rounded-xl border border-gray-100 bg-white p-3.5 shadow-theme-xs dark:border-white/10 dark:bg-white/[0.02] sm:min-h-[7.75rem] sm:p-4">
+            <div className="flex items-center gap-3">
+              <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-gray-100 text-gray-700 shadow-inner dark:bg-white/[0.08] dark:text-gray-200 sm:size-14">
+                <DollarLineIcon className="size-7 sm:size-8" aria-hidden />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-semibold tracking-wide text-gray-500 dark:text-gray-400">
+                  합계 금액
+                </p>
+                <p className="mt-1 text-sm font-semibold tabular-nums leading-snug text-gray-900 dark:text-white">
+                  {totalWithVatDisplay}
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="flex min-h-[7.25rem] flex-col justify-center rounded-xl border border-gray-100 bg-white p-3.5 shadow-theme-xs dark:border-white/10 dark:bg-white/[0.02] sm:min-h-[7.75rem] sm:p-4">
+            <div className="flex items-center gap-3">
+              <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-gray-100 text-gray-700 shadow-inner dark:bg-white/[0.08] dark:text-gray-200 sm:size-14">
+                <TruckIcon className="size-7 sm:size-8" aria-hidden />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-semibold tracking-wide text-gray-500 dark:text-gray-400">
+                  납품 진행
+                </p>
+                <p className="mt-1 text-sm font-medium leading-snug text-gray-900 dark:text-white">
+                  {deliveryOverviewText}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <ComponentCard
+          title="발주 정보"
+          desc="발주 마스터 및 고객 요청 사항입니다."
+          collapsible={false}
+          className="[&>div:first-child]:px-4 [&>div:first-child]:py-3.5"
+          bodyClassName="!p-3 sm:!p-4"
+          contentClassName="!space-y-3"
+        >
+          {!canRegisterDelivery ? (
+            <p className="mb-2 text-theme-xs text-amber-700 dark:text-amber-400/90">
+              발주가 종결(PO_CLOSED)된 뒤에만 납품 계획을 등록할 수 있습니다.
+            </p>
+          ) : null}
+          <div className="grid gap-5 md:grid-cols-2">
+            <dl className="space-y-3">
+              <div>
+                <dt className="text-theme-xs font-medium text-gray-500 dark:text-gray-400">
+                  거래처
+                </dt>
+                <dd className="mt-1 flex items-center gap-2 text-sm text-gray-900 dark:text-white">
+                  {partnerFlagUrl ? (
+                    <img
+                      src={partnerFlagUrl}
+                      alt=""
+                      className="h-5 w-[1.375rem] shrink-0 rounded-sm object-cover"
+                      decoding="async"
+                    />
+                  ) : null}
+                  <span>{partnerName}</span>
+                </dd>
+              </div>
+              <div>
+                <dt className="text-theme-xs font-medium text-gray-500 dark:text-gray-400">
+                  발주일
+                </dt>
+                <dd className="mt-1 text-sm text-gray-900 dark:text-white">
+                  {formatDateYmd(po.orderDate, { emptyFallback: "-" })}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-theme-xs font-medium text-gray-500 dark:text-gray-400">
+                  고객 발주번호
+                </dt>
+                <dd className="mt-1 text-sm text-gray-900 dark:text-white">
+                  {po.vendorOrderNo?.trim() || "—"}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-theme-xs font-medium text-gray-500 dark:text-gray-400">
+                  담당자
+                </dt>
+                <dd className="mt-1 text-sm text-gray-900 dark:text-white">
+                  {po.requesterName?.trim() ||
+                    po.createdBy?.name?.trim() ||
+                    "—"}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-theme-xs font-medium text-gray-500 dark:text-gray-400">
+                  첨부파일
+                </dt>
+                <dd className="mt-1">
+                  {(files as PurchaseOrderFile[]).length === 0 ? (
+                    <span className="text-sm text-gray-500">첨부파일이 없습니다.</span>
+                  ) : (
+                    <ul className="space-y-2">
+                      {(files as PurchaseOrderFile[]).map((f) => (
+                        <li key={f.id} className="flex items-center gap-2">
+                          <img
+                            src={fileTypeIconSrc(String(f.fileName ?? ""))}
+                            alt=""
+                            className="h-5 w-5 shrink-0"
+                            decoding="async"
+                          />
+                          <span className="min-w-0 flex-1 truncate text-sm text-gray-900 dark:text-gray-100">
+                            {f.fileName}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              try {
+                                await downloadFileWithAuth({
+                                  fileUrl: buildApiFileUrl(
+                                    f.filePath ?? "",
+                                    API_BASE
+                                  ),
+                                  fileName: f.fileName ?? "attachment",
+                                  accessToken: accessToken!,
+                                });
+                              } catch (error) {
+                                const message =
+                                  error instanceof Error
+                                    ? error.message
+                                    : "첨부파일 다운로드에 실패했습니다.";
+                                toast.error(message);
+                              }
+                            }}
+                            title="첨부파일 다운로드"
+                            aria-label="첨부파일 다운로드"
+                            className="inline-flex size-8 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-brand-50 hover:text-brand-600 dark:hover:bg-brand-500/10 dark:hover:text-brand-400"
+                          >
+                            <ArrowDownTrayIcon className="size-4" aria-hidden />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </dd>
+              </div>
+            </dl>
+            <dl className="space-y-3">
+              <div>
+                <dt className="text-theme-xs font-medium text-gray-500 dark:text-gray-400">
+                  제목
+                </dt>
+                <dd className="mt-1 text-sm text-gray-900 dark:text-white">
+                  {po.title?.trim() || "—"}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-theme-xs font-medium text-gray-500 dark:text-gray-400">
+                  고객 요청 납기
+                </dt>
+                <dd className="mt-1 text-sm text-gray-900 dark:text-white">
+                  {formatDateYmd(po.dueDate, { emptyFallback: "—" })}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-theme-xs font-medium text-gray-500 dark:text-gray-400">
+                  요청사항
+                </dt>
+                <dd className="mt-1 text-sm text-gray-800 dark:text-gray-200">
+                  {po.vendorRequest?.trim() ? (
+                    <span className="whitespace-pre-wrap">{po.vendorRequest}</span>
+                  ) : (
+                    <span className="text-gray-500">—</span>
+                  )}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-theme-xs font-medium text-gray-500 dark:text-gray-400">
+                  특이사항
+                </dt>
+                <dd className="mt-1 text-sm text-gray-800 dark:text-gray-200">
+                  {po.specialNote?.trim() ? (
+                    <span className="whitespace-pre-wrap">{po.specialNote}</span>
+                  ) : (
+                    <span className="text-gray-500">—</span>
+                  )}
+                </dd>
+              </div>
+            </dl>
           </div>
         </ComponentCard>
 
         <OrderDetailLinesCard
           orderLines={orderLines}
-          defaultCurrencyCode={normalizeCurrencyCode(po.currencyCode)}
+          defaultCurrencyCode={po.currencyCode ?? "KRW"}
           orderLineSummaries={orderLineSummaries}
+          layoutMode="dashboard"
         />
 
-        <OrderDetailDeliveriesCard
-          deliveries={deliveries as Delivery[]}
-          canRegisterDelivery={canRegisterDelivery}
-          onRegisterDeliveryClick={openDeliveryRegistrationModal}
-          formatDeliveryDate={(s) => formatDateYmd(s, { emptyFallback: "-" })}
-          deliveryStatusDisplayName={deliveryStatusDisplayName}
+        <OrderDetailDeliveryPlansCard
+          purchaseOrderId={id}
+          accessToken={accessToken ?? ""}
+          isAuthLoading={isAuthLoading}
+          canCreate={canRegisterDelivery}
+          onOpenPlanModal={() => openDeliveryRegistrationModal("plan")}
+          hideHeaderCreateButton
+          visualVariant="dashboard"
         />
       </div>
 
@@ -1141,13 +1330,26 @@ export default function OrderDetail() {
         onClose={() => {
           setDeliveryModalOpen(false);
           resetDeliveryModalForm();
+          setDeliveryModalPurpose("actual");
         }}
         className="mx-4 max-h-[90vh] max-w-3xl overflow-y-auto p-6"
+        header={
+          <>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+              {deliveryModalPurpose === "plan"
+                ? "납품 계획 등록"
+                : "실제 납품 등록"}
+            </h3>
+            {deliveryModalPurpose === "plan" ? null : (
+              <p className="mt-1 text-theme-sm text-gray-500 dark:text-gray-400">
+                발주 종결 후 실제 납품 헤더·라인·시리얼을 등록합니다. 저장 후
+                동일 발주의 납품 계획에서 출고 가능한 Unit을 납품 라인에 연결할
+                수 있습니다.
+              </p>
+            )}
+          </>
+        }
       >
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">납품 계획 등록</h3>
-        <p className="mt-1 text-theme-sm text-gray-500 dark:text-gray-400">
-           <br/>
-        </p>
         <div className="mt-4 space-y-4">
           <div className="rounded-lg border border-brand-200 bg-brand-50/60 px-3 py-2 text-theme-sm text-brand-700 dark:border-brand-800 dark:bg-brand-900/20 dark:text-brand-300">
             <span className="font-semibold">발주번호 :</span> {po.orderNo}{" "}
@@ -1176,7 +1378,13 @@ export default function OrderDetail() {
             </div>
             <div>
               <div className="flex items-center justify-between gap-2">
-                <Label htmlFor="delivery-planned-date">납품 예정일 (선택)</Label>
+                {deliveryModalPurpose === "plan" ? (
+                  <Label htmlFor="delivery-planned-date" required>
+                    납품 예정일
+                  </Label>
+                ) : (
+                  <Label htmlFor="delivery-planned-date">납품 예정일 (선택)</Label>
+                )}
                 <IconTooltip
                   ariaLabel="납품 예정일 안내"
                   content="납품 예정일은 해당 납기 건에 대한 예정일을 의미합니다."
@@ -1347,7 +1555,7 @@ export default function OrderDetail() {
                       <th className="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400">
                         라인
                       </th>
-                      <th className="w-56 px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400">
+                      <th className="min-w-[16rem] px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400">
                         시리얼 번호
                       </th>
                     </tr>
@@ -1372,9 +1580,18 @@ export default function OrderDetail() {
                             {row.lineLabel}
                           </td>
                           <td className="px-3 py-2">
-                            <code className="text-brand-700 dark:text-brand-300">
-                              {row.serialNo}
-                            </code>
+                            <input
+                              type="text"
+                              aria-label={`시리얼 번호 ${index + 1}`}
+                              value={row.serialNo}
+                              onChange={(e) =>
+                                updateDeliverySerialPreviewSerialNo(
+                                  index,
+                                  e.target.value
+                                )
+                              }
+                              className="w-full min-w-[14rem] rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm font-mono text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-900 dark:text-white dark:placeholder:text-gray-500"
+                            />
                           </td>
                         </tr>
                       ))
@@ -1400,29 +1617,36 @@ export default function OrderDetail() {
             type="button"
             onClick={() => {
               if (!deliveryDate.trim()) {
-                notify.error("제품 인계일을 입력하세요.");
+                toast.error("제품 인계일을 입력하세요.");
+                return;
+              }
+              if (
+                deliveryModalPurpose === "plan" &&
+                !plannedDeliveryDate.trim()
+              ) {
+                toast.error("납품 예정일을 입력하세요.");
                 return;
               }
               if (!wavelengthCode.trim()) {
-                notify.error("파장정보를 선택하세요.");
+                toast.error("파장정보를 선택하세요.");
                 return;
               }
               if (!detectorId.trim()) {
-                notify.error("검출기 타입을 선택하세요.");
+                toast.error("검출기 타입을 선택하세요.");
                 return;
               }
               const selectedDetectorId = Number(detectorId);
               if (!Number.isFinite(selectedDetectorId) || selectedDetectorId <= 0) {
-                notify.error("검출기를 다시 선택하세요.");
+                toast.error("검출기를 다시 선택하세요.");
                 return;
               }
               if (!selectedDetector || Number(selectedDetector.id) !== selectedDetectorId) {
-                notify.error("검출기 정보를 찾을 수 없습니다. 다시 선택하세요.");
+                toast.error("검출기 정보를 찾을 수 없습니다. 다시 선택하세요.");
                 return;
               }
               const arrayWidth = Number(selectedDetector.arrayWidth);
               if (!Number.isFinite(arrayWidth) || arrayWidth <= 0) {
-                notify.error("검출기 해상도(가로) 정보가 없습니다.");
+                toast.error("검출기 해상도(가로) 정보가 없습니다.");
                 return;
               }
               const resolutionCode = String(Math.trunc(arrayWidth)).padStart(4, "0");
@@ -1430,25 +1654,38 @@ export default function OrderDetail() {
                 String(selectedDetector.detectorType ?? "")
               );
               if (!detectorTypeCode) {
-                notify.error("검출기 타입 코드(A/A2 등)를 파싱하지 못했습니다.");
+                toast.error("검출기 타입 코드(A/A2 등)를 파싱하지 못했습니다.");
                 return;
               }
               const yearCode = yearCodeFromDate(deliveryDate.trim());
               if (!yearCode) {
-                notify.error("제작년도 코드 매핑이 없습니다. (예: 2025→O, 2026→P)");
+                toast.error("제작년도 코드 매핑이 없습니다. (예: 2025→O, 2026→P)");
                 return;
               }
               const customerCode = String(po.partner?.code ?? "").trim().toUpperCase();
               if (!customerCode) {
-                notify.error("고객사 업체코드를 찾을 수 없습니다.");
+                toast.error("고객사 업체코드를 찾을 수 없습니다.");
                 return;
               }
               if (!hasDeliveryTargets) {
-                notify.error("등록할 제품 라인이 없습니다.");
+                toast.error("등록할 제품 라인이 없습니다.");
                 return;
               }
               if (deliverySerialPreviewRows.length === 0) {
-                notify.error("시리얼을 먼저 생성하세요.");
+                toast.error("시리얼을 먼저 생성하세요.");
+                return;
+              }
+              for (let i = 0; i < deliverySerialPreviewRows.length; i += 1) {
+                if (!deliverySerialPreviewRows[i].serialNo.trim()) {
+                  toast.error(`시리얼 번호를 입력하세요. (${i + 1}번 행)`);
+                  return;
+                }
+              }
+              const trimmedSerials = deliverySerialPreviewRows.map((r) =>
+                r.serialNo.trim()
+              );
+              if (new Set(trimmedSerials).size !== trimmedSerials.length) {
+                toast.error("시리얼 번호에 중복이 있습니다. 서로 다르게 수정하세요.");
                 return;
               }
               const QTY_EPS = 1e-9;
@@ -1468,6 +1705,11 @@ export default function OrderDetail() {
               >();
               const deliveryProductLog: Array<Record<string, unknown>> = [];
               for (const row of deliverySerialPreviewRows) {
+                const serialNoTrimmed = row.serialNo.trim();
+                const serialSnapshotTrimmed =
+                  row.serialSnapshot && typeof row.serialSnapshot === "object"
+                    ? { ...row.serialSnapshot, serialNo: serialNoTrimmed }
+                    : row.serialSnapshot;
                 const current = linesByOrderItemId.get(row.orderItemId);
                 if (!current) {
                   linesByOrderItemId.set(row.orderItemId, {
@@ -1475,11 +1717,11 @@ export default function OrderDetail() {
                     sequenceKey: row.sequenceKey,
                     serials: [
                       {
-                        serialNo: row.serialNo,
+                        serialNo: serialNoTrimmed,
                         detectorElementCode: row.detectorElementCode,
                         wavelengthCode: row.wavelengthCode,
                         detectorId: row.detectorId,
-                        serialSnapshot: row.serialSnapshot,
+                        serialSnapshot: serialSnapshotTrimmed,
                       },
                     ],
                   });
@@ -1487,11 +1729,11 @@ export default function OrderDetail() {
                 }
                 current.quantity += 1;
                 current.serials.push({
-                  serialNo: row.serialNo,
+                  serialNo: serialNoTrimmed,
                   detectorElementCode: row.detectorElementCode,
                   wavelengthCode: row.wavelengthCode,
                   detectorId: row.detectorId,
-                  serialSnapshot: row.serialSnapshot,
+                  serialSnapshot: serialSnapshotTrimmed,
                 });
               }
               const linesPayload: DeliveryCreateLinePayload[] = [];
@@ -1501,7 +1743,7 @@ export default function OrderDetail() {
                 const prev = deliveredByOrderItemId.get(line.id) ?? 0;
                 const remaining = Math.max(0, line.qty - prev);
                 if (bundled.quantity - remaining > QTY_EPS) {
-                  notify.error(
+                  toast.error(
                     `잔량을 초과했습니다. (${line.itemName ?? "품목"} · 잔여 ${remaining})`
                   );
                   return;
@@ -1514,21 +1756,21 @@ export default function OrderDetail() {
                   productSerialMetaById.get(String(line.productId ?? "").trim());
                 const businessCode = serialMeta?.businessCode ?? "";
                 if (!businessCode) {
-                  notify.error(
+                  toast.error(
                     `제품 business_code를 찾을 수 없습니다. (${line.itemName ?? "품목"})`
                   );
                   return;
                 }
                 const pitchCode = pitchCodeFromRaw(serialMeta?.pixelPitch ?? "");
                 if (!pitchCode) {
-                  notify.error(
+                  toast.error(
                     `제품 Pixel Pitch 코드 매핑이 없습니다. (${line.itemName ?? "품목"})`
                   );
                   return;
                 }
                 const derivedElement = detectorElementCodeFromBusinessName(biz);
                 if (!derivedElement) {
-                  notify.error(
+                  toast.error(
                     `소자정보를 사업명에서 찾을 수 없습니다. 사업명에 '_' 뒤 소자 코드가 있어야 합니다. (${line.itemName ?? "품목"})`
                   );
                   return;
@@ -1576,7 +1818,7 @@ export default function OrderDetail() {
                 });
               }
               if (linesPayload.length === 0) {
-                notify.error("이번 납품 수량을 1건 이상 입력하세요.");
+                toast.error("이번 납품 수량을 1건 이상 입력하세요.");
                 return;
               }
               const payload: DeliveryCreatePayload = {
@@ -1589,26 +1831,49 @@ export default function OrderDetail() {
                   deliveryManagerUserSelectValue
                 ),
               };
-              console.log("[납품 등록] 제품 정보", {
-                발주번호: po.orderNo,
-                납품제목: deliveryTitle.trim() || null,
-                제품인계일: deliveryDate.trim(),
-                납품예정일: plannedDeliveryDate.trim() || null,
-                품목: deliveryProductLog,
-              });
+              console.log(
+                deliveryModalPurpose === "plan"
+                  ? "[납품 계획 등록] 제품 정보"
+                  : "[납품 등록] 제품 정보",
+                {
+                  발주번호: po.orderNo,
+                  납품제목: deliveryTitle.trim() || null,
+                  제품인계일: deliveryDate.trim(),
+                  납품예정일: plannedDeliveryDate.trim() || null,
+                  품목: deliveryProductLog,
+                }
+              );
               deliveryMutation.mutate({
                 deliveryPayload: payload,
+                purpose: deliveryModalPurpose,
               });
             }}
             disabled={
-              deliveryMutation.isPending || !hasDeliveryTargets
+              deliveryMutation.isPending ||
+              !hasDeliveryTargets ||
+              deliverySerialPreviewRows.length === 0
             }
             className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white hover:bg-brand-600 disabled:opacity-50"
           >
-            {deliveryMutation.isPending ? "등록 중..." : "납품 등록"}
+            {deliveryMutation.isPending
+              ? "등록 중..."
+              : deliveryModalPurpose === "plan"
+                ? "납품 계획 저장"
+                : "실제 납품 등록"}
           </button>
         </div>
       </Modal>
+
+      <OrderDetailLinkUnitsModal
+        isOpen={linkUnitsModalOpen}
+        onClose={() => {
+          setLinkUnitsModalOpen(false);
+          setLinkUnitsDelivery(null);
+        }}
+        delivery={linkUnitsDelivery}
+        purchaseOrderId={id}
+        accessToken={accessToken ?? ""}
+      />
 
     </>
   );

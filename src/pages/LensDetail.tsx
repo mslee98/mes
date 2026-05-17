@@ -1,18 +1,56 @@
-import { useQuery } from "@tanstack/react-query";
-import { Link, useParams } from "react-router";
-import { notify } from "../lib/notify";
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link, useNavigate, useParams } from "react-router";
+import toast from "react-hot-toast";
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import ComponentCard from "../components/common/ComponentCard";
+import ConfirmModal from "../components/common/ConfirmModal";
 import LoadingLottie from "../components/common/LoadingLottie";
 import Badge from "../components/ui/badge/Badge";
 import { useAuth } from "../hooks/useAuth";
-import { getLens, getLensFiles, type LensItem, type FileLink } from "../api/lenses";
+import { deleteLens, getLens, getLensFiles, type LensItem, type FileLink } from "../api/lenses";
 import { API_BASE } from "../api/apiBase";
 import { fileTypeIconSrc } from "../lib/fileTypeIcon";
-import { formatDateTimeKo } from "../lib/dateFormat";
-import { buildApiFileUrl, downloadFileWithAuth } from "../lib/fileDownload";
 import { ReactComponent as ArrowDownTrayIcon } from "../icons/arrow-down-tray.svg?react";
+
+function formatIsoDate(iso?: string): string {
+  if (!iso) return "-";
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? iso : d.toLocaleString("ko-KR");
+}
+
+function buildFileDownloadUrl(filePath: string): string {
+  const raw = String(filePath ?? "").trim();
+  if (!raw) return "#";
+  if (/^https?:\/\//i.test(raw)) return raw;
+  const apiOrigin = new URL(API_BASE).origin;
+  if (raw.startsWith("/")) return `${apiOrigin}${raw}`;
+  return `${apiOrigin}/${raw}`;
+}
+
+async function forceDownloadFile(
+  fileUrl: string,
+  fileName: string,
+  accessToken: string
+) {
+  const res = await fetch(fileUrl, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    credentials: "include",
+  });
+  if (!res.ok) {
+    throw new Error("첨부파일 다운로드에 실패했습니다.");
+  }
+  const blob = await res.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = objectUrl;
+  anchor.download = fileName || "attachment";
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(objectUrl);
+}
 
 function DetailRow({
   label,
@@ -36,7 +74,27 @@ function DetailRow({
 export default function LensDetail() {
   const { lensId } = useParams();
   const id = String(lensId ?? "").trim();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const { accessToken, isLoading: isAuthLoading } = useAuth();
+
+  const deleteMutation = useMutation({
+    mutationFn: () => deleteLens(id, accessToken as string),
+    onSuccess: () => {
+      toast.success("렌즈가 삭제되었습니다.");
+      void queryClient.invalidateQueries({ queryKey: ["lensList"] });
+      void queryClient.removeQueries({ queryKey: ["lens", id] });
+      void queryClient.removeQueries({ queryKey: ["lensFiles", id] });
+      setDeleteOpen(false);
+      navigate("/lenses");
+    },
+    onError: (e: unknown) => {
+      const message =
+        e instanceof Error ? e.message : "렌즈를 삭제하지 못했습니다.";
+      toast.error(message);
+    },
+  });
 
   const {
     data: lens,
@@ -119,14 +177,8 @@ export default function LensDetail() {
               </Badge>
             }
           />
-          <DetailRow
-            label="등록일시"
-            value={formatDateTimeKo(l.createdAt, { emptyFallback: "-" })}
-          />
-          <DetailRow
-            label="수정일시"
-            value={formatDateTimeKo(l.updatedAt, { emptyFallback: "-" })}
-          />
+          <DetailRow label="등록일시" value={formatIsoDate(l.createdAt)} />
+          <DetailRow label="수정일시" value={formatIsoDate(l.updatedAt)} />
           <DetailRow
             label="첨부파일"
             value={
@@ -151,25 +203,23 @@ export default function LensDetail() {
                           {fileName}
                         </span>
                         <span className="text-theme-xs text-gray-500">
-                          {formatDateTimeKo(f.createdAt ?? f.uploadedAt, {
-                            emptyFallback: "-",
-                          })}
+                          {formatIsoDate(f.createdAt ?? f.uploadedAt)}
                         </span>
                         <button
                           type="button"
                           onClick={async () => {
                             try {
-                              await downloadFileWithAuth({
-                                fileUrl: buildApiFileUrl(filePath, API_BASE),
+                              await forceDownloadFile(
+                                buildFileDownloadUrl(filePath),
                                 fileName,
-                                accessToken: accessToken as string,
-                              });
+                                accessToken as string
+                              );
                             } catch (error) {
                               const message =
                                 error instanceof Error
                                   ? error.message
                                   : "첨부파일 다운로드에 실패했습니다.";
-                              notify.error(message);
+                              toast.error(message);
                             }
                           }}
                           title="첨부파일 다운로드"
@@ -199,8 +249,29 @@ export default function LensDetail() {
           >
             목록으로
           </Link>
+          <button
+            type="button"
+            onClick={() => setDeleteOpen(true)}
+            className="rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:bg-gray-900 dark:text-red-400 dark:hover:bg-red-950/30"
+          >
+            삭제
+          </button>
         </div>
       </ComponentCard>
+
+      <ConfirmModal
+        isOpen={deleteOpen}
+        title="렌즈 삭제"
+        message={`「${l.lensName?.trim() || l.fNumber || id}」을(를) 삭제하면 복구할 수 없습니다. 연결된 파일도 서버에서 정리됩니다. 계속할까요?`}
+        confirmText="삭제"
+        confirmVariant="danger"
+        illustration="trash"
+        isConfirming={deleteMutation.isPending}
+        onClose={() => {
+          if (!deleteMutation.isPending) setDeleteOpen(false);
+        }}
+        onConfirm={() => deleteMutation.mutate()}
+      />
     </>
   );
 }

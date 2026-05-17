@@ -1,4 +1,4 @@
-interface DownloadWithAuthArgs {
+interface DownloadFileWithAuthArgs {
   fileUrl: string;
   fileName: string;
   accessToken: string;
@@ -17,7 +17,7 @@ export async function downloadFileWithAuth({
   fileUrl,
   fileName,
   accessToken,
-}: DownloadWithAuthArgs): Promise<void> {
+}: DownloadFileWithAuthArgs): Promise<void> {
   const res = await fetch(fileUrl, {
     headers: { Authorization: `Bearer ${accessToken}` },
     credentials: "include",

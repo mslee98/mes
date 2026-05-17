@@ -42,6 +42,24 @@
 
 - `order.status === 'PO_CLOSED'` 일 때만 납품 등록 가능 (백엔드 검사).
 
+## 납품 계획 · Unit (delivery_plans)
+
+발주 → 납품 계획(`POST .../delivery-plans` — 본문은 납품 등록과 동일, 시리얼 1행 = Unit 1대) → 공정 PASS/FAIL → 실제 납품(`POST .../deliveries`) → 납품 라인에 Unit 연결.
+
+| 메서드 | 경로 | 본문 / 비고 |
+|--------|------|-------------|
+| GET | `/api/purchase-orders/:purchaseOrderId/delivery-plans` | 발주별 목록 (`purchase_order.read`). `planSeq` 오름차순, 관계(담당자·항목·유닛·검출기 등) 포함. |
+| POST | `/api/purchase-orders/:purchaseOrderId/delivery-plans` | **`lines` 있음:** `createDelivery`와 유사, `deliveryDate` 필수. **`items`만:** 품목+계획 수량만(시리얼 없는 Unit). |
+| GET | `/api/purchase-orders/delivery-plans/:planId` | 납품 계획 단건 상세 (`items[].units[]`) |
+| POST | `/api/purchase-orders/delivery-plan-units/:unitId/process/pass` | `{ processCode, processName, startedAt?, endedAt? }` |
+| POST | `/api/purchase-orders/delivery-plan-units/:unitId/process/fail` | `{ processCode, processName, failReason, actionTaken?, startedAt?, endedAt? }` |
+| GET | `/api/purchase-orders/delivery-plan-units/:unitId/process-records` | 공정 이력 배열 |
+| POST | `/api/purchase-orders/delivery-items/:deliveryItemId/units` | `{ unitIds: string[] }` — 출고 준비 완료·미납품 Unit만 연결 권장 |
+
+**프론트 라우트**: `/order/:orderId/plan/:planId` — 계획 상세·Unit 보드.
+
+**프론트**: 발주 상세 납품 계획 카드에서 목록 링크·`납품 계획 만들기` 제공.
+
 ## 공통 품목 `items` (참고)
 
 - 보드/부품 등 공통 마스터. 선택 필드: `spec`, `manufacturer`.

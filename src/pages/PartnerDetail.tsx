@@ -1,14 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Link, useParams } from "react-router";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link, useNavigate, useParams } from "react-router";
+import toast from "react-hot-toast";
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import ComponentCard from "../components/common/ComponentCard";
+import ConfirmModal from "../components/common/ConfirmModal";
 import LoadingLottie from "../components/common/LoadingLottie";
 import Badge from "../components/ui/badge/Badge";
 import { ReactComponent as PageIcon } from "../icons/page.svg?react";
 import { useAuth } from "../hooks/useAuth";
 import {
+  deletePartner,
   getPartner,
   type Partner,
 } from "../api/purchaseOrder";
@@ -30,7 +33,7 @@ function DetailRow({
   value: React.ReactNode;
 }) {
   return (
-    <div className="flex border-b border-gray-100 py-3 dark:border-white/[0.05]">
+    <div className="flex items-center border-b border-gray-100 py-3 dark:border-white/[0.05]">
       <dt className="w-32 shrink-0 text-sm font-medium text-gray-500 dark:text-gray-400">
         {label}
       </dt>
@@ -114,7 +117,27 @@ function PartnerEmailCopyValue({ email }: { email: string }): React.ReactNode {
 export default function PartnerDetail() {
   const { partnerId } = useParams();
   const id = String(partnerId ?? "").trim();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const { accessToken, isLoading: isAuthLoading } = useAuth();
+
+  const deleteMutation = useMutation({
+    mutationFn: () => deletePartner(id, accessToken as string),
+    onSuccess: () => {
+      toast.success("거래처가 삭제되었습니다.");
+      void queryClient.invalidateQueries({ queryKey: ["partners"] });
+      void queryClient.removeQueries({ queryKey: ["partner", id] });
+      setDeleteOpen(false);
+      navigate("/partners");
+    },
+    onError: (e: unknown) => {
+      const message =
+        e instanceof Error ? e.message : "거래처를 삭제하지 못했습니다.";
+      toast.error(message);
+    },
+  });
+
   const {
     data: partner,
     isLoading: isPartnerLoading,
@@ -259,8 +282,29 @@ export default function PartnerDetail() {
           >
             목록으로
           </Link>
+          <button
+            type="button"
+            onClick={() => setDeleteOpen(true)}
+            className="rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:bg-gray-900 dark:text-red-400 dark:hover:bg-red-950/30"
+          >
+            삭제
+          </button>
         </div>
       </ComponentCard>
+
+      <ConfirmModal
+        isOpen={deleteOpen}
+        title="거래처 삭제"
+        message={`「${p.name || p.code || id}」을(를) 삭제하면 복구할 수 없습니다. 연결된 파일도 서버에서 정리됩니다. 계속할까요?`}
+        confirmText="삭제"
+        confirmVariant="danger"
+        illustration="trash"
+        isConfirming={deleteMutation.isPending}
+        onClose={() => {
+          if (!deleteMutation.isPending) setDeleteOpen(false);
+        }}
+        onConfirm={() => deleteMutation.mutate()}
+      />
     </>
   );
 }

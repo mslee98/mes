@@ -16,6 +16,7 @@ import {
   UserCircleIcon,
   WrenchScrewdriverIcon,
   TruckIcon,
+  BugAntIcon,
 } from "../icons";
 import { getMenus, type MenuItem } from "../api/menu";
 import { useAuth } from "../hooks/useAuth";
@@ -47,6 +48,7 @@ const iconMap = {
   UserCircleIcon,
   WrenchScrewdriverIcon,
   TruckIcon,
+  BugAntIcon,
 } as const;
 
 function resolveIcon(iconName?: string | null) {
@@ -83,6 +85,12 @@ function isOthersMenu(item: NavItem) {
   return item.code === "ADMIN" || item.name === "Admin";
 }
 
+function pathnameMatchesMenuPath(pathname: string, menuPath: string): boolean {
+  if (!menuPath) return false;
+  if (menuPath === "/") return pathname === "/";
+  return pathname === menuPath || pathname.startsWith(`${menuPath}/`);
+}
+
 const AppSidebar: React.FC = () => {
   const { isExpanded, isMobileOpen, isHovered, setIsHovered } = useSidebar();
   const { accessToken, isLoading: isAuthLoading } = useAuth();
@@ -116,13 +124,8 @@ const AppSidebar: React.FC = () => {
     [navItems]
   );
   const isActive = useCallback(
-    (path: string) => {
-      if (!path) return false;
-      if (path === "/") return location.pathname === "/";
-      return (
-        location.pathname === path || location.pathname.startsWith(`${path}/`)
-      );
-    },
+    (path: string) =>
+      pathnameMatchesMenuPath(location.pathname, path),
     [location.pathname]
   );
 

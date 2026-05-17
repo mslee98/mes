@@ -88,6 +88,16 @@ export const COMMON_CODE_GROUP_DETECTOR_ELEMENT = "DETECTOR_ELEMENT";
 export const COMMON_CODE_GROUP_WAVELENGTH = "WAVELENGTH";
 /** 검출기 타입 — `GET /api/common-codes/groups/DETECTOR_TYPE/codes` */
 export const COMMON_CODE_GROUP_DETECTOR_TYPE = "DETECTOR_TYPE";
+/** 유닛 공정 단계 — `GET /api/common-codes/groups/UNIT_PROCESS_STEP/codes` */
+export const COMMON_CODE_GROUP_UNIT_PROCESS_STEP = "UNIT_PROCESS_STEP";
+/** 유닛 공정 진행 상태 — `GET /api/common-codes/groups/UNIT_PROCESS_STATUS/codes` */
+export const COMMON_CODE_GROUP_UNIT_PROCESS_STATUS = "UNIT_PROCESS_STATUS";
+/**
+ * 검출기 입고 대기 단계 — PASS 시 검출기 시리얼 입력이 필요한 공정 코드(백엔드 시드와 일치).
+ * 표시·선택 목록의 정본은 `UNIT_PROCESS_STEP` API입니다.
+ */
+export const UNIT_PROCESS_STEP_CODE_WAIT_DETECTOR_INCOMING =
+  "WAIT_DETECTOR_INCOMING";
 /** 활성 항목만, value=code·label=name (목록은 API에서 sortOrder·id 순 정렬됨) */
 export function commonCodesToSelectOptions(
   items: CommonCodeItem[]

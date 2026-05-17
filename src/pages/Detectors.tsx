@@ -97,6 +97,11 @@ export default function DetectorsPage() {
     return exists ? detectorTab : TAB_ALL;
   }, [detectorTab, sortedSeries]);
 
+  const selectedSeriesId = useMemo(
+    () => seriesIdFromTab(effectiveDetectorTab),
+    [effectiveDetectorTab]
+  );
+
   const detectorTabOptions = useMemo(() => {
     const tabs: { value: string; label: ReactNode }[] = [
       { value: TAB_ALL, label: "전체" },
@@ -197,12 +202,12 @@ export default function DetectorsPage() {
   return (
     <>
       <PageMeta
-        title="아이쓰리시스템(주) | 검출기 마스터"
+        title="아이쓰리시스템(주) | 검출기 관리"
         description="검출기·시리즈 통합 목록"
       />
       <PageBreadcrumb pageTitle="검출기" />
       <ListPageLayout
-        title="검출기 마스터"
+        title="검출기 관리"
         searchOptionsOpen={searchOptionsOpen}
         searchOptions={
           <>
@@ -231,12 +236,24 @@ export default function DetectorsPage() {
         }
         belowSearchOptions={
           <div className="border-b border-gray-100 pt-3 pb-3 dark:border-white/[0.05]">
-            <SegmentedControl
-              ariaLabel="검출기 시리즈 탭"
-              value={effectiveDetectorTab}
-              onChange={handleSeriesTabChange}
-              options={detectorTabOptions}
-            />
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <SegmentedControl
+                  ariaLabel="검출기 시리즈 탭"
+                  value={effectiveDetectorTab}
+                  onChange={handleSeriesTabChange}
+                  options={detectorTabOptions}
+                />
+              </div>
+              {selectedSeriesId != null && canManageProducts ? (
+                <Link
+                  to={`/detector-series/${selectedSeriesId}/edit`}
+                  className="inline-flex shrink-0 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700/80"
+                >
+                  시리즈 편집
+                </Link>
+              ) : null}
+            </div>
           </div>
         }
         toolbar={

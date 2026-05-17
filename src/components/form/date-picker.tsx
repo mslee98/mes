@@ -1,10 +1,20 @@
 import { useEffect, useRef } from "react";
 import flatpickr from "flatpickr";
 import "flatpickr/dist/flatpickr.css";
+import "flatpickr/dist/plugins/monthSelect/style.css";
 import { Korean } from "flatpickr/dist/l10n/ko.js";
+import monthSelectPlugin from "flatpickr/dist/plugins/monthSelect";
 import Label from "./Label";
 import { CalenderIcon } from "../../icons";
 import type { Instance } from "flatpickr/dist/types/instance";
+
+/** `YYYY-MM`이면 월의 1일로 보정해 flatpickr에 넘김 */
+function coercePickerValue(value: string | undefined, monthOnly: boolean): string {
+  const s = String(value ?? "").trim();
+  if (!s) return "";
+  if (monthOnly && /^\d{4}-\d{2}$/.test(s)) return `${s}-01`;
+  return s;
+}
 
 type PropsType = {
   id: string;
@@ -20,6 +30,11 @@ type PropsType = {
   disabled?: boolean;
   /** 테이블 행 등에서 SelectInput(sm)과 높이 맞춤 */
   compact?: boolean;
+  /**
+   * flatpickr `monthSelect` 플러그인 — 일(day) 격자 없이 연·월만 선택. 기본 달력 스킨 유지.
+   * `onValueChange`에는 `dateFormat` `Y-m` 문자열이 전달됩니다.
+   */
+  monthOnly?: boolean;
 };
 
 export default function DatePicker({
@@ -35,6 +50,7 @@ export default function DatePicker({
   className = "",
   disabled = false,
   compact = false,
+  monthOnly = false,
 }: PropsType) {
   const inputRef = useRef<HTMLInputElement>(null);
   const flatPickrRef = useRef<Instance | null>(null);
@@ -46,13 +62,35 @@ export default function DatePicker({
   useEffect(() => {
     if (!inputRef.current) return;
 
+    const dark =
+      typeof document !== "undefined" &&
+      document.documentElement.classList.contains("dark");
+
     const flatPickr = flatpickr(inputRef.current, {
       locale: Korean,
       mode: mode || "single",
       static: false,
       monthSelectorType: "static",
-      dateFormat: "Y-m-d",
-      defaultDate: value || defaultDate,
+      ...(monthOnly
+        ? {
+            disableMobile: true,
+            closeOnSelect: true,
+            plugins: [
+              monthSelectPlugin({
+                shorthand: true,
+                dateFormat: "Y-m",
+                altFormat: "Y-m",
+                theme: dark ? "dark" : "light",
+              }),
+            ],
+          }
+        : {
+            dateFormat: "Y-m-d",
+          }),
+      defaultDate:
+        coercePickerValue(String(value ?? ""), monthOnly) ||
+        defaultDate ||
+        undefined,
       appendTo: document.body,
       position: "below",
       clickOpens: !disabled,
@@ -95,7 +133,7 @@ export default function DatePicker({
       }
       flatPickrRef.current = null;
     };
-  }, [mode, defaultDate, disabled]);
+  }, [mode, defaultDate, disabled, monthOnly]);
 
   useEffect(() => {
     if (!flatPickrRef.current) return;
@@ -107,8 +145,9 @@ export default function DatePicker({
 
   useEffect(() => {
     if (!flatPickrRef.current) return;
-    flatPickrRef.current.setDate(value || "", false);
-  }, [value]);
+    const v = coercePickerValue(String(value ?? ""), monthOnly);
+    flatPickrRef.current.setDate(v || "", false);
+  }, [value, monthOnly]);
 
   return (
     <div>
