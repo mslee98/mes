@@ -12,7 +12,7 @@ import InputAddonField from "../components/form/InputAddonField";
 import TextArea from "../components/form/input/TextArea";
 import DatePicker from "../components/form/date-picker";
 import TimePickerInput from "../components/form/TimePickerInput";
-import ActiveToggle from "../components/form/ActiveToggle";
+import Toggle from "../components/form/Toggle";
 import FormActionBar from "../components/form/FormActionBar";
 import { EnvelopeIcon, UserIcon } from "../icons";
 import IconTooltip from "../components/ui/tooltip/IconTooltip";
@@ -89,7 +89,7 @@ export default function UIPlayground() {
             URL: <code>/ui</code>
           </p>
           <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
-            최근 공통화 항목: <code>ActiveToggle</code>, <code>FormActionBar</code>,{" "}
+            최근 공통화 항목: <code>Toggle</code>, <code>FormActionBar</code>,{" "}
             <code>TimePickerInput</code>, <code>DatePicker monthOnly</code>,{" "}
             <code>validateRequiredFields</code>, <code>usePartnersQuery</code>
           </p>
@@ -234,7 +234,7 @@ export default function UIPlayground() {
               />
             </div>
             <div className="sm:col-span-2">
-              <ActiveToggle
+              <Toggle
                 id="ui-active-toggle"
                 checked={active}
                 onChange={setActive}

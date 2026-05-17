@@ -97,7 +97,7 @@ export default function DetectorSeriesForm() {
   const deleteMutation = useMutation({
     mutationFn: () => deleteDetectorSeries(accessToken as string, idNum),
     onSuccess: () => {
-      toast.success("시리즈와 소속 검출기가 삭제되었습니다.");
+      notify.success("시리즈와 소속 검출기가 삭제되었습니다.");
       void queryClient.invalidateQueries({ queryKey: ["detectorSeries"] });
       void queryClient.invalidateQueries({ queryKey: ["detectors"] });
       setDeleteOpen(false);
@@ -106,7 +106,7 @@ export default function DetectorSeriesForm() {
     onError: (err: unknown) => {
       const msg =
         err instanceof Error ? err.message : "시리즈를 삭제하지 못했습니다.";
-      toast.error(msg);
+      notify.error(msg);
     },
   });
 
