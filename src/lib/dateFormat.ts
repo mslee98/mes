@@ -39,10 +39,45 @@ export function formatDateYmd(
   return `${y}-${m}-${d}`;
 }
 
+/** `YYYY-MM-DD` 또는 ISO → `YYYYMMDD` (발주·납품계획 제목 등) */
+export function compactYmd(
+  value: string | null | undefined,
+  options: DateFormatOptions = {}
+): string {
+  const ymd = formatDateYmd(value, { emptyFallback: "" });
+  if (!ymd || ymd === "-") {
+    return options.emptyFallback ?? "";
+  }
+  return ymd.replace(/-/g, "");
+}
+
+/** 업무 기준 타임존 (납기 D-day·지연 판정) */
+export const BUSINESS_TIME_ZONE = "Asia/Seoul";
+
 /** 로컬 타임존 기준 오늘 날짜 `Y-m-d` */
 export function localYmdToday(): string {
   const n = new Date();
   return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}-${String(n.getDate()).padStart(2, "0")}`;
+}
+
+/** 지정 타임존 달력 기준 오늘 `Y-m-d` (기본: 서울) */
+export function todayYmdInTimeZone(
+  now = new Date(),
+  timeZone: string = BUSINESS_TIME_ZONE
+): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(now);
+  const y = parts.find((p) => p.type === "year")?.value ?? "";
+  const m = parts.find((p) => p.type === "month")?.value ?? "";
+  const d = parts.find((p) => p.type === "day")?.value ?? "";
+  if (!/^\d{4}$/.test(y) || !/^\d{2}$/.test(m) || !/^\d{2}$/.test(d)) {
+    return formatDateYmd(now.toISOString(), { emptyFallback: "" });
+  }
+  return `${y}-${m}-${d}`;
 }
 
 function ymdToLocalMidnightMs(ymd: string): number | null {
@@ -84,7 +119,7 @@ export function formatDateYmdKoLong(value: string | null | undefined): string {
 }
 
 /**
- * 로컬 오늘 기준 목표일까지(또는 초과) 달력 일수.
+ * 서울 달력 오늘 기준 목표일까지(또는 초과) 일수.
  * `null`: 날짜 없음/파싱 불가
  */
 export function calendarDaysFromLocalToday(
@@ -92,7 +127,7 @@ export function calendarDaysFromLocalToday(
 ): number | null {
   const t = formatDateYmd(targetYmd, { emptyFallback: "" });
   if (!t || t === "-") return null;
-  return diffCalendarDaysLocal(localYmdToday(), t);
+  return diffCalendarDaysLocal(todayYmdInTimeZone(), t);
 }
 
 /** 오늘 대비 남은·지난 일수 안내 문구 */
@@ -101,7 +136,17 @@ export function formatDaysRelativeToTodayKo(
 ): string {
   const diff = calendarDaysFromLocalToday(targetYmd);
   if (diff == null) return "";
+  return koLabelFromDiff(diff);
+}
+
+export function koLabelFromDiff(diff: number): string {
   if (diff === 0) return "오늘";
   if (diff > 0) return `${diff}일 남음`;
   return `${Math.abs(diff)}일 지남`;
 }
+
+export {
+  dueDateDdayBadgeClassName,
+  dueDateDdayFromToday,
+  getDueDateRelative,
+} from "./dueDateDisplay";

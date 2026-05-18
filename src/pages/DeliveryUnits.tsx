@@ -22,7 +22,6 @@ import {
   TableRow,
 } from "../components/ui/table";
 import Badge from "../components/ui/badge/Badge";
-import { DangerSoftTag } from "../components/ui/tag/DangerSoftTag";
 import { DeliveryPlanProcessStageBadge } from "../components/delivery/DeliveryPlanProcessStageBadge";
 import { useAuth } from "../hooks/useAuth";
 import { useCommonCodesByGroup } from "../hooks/useCommonCodesByGroup";
@@ -33,7 +32,11 @@ import {
   labelForCommonCode,
   type CommonCodeItem,
 } from "../api/commonCode";
-import { formatDateYmd } from "../lib/dateFormat";
+import { formatDateYmd, todayYmdInTimeZone } from "../lib/dateFormat";
+import {
+  dueDateDdayBadgeClassName,
+  getDueDateRelative,
+} from "../lib/dueDateDisplay";
 import { labelForProcessCode } from "../lib/deliveryPlanProcessLabels";
 import { partnerCountryFlagUrl } from "../lib/partnerCountryOptions";
 import {
@@ -156,116 +159,14 @@ function partnerCountrySubline(
   return { label, flagUrl: partnerCountryFlagUrl(upper) };
 }
 
-/** 목록·탭과 무관하게 표시용 — 서울 달력 기준 오늘 대비 최종 납기일 차이 */
-function todayYmdSeoul(now = new Date()): string {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Seoul",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(now);
-  const y = parts.find((p) => p.type === "year")?.value ?? "";
-  const m = parts.find((p) => p.type === "month")?.value ?? "";
-  const d = parts.find((p) => p.type === "day")?.value ?? "";
-  if (!/^\d{4}$/.test(y) || !/^\d{2}$/.test(m) || !/^\d{2}$/.test(d)) {
-    return formatDateYmd(now.toISOString(), { emptyFallback: "" });
-  }
-  return `${y}-${m}-${d}`;
-}
-
-function utcMidnightFromYmd(ymd: string): number {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd.trim());
-  if (!m) return NaN;
-  const y = Number(m[1]);
-  const mo = Number(m[2]);
-  const d = Number(m[3]);
-  if (!Number.isFinite(y) || mo < 1 || mo > 12 || d < 1 || d > 31) return NaN;
-  return Date.UTC(y, mo - 1, d);
-}
-
-/** 오늘(서울) → 납기일 달력일까지 남은 일수. 음수면 납기 경과(지연). */
-function calendarDaysUntilDue(dueYmd: string, todayYmd: string): number | null {
-  const dueMs = utcMidnightFromYmd(dueYmd);
-  const todayMs = utcMidnightFromYmd(todayYmd);
-  if (Number.isNaN(dueMs) || Number.isNaN(todayMs)) return null;
-  return Math.round((dueMs - todayMs) / 86400000);
-}
-
 /** 서울 달력 기준: 미납품이고 발주 최종 납기가 오늘보다 이전이면 지연 */
 function isRowCalendarDelayed(
   row: DeliveryPlanUnitListRow,
   todayYmd: string
 ): boolean {
   if (row.isDelivered === true) return false;
-  const dueYmd = formatDateYmd(row.dueDate, { emptyFallback: "" }).trim();
-  if (!dueYmd || dueYmd === "-") return false;
-  const diff = calendarDaysUntilDue(dueYmd, todayYmd);
-  return diff != null && diff < 0;
-}
-
-function dueRelativeLabel(
-  row: DeliveryPlanUnitListRow,
-  todayYmd: string
-): { text: string; tone: "na" | "done" | "overdue" | "today" | "soon" | "ok" } {
-  if (row.isDelivered === true) {
-    return { text: "—", tone: "done" };
-  }
-  const dueYmd = formatDateYmd(row.dueDate, { emptyFallback: "" }).trim();
-  if (!dueYmd || dueYmd === "-") {
-    return { text: "-", tone: "na" };
-  }
-  const diff = calendarDaysUntilDue(dueYmd, todayYmd);
-  if (diff == null) {
-    return { text: "-", tone: "na" };
-  }
-  if (diff < 0) {
-    return { text: `지연 ${-diff}일`, tone: "overdue" };
-  }
-  if (diff === 0) {
-    return { text: "D-Day", tone: "today" };
-  }
-  if (diff <= 3) {
-    return { text: `D-${diff}`, tone: "soon" };
-  }
-  return { text: `D-${diff}`, tone: "ok" };
-}
-
-function dueRelativeClass(tone: ReturnType<typeof dueRelativeLabel>["tone"]): string {
-  if (tone === "overdue") {
-    return "font-medium text-red-600 dark:text-red-400";
-  }
-  if (tone === "today") {
-    return "font-medium text-orange-600 dark:text-orange-400";
-  }
-  if (tone === "soon") {
-    return "font-medium text-amber-700 dark:text-amber-400";
-  }
-  if (tone === "done") {
-    return "text-theme-xs text-gray-500 dark:text-gray-400";
-  }
-  if (tone === "na") {
-    return "text-gray-400 dark:text-gray-500";
-  }
-  return "text-gray-700 dark:text-gray-300";
-}
-
-/** 납기 셀 두 번째 줄 — 지연은 뱃지, 그 외 D-Day 등은 작은 텍스트 */
-function dueDateSubline(
-  row: DeliveryPlanUnitListRow,
-  todayYmd: string
-):
-  | { kind: "overdue"; text: string }
-  | { kind: "upcoming"; text: string; tone: Exclude<ReturnType<typeof dueRelativeLabel>["tone"], "overdue" | "na" | "done"> }
-  | null {
-  if (row.isDelivered === true) return null;
-  const rel = dueRelativeLabel(row, todayYmd);
-  if (rel.tone === "na" || rel.tone === "done") return null;
-  if (rel.tone === "overdue") return { kind: "overdue", text: rel.text };
-  return {
-    kind: "upcoming",
-    text: rel.text,
-    tone: rel.tone,
-  };
+  const rel = getDueDateRelative(row.dueDate, { todayYmd });
+  return rel != null && rel.diff < 0;
 }
 
 function mergeDelayedTabItems(
@@ -392,7 +293,7 @@ export default function DeliveryUnits() {
     })),
   });
 
-  const todaySeoulYmd = todayYmdSeoul();
+  const todaySeoulYmd = todayYmdInTimeZone();
 
   const delayedMergeReady = delayedSourceQueries.every((q) => q.isFetched);
 
@@ -695,7 +596,12 @@ export default function DeliveryUnits() {
                         countryCode,
                         countryCodes
                       );
-                      const dueSub = dueDateSubline(row, todaySeoulYmd);
+                      const dueRel =
+                        row.isDelivered === true
+                          ? null
+                          : getDueDateRelative(row.dueDate, {
+                              todayYmd: todaySeoulYmd,
+                            });
                       return (
                         <TableRow key={row.unitId}>
                           <TableCell className="min-w-[11rem] max-w-[14rem] align-middle px-3 py-1 text-start text-theme-sm">
@@ -805,21 +711,22 @@ export default function DeliveryUnits() {
                                 {formatDateYmd(row.dueDate, { emptyFallback: "-" })}
                               </span>
                               <div className="flex min-h-[1.75rem] w-full items-center justify-center">
-                                {dueSub?.kind === "overdue" ? (
-                                  <DangerSoftTag>{dueSub.text}</DangerSoftTag>
-                                ) : dueSub?.kind === "upcoming" ? (
+                                {dueRel ? (
                                   <span
-                                    className={`text-theme-xs leading-tight ${dueRelativeClass(dueSub.tone)}`}
+                                    className={dueDateDdayBadgeClassName(
+                                      dueRel.diff
+                                    )}
+                                    title={dueRel.koLabel}
                                   >
-                                    {dueSub.text}
+                                    {dueRel.ddayLabel}
                                   </span>
                                 ) : (
-                                  <DangerSoftTag
-                                    className="pointer-events-none invisible"
+                                  <span
+                                    className={`${dueDateDdayBadgeClassName(0)} pointer-events-none invisible`}
                                     aria-hidden
                                   >
-                                    지연 0일
-                                  </DangerSoftTag>
+                                    D-Day
+                                  </span>
                                 )}
                               </div>
                             </div>

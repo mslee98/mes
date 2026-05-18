@@ -143,7 +143,11 @@ function App() {
               <Route path="detectors/:detectorId/edit" element={<DetectorForm />} />
               <Route path="detectors/:detectorId" element={<DetectorDetail />} />
               <Route path="detectors" element={<Detectors />} />
-              <Route path="iddca-type-table" element={<IddcaTypeTable />} />
+              <Route path="iddca-type" element={<IddcaTypeTable />} />
+              <Route
+                path="iddca-type-table"
+                element={<Navigate to="/iddca-type" replace />}
+              />
               
 
 

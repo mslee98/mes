@@ -11,12 +11,11 @@ import type {
 } from "../../api/purchaseOrder";
 import type { FlatPlanUnitRow } from "../../lib/deliveryPlanDetailHelpers";
 import { computeDeliveryPlanUnitStats } from "../../lib/deliveryPlanDetailHelpers";
+import { formatDateYmd, formatDateYmdKoLong } from "../../lib/dateFormat";
 import {
-  calendarDaysFromLocalToday,
-  formatDateYmd,
-  formatDateYmdKoLong,
-  formatDaysRelativeToTodayKo,
-} from "../../lib/dateFormat";
+  dueDateDdayBadgeClassName,
+  getDueDateRelative,
+} from "../../lib/dueDateDisplay";
 import type { DeliveryPlanDetailTab } from "./deliveryPlanDetailTabTypes";
 import {
   labelForProcessCode,
@@ -230,18 +229,7 @@ export function DeliveryPlanDetailOverviewTab({
     return y && y !== "-" ? y : "";
   }, [purchaseOrder]);
 
-  const finalDiff = finalYmd ? calendarDaysFromLocalToday(finalYmd) : null;
-  const finalRelLabel = finalYmd ? formatDaysRelativeToTodayKo(finalYmd) : "";
-  const finalRelToneClass =
-    finalDiff == null
-      ? ""
-      : finalDiff < 0
-        ? "text-red-700 bg-red-50 dark:bg-red-950/40 dark:text-red-300"
-        : finalDiff === 0
-          ? "text-amber-900 bg-amber-50 dark:bg-amber-950/40 dark:text-amber-200"
-          : finalDiff <= 14
-            ? "text-amber-900 bg-amber-50 dark:bg-amber-950/35 dark:text-amber-200"
-            : "text-brand-800 bg-brand-50 dark:bg-brand-950/35 dark:text-brand-200";
+  const finalDueRel = finalYmd ? getDueDateRelative(finalYmd) : null;
 
   return (
     <div className="space-y-6">
@@ -295,11 +283,12 @@ export function DeliveryPlanDetailOverviewTab({
                   <span className="font-semibold text-gray-900 dark:text-white">
                     {finalYmd ? formatDateYmdKoLong(finalYmd) : "—"}
                   </span>
-                  {finalRelLabel ? (
+                  {finalDueRel ? (
                     <span
-                      className={`inline-flex rounded-md px-2 py-0.5 text-theme-xs font-medium ${finalRelToneClass}`}
+                      className={dueDateDdayBadgeClassName(finalDueRel.diff)}
+                      title={finalDueRel.koLabel}
                     >
-                      {finalRelLabel}
+                      {finalDueRel.ddayLabel}
                     </span>
                   ) : null}
                 </dd>

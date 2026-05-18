@@ -5,6 +5,7 @@ import {
   useEffect,
   useRef,
   startTransition,
+  type ReactNode,
 } from "react";
 import {
   useQuery,
@@ -61,15 +62,19 @@ import TextArea from "../components/form/input/TextArea";
 import { formatCurrency } from "../lib/formatCurrency";
 import { lineItemsToAmountSummaries } from "../lib/orderLineAmountSummary";
 import { fileTypeIconSrc } from "../lib/fileTypeIcon";
-import { formatDateYmd } from "../lib/dateFormat";
+import { compactYmd, formatDateYmd } from "../lib/dateFormat";
+import {
+  dueDateDdayBadgeClassName,
+  getDueDateRelative,
+} from "../lib/dueDateDisplay";
 import { buildApiFileUrl, downloadFileWithAuth } from "../lib/fileDownload";
+import { IDDCA_TYPE_PATH } from "../lib/appRoutes";
 import { ReactComponent as ArrowDownTrayIcon } from "../icons/arrow-down-tray.svg?react";
 import {
   ArrowTopRightOnSquareIcon,
   ListIcon,
   PencilIcon,
   PlusIcon,
-  GroupIcon,
   CalenderIcon,
   DollarLineIcon,
   TruckIcon,
@@ -86,7 +91,7 @@ function parsePositiveIntId(v: unknown): number | undefined {
   return undefined;
 }
 
-const DETECTOR_TYPE_GUIDE_URL = "/iddca-type-table";
+const DETECTOR_TYPE_GUIDE_URL = IDDCA_TYPE_PATH;
 
 /** 발주 폼(`OrderForm`)과 동일 — 조직 단위 선택값·레거시 부서 문자열 */
 const LEGACY_DEPT_PREFIX = "legacy-dept:";
@@ -112,6 +117,91 @@ function tryDecodeLegacyUser(selectValue: string): string | null {
   } catch {
     return null;
   }
+}
+
+function OrderDetailInfoRow({
+  label,
+  value,
+}: {
+  label: string;
+  value: ReactNode;
+}) {
+  return (
+    <div className="flex items-start border-b border-gray-100 py-3 last:border-b-0 dark:border-white/[0.05]">
+      <dt className="w-28 shrink-0 text-sm font-medium text-gray-500 dark:text-gray-400 sm:w-32">
+        {label}
+      </dt>
+      <dd className="min-w-0 flex-1 text-sm text-gray-800 dark:text-white/90">
+        {value}
+      </dd>
+    </div>
+  );
+}
+
+function OrderDetailTextAreaRow({
+  label,
+  text,
+}: {
+  label: string;
+  text: string | null | undefined;
+}) {
+  const trimmed = text?.trim() ?? "";
+  return (
+    <div className="border-b border-gray-100 py-3 last:border-b-0 dark:border-white/[0.05]">
+      <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
+        {label}
+      </p>
+      <div
+        className="mt-2 min-h-[5.5rem] w-full rounded-lg border border-gray-300 bg-gray-50 p-3.5 text-sm text-gray-800 shadow-theme-xs dark:border-gray-600 dark:bg-gray-900 dark:text-white/90"
+        role="textbox"
+        aria-readonly="true"
+        aria-label={label}
+      >
+        {trimmed ? (
+          <p className="whitespace-pre-wrap">{trimmed}</p>
+        ) : (
+          <p className="text-gray-500 dark:text-gray-400">—</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function OrderSummaryMetric({
+  icon,
+  label,
+  children,
+  badge,
+}: {
+  icon: ReactNode;
+  label: string;
+  children: ReactNode;
+  badge?: ReactNode;
+}) {
+  return (
+    <div className="flex items-center gap-3 p-4 sm:px-5 sm:py-4">
+      <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-gray-100 text-gray-600 dark:bg-white/[0.08] dark:text-gray-300 sm:size-12">
+        {icon}
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
+          {label}
+        </p>
+        {badge ? (
+          <div className="mt-0.5 flex flex-wrap items-end gap-2">
+            <span className="text-sm font-semibold tabular-nums leading-snug text-gray-900 dark:text-white">
+              {children}
+            </span>
+            {badge}
+          </div>
+        ) : (
+          <div className="mt-0.5 text-sm font-semibold leading-snug text-gray-900 dark:text-white">
+            {children}
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function deliveryManagerUserIdFromSelect(selectValue: string): number | null {
@@ -234,25 +324,18 @@ function firstLineProductWithBusiness(
   return `${baseLabel} (${lineCode})`;
 }
 
-function compactYmdForPlanTitle(planned: string, delivery: string): string {
-  const src = planned.trim() ? planned.trim() : delivery.trim();
-  let ymd = formatDateYmd(src || undefined, { emptyFallback: "" });
-  if (!ymd || ymd === "-") {
-    ymd = formatDateYmd(new Date().toISOString(), { emptyFallback: "" });
-  }
-  return ymd.replace(/-/g, "");
-}
-
 function buildDeliveryPlanAutoTitle(opts: {
   plannedDeliveryDate: string;
   deliveryDate: string;
   lines: PurchaseOrderItem[];
   nextPlanSeq: number;
 }): string {
-  const compact = compactYmdForPlanTitle(
-    opts.plannedDeliveryDate,
-    opts.deliveryDate
-  );
+  const plannedOrDelivery =
+    opts.plannedDeliveryDate.trim() || opts.deliveryDate.trim();
+  const compact =
+    compactYmd(plannedOrDelivery) ||
+    compactYmd(new Date().toISOString()) ||
+    "";
   const productSeg = firstLineProductWithBusiness(opts.lines[0]);
   const totalQty = opts.lines.reduce(
     (s, l) => s + (Number(l.qty) || 0),
@@ -999,10 +1082,25 @@ export default function OrderDetail() {
   const planCount = poDeliveryPlans.length;
   const deliveryOverviewText =
     planCount === 0 ? "납품계획 없음" : `납품계획 ${planCount}건`;
-  const totalWithVatDisplay =
+  const dueDateDday = getDueDateRelative(po.dueDate);
+  const totalAmountMainDisplay =
     totalAmountWithVat != null
-      ? `${formatCurrency(totalAmountWithVat, headerCurrency)} (부가세 포함)`
+      ? formatCurrency(totalAmountWithVat, headerCurrency)
       : "—";
+
+  const partnerNameWithFlag = (
+    <span className="inline-flex items-center gap-2">
+      {partnerFlagUrl ? (
+        <img
+          src={partnerFlagUrl}
+          alt=""
+          className="h-5 w-[1.375rem] shrink-0 rounded-sm object-cover"
+          decoding="async"
+        />
+      ) : null}
+      <span className="min-w-0">{partnerName}</span>
+    </span>
+  );
 
   return (
     <>
@@ -1010,40 +1108,41 @@ export default function OrderDetail() {
       <PageBreadcrumb pageTitle={`발주 상세 · ${po.orderNo}`} />
 
       <div className="space-y-4">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-          <div className="min-w-0">
-            <h1 className="flex flex-wrap items-baseline gap-2 text-xl font-semibold tracking-tight text-gray-900 dark:text-white sm:gap-2.5 sm:text-2xl">
-              <span>발주 상세</span>
-              <span className="font-mono text-lg font-medium text-gray-700 dark:text-gray-300">
-                {po.orderNo}
-              </span>
-            </h1>
-          </div>
-          <div className="flex flex-wrap items-center gap-1.5 lg:justify-end">
+        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-theme-xs dark:border-gray-800 dark:bg-white/[0.03]">
+          <div className="flex flex-col gap-3 border-b border-gray-100 px-4 py-4 dark:border-gray-800 sm:px-6 sm:py-5 lg:flex-row lg:items-start lg:justify-between">
+            <div className="min-w-0">
+              <h1 className="text-xl font-semibold tracking-tight text-gray-900 dark:text-white sm:text-2xl">
+                {po.title?.trim() || po.orderNo}
+              </h1>
+              <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                {partnerNameWithFlag}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 lg:justify-end">
             <Link
               to="/order"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700/80"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-brand-500 bg-white px-3 py-2 text-sm font-medium text-brand-600 shadow-theme-xs hover:bg-brand-50 dark:border-brand-600 dark:bg-gray-800 dark:text-brand-400 dark:hover:bg-brand-500/10"
             >
               <ListIcon className="size-4 shrink-0" aria-hidden />
               목록
             </Link>
-            {canEditOrder ? (
-              <Link
-                to={`/order/${id}/edit`}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700/80"
-              >
-                <PencilIcon className="size-4 shrink-0" aria-hidden />
-                수정
-              </Link>
-            ) : null}
             {canShowReceiveButton ? (
               <button
                 type="button"
                 onClick={() => setReceiveConfirmOpen(true)}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-brand-500 bg-white px-2.5 py-1.5 text-sm font-medium text-brand-600 shadow-theme-xs hover:bg-brand-50 dark:border-brand-600 dark:bg-gray-800 dark:text-brand-400 dark:hover:bg-brand-500/10"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-brand-500 bg-white px-3 py-2 text-sm font-medium text-brand-600 shadow-theme-xs hover:bg-brand-50 dark:border-brand-600 dark:bg-gray-800 dark:text-brand-400 dark:hover:bg-brand-500/10"
               >
                 접수
               </button>
+            ) : null}
+            {canEditOrder ? (
+              <Link
+                to={`/order/${id}/edit`}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-brand-500 bg-white px-3 py-2 text-sm font-medium text-brand-600 shadow-theme-xs hover:bg-brand-50 dark:border-brand-600 dark:bg-gray-800 dark:text-brand-400 dark:hover:bg-brand-500/10"
+              >
+                <PencilIcon className="size-4 shrink-0" aria-hidden />
+                발주 수정
+              </Link>
             ) : null}
             <button
               type="button"
@@ -1054,93 +1153,60 @@ export default function OrderDetail() {
                   : "발주가 종결(PO_CLOSED)된 뒤에만 등록할 수 있습니다."
               }
               onClick={() => openDeliveryRegistrationModal("plan")}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-brand-500 px-2.5 py-1.5 text-sm font-medium text-white shadow-theme-xs hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-45 dark:bg-brand-600 dark:hover:bg-brand-500"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-brand-500 px-3 py-2 text-sm font-medium text-white shadow-theme-xs hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-45 dark:bg-brand-600 dark:hover:bg-brand-500"
             >
               <PlusIcon className="size-4 shrink-0" aria-hidden />
-              납품 계획 만들기
+              납품계획 등록
             </button>
+            </div>
           </div>
-        </div>
 
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <div className="flex min-h-[7.25rem] flex-col justify-center rounded-xl border border-gray-100 bg-white p-3.5 shadow-theme-xs dark:border-white/10 dark:bg-white/[0.02] sm:min-h-[7.75rem] sm:p-4">
-            <div className="flex items-center gap-3">
-              <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-gray-100 text-gray-700 shadow-inner dark:bg-white/[0.08] dark:text-gray-200 sm:size-14">
-                <GroupIcon className="size-7 sm:size-8" aria-hidden />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-semibold tracking-wide text-gray-500 dark:text-gray-400">
-                  거래처
+          <div className="grid sm:grid-cols-2 xl:grid-cols-4 xl:divide-x xl:divide-gray-100 dark:xl:divide-white/[0.06]">
+            <OrderSummaryMetric
+              icon={<CalenderIcon className="size-6" aria-hidden />}
+              label="발주일"
+            >
+              {formatDateYmd(po.orderDate, { emptyFallback: "—" })}
+            </OrderSummaryMetric>
+            <OrderSummaryMetric
+              icon={<CalenderIcon className="size-6" aria-hidden />}
+              label="고객 요청 납기"
+              badge={
+                dueDateDday ? (
+                  <span
+                    className={dueDateDdayBadgeClassName(dueDateDday.diff)}
+                    title={dueDateDday.koLabel}
+                  >
+                    {dueDateDday.ddayLabel}
+                  </span>
+                ) : null
+              }
+            >
+              {formatDateYmd(po.dueDate, { emptyFallback: "—" })}
+            </OrderSummaryMetric>
+            <OrderSummaryMetric
+              icon={<DollarLineIcon className="size-6" aria-hidden />}
+              label="합계금액"
+            >
+              <span className="tabular-nums">{totalAmountMainDisplay}</span>
+              {totalAmountWithVat != null ? (
+                <p className="mt-0.5 text-xs font-normal text-gray-500 dark:text-gray-400">
+                  부가세 포함
                 </p>
-                <div className="mt-1 flex items-center gap-2 text-sm font-medium leading-snug text-gray-900 dark:text-white">
-                  {partnerFlagUrl ? (
-                    <img
-                      src={partnerFlagUrl}
-                      alt=""
-                      className="h-5 w-[1.375rem] shrink-0 rounded-sm object-cover"
-                      decoding="async"
-                    />
-                  ) : null}
-                  <span className="min-w-0 truncate">{partnerName}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="flex min-h-[7.25rem] flex-col justify-center rounded-xl border border-gray-100 bg-white p-3.5 shadow-theme-xs dark:border-white/10 dark:bg-white/[0.02] sm:min-h-[7.75rem] sm:p-4">
-            <div className="flex items-center gap-3">
-              <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-gray-100 text-gray-700 shadow-inner dark:bg-white/[0.08] dark:text-gray-200 sm:size-14">
-                <CalenderIcon className="size-7 sm:size-8" aria-hidden />
-              </div>
-              <div className="min-w-0 flex-1 space-y-1 text-sm leading-snug text-gray-900 dark:text-white">
-                <p className="text-xs font-semibold tracking-wide text-gray-500 dark:text-gray-400">
-                  일정
-                </p>
-                <p>
-                  <span className="text-gray-500 dark:text-gray-400">발주일</span>{" "}
-                  {formatDateYmd(po.orderDate, { emptyFallback: "-" })}
-                </p>
-                <p>
-                  <span className="text-gray-500 dark:text-gray-400">요청 납기</span>{" "}
-                  {formatDateYmd(po.dueDate, { emptyFallback: "-" })}
-                </p>
-              </div>
-            </div>
-          </div>
-          <div className="flex min-h-[7.25rem] flex-col justify-center rounded-xl border border-gray-100 bg-white p-3.5 shadow-theme-xs dark:border-white/10 dark:bg-white/[0.02] sm:min-h-[7.75rem] sm:p-4">
-            <div className="flex items-center gap-3">
-              <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-gray-100 text-gray-700 shadow-inner dark:bg-white/[0.08] dark:text-gray-200 sm:size-14">
-                <DollarLineIcon className="size-7 sm:size-8" aria-hidden />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-semibold tracking-wide text-gray-500 dark:text-gray-400">
-                  합계 금액
-                </p>
-                <p className="mt-1 text-sm font-semibold tabular-nums leading-snug text-gray-900 dark:text-white">
-                  {totalWithVatDisplay}
-                </p>
-              </div>
-            </div>
-          </div>
-          <div className="flex min-h-[7.25rem] flex-col justify-center rounded-xl border border-gray-100 bg-white p-3.5 shadow-theme-xs dark:border-white/10 dark:bg-white/[0.02] sm:min-h-[7.75rem] sm:p-4">
-            <div className="flex items-center gap-3">
-              <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-gray-100 text-gray-700 shadow-inner dark:bg-white/[0.08] dark:text-gray-200 sm:size-14">
-                <TruckIcon className="size-7 sm:size-8" aria-hidden />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-semibold tracking-wide text-gray-500 dark:text-gray-400">
-                  납품 진행
-                </p>
-                <p className="mt-1 text-sm font-medium leading-snug text-gray-900 dark:text-white">
-                  {deliveryOverviewText}
-                </p>
-              </div>
-            </div>
+              ) : null}
+            </OrderSummaryMetric>
+            <OrderSummaryMetric
+              icon={<TruckIcon className="size-6" aria-hidden />}
+              label="납품 진행"
+            >
+              {deliveryOverviewText}
+            </OrderSummaryMetric>
           </div>
         </div>
 
         <ComponentCard
           title="발주 정보"
-          desc="발주 마스터 및 고객 요청 사항입니다."
+          desc="발주 요약 정보입니다."
           collapsible={false}
           className="[&>div:first-child]:px-4 [&>div:first-child]:py-3.5"
           bodyClassName="!p-3 sm:!p-4"
@@ -1148,60 +1214,33 @@ export default function OrderDetail() {
         >
           {!canRegisterDelivery ? (
             <p className="mb-2 text-theme-xs text-amber-700 dark:text-amber-400/90">
-              발주가 종결(PO_CLOSED)된 뒤에만 납품 계획을 등록할 수 있습니다.
+              발주가 종결된 뒤에만 납품 계획을 등록할 수 있습니다.
             </p>
           ) : null}
-          <div className="grid gap-5 md:grid-cols-2">
-            <dl className="space-y-3">
-              <div>
-                <dt className="text-theme-xs font-medium text-gray-500 dark:text-gray-400">
-                  거래처
-                </dt>
-                <dd className="mt-1 flex items-center gap-2 text-sm text-gray-900 dark:text-white">
-                  {partnerFlagUrl ? (
-                    <img
-                      src={partnerFlagUrl}
-                      alt=""
-                      className="h-5 w-[1.375rem] shrink-0 rounded-sm object-cover"
-                      decoding="async"
-                    />
-                  ) : null}
-                  <span>{partnerName}</span>
-                </dd>
-              </div>
-              <div>
-                <dt className="text-theme-xs font-medium text-gray-500 dark:text-gray-400">
-                  발주일
-                </dt>
-                <dd className="mt-1 text-sm text-gray-900 dark:text-white">
-                  {formatDateYmd(po.orderDate, { emptyFallback: "-" })}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-theme-xs font-medium text-gray-500 dark:text-gray-400">
-                  고객 발주번호
-                </dt>
-                <dd className="mt-1 text-sm text-gray-900 dark:text-white">
-                  {po.vendorOrderNo?.trim() || "—"}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-theme-xs font-medium text-gray-500 dark:text-gray-400">
-                  담당자
-                </dt>
-                <dd className="mt-1 text-sm text-gray-900 dark:text-white">
-                  {po.requesterName?.trim() ||
-                    po.createdBy?.name?.trim() ||
-                    "—"}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-theme-xs font-medium text-gray-500 dark:text-gray-400">
-                  첨부파일
-                </dt>
-                <dd className="mt-1">
-                  {(files as PurchaseOrderFile[]).length === 0 ? (
-                    <span className="text-sm text-gray-500">첨부파일이 없습니다.</span>
+          <div className="grid gap-x-8 md:grid-cols-2">
+            <div>
+              <OrderDetailInfoRow label="고객사" value={partnerNameWithFlag} />
+              <OrderDetailInfoRow
+                label="발주일"
+                value={formatDateYmd(po.orderDate, { emptyFallback: "—" })}
+              />
+              <OrderDetailInfoRow
+                label="고객 발주번호"
+                value={po.vendorOrderNo?.trim() || "—"}
+              />
+              <OrderDetailInfoRow
+                label="담당자"
+                value={
+                  po.requesterName?.trim() ||
+                  po.createdBy?.name?.trim() ||
+                  "—"
+                }
+              />
+              <OrderDetailInfoRow
+                label="첨부파일"
+                value={
+                  (files as PurchaseOrderFile[]).length === 0 ? (
+                    <span className="text-gray-500">첨부파일이 없습니다.</span>
                   ) : (
                     <ul className="space-y-2">
                       {(files as PurchaseOrderFile[]).map((f) => (
@@ -1212,7 +1251,7 @@ export default function OrderDetail() {
                             className="h-5 w-5 shrink-0"
                             decoding="async"
                           />
-                          <span className="min-w-0 flex-1 truncate text-sm text-gray-900 dark:text-gray-100">
+                          <span className="min-w-0 flex-1 truncate">
                             {f.fileName}
                           </span>
                           <button
@@ -1244,53 +1283,23 @@ export default function OrderDetail() {
                         </li>
                       ))}
                     </ul>
-                  )}
-                </dd>
-              </div>
-            </dl>
-            <dl className="space-y-3">
-              <div>
-                <dt className="text-theme-xs font-medium text-gray-500 dark:text-gray-400">
-                  제목
-                </dt>
-                <dd className="mt-1 text-sm text-gray-900 dark:text-white">
-                  {po.title?.trim() || "—"}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-theme-xs font-medium text-gray-500 dark:text-gray-400">
-                  고객 요청 납기
-                </dt>
-                <dd className="mt-1 text-sm text-gray-900 dark:text-white">
-                  {formatDateYmd(po.dueDate, { emptyFallback: "—" })}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-theme-xs font-medium text-gray-500 dark:text-gray-400">
-                  요청사항
-                </dt>
-                <dd className="mt-1 text-sm text-gray-800 dark:text-gray-200">
-                  {po.vendorRequest?.trim() ? (
-                    <span className="whitespace-pre-wrap">{po.vendorRequest}</span>
-                  ) : (
-                    <span className="text-gray-500">—</span>
-                  )}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-theme-xs font-medium text-gray-500 dark:text-gray-400">
-                  특이사항
-                </dt>
-                <dd className="mt-1 text-sm text-gray-800 dark:text-gray-200">
-                  {po.specialNote?.trim() ? (
-                    <span className="whitespace-pre-wrap">{po.specialNote}</span>
-                  ) : (
-                    <span className="text-gray-500">—</span>
-                  )}
-                </dd>
-              </div>
-            </dl>
+                  )
+                }
+              />
+            </div>
+            <div>
+              <OrderDetailInfoRow
+                label="제목"
+                value={po.title?.trim() || "—"}
+              />
+              <OrderDetailInfoRow
+                label="고객 요청 납기"
+                value={formatDateYmd(po.dueDate, { emptyFallback: "—" })}
+              />
+            </div>
           </div>
+          <OrderDetailTextAreaRow label="요청사항" text={po.vendorRequest} />
+          <OrderDetailTextAreaRow label="특이사항" text={po.specialNote} />
         </ComponentCard>
 
         <OrderDetailLinesCard
