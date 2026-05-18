@@ -5,7 +5,7 @@
 
 | 날짜 | 문서 | Git ref (프론트) | 비고 |
 |------|------|------------------|------|
-| 2026-05-19 | [2026-05-19-ux-labels-detectors.md](./2026-05-19-ux-labels-detectors.md) | `development` @ `87e1575` | 납기 D-day, 검출기 타입, 버그 게시판 한글 |
+| 2026-05-19 | [2026-05-19-ux-labels-detectors.md](./2026-05-19-ux-labels-detectors.md) | `development` @ `1416c57` | 납기 D-day, 검출기 타입, 버그 게시판 한글 |
 | 2026-05-18 | [2026-05-18-delivery-plan.md](./2026-05-18-delivery-plan.md) | `feature/delivery-plan` @ `29e85d0` | 납품 계획·발주 상세·검출기 UI |
 
 
