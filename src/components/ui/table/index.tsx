@@ -1,4 +1,9 @@
 import type { FC, ReactNode, HTMLAttributes } from "react";
+export { SortableHeaderCell } from "./SortableHeaderCell";
+export type {
+  SortableHeaderCellProps,
+  TableSortOrder,
+} from "./SortableHeaderCell";
 
 // Props for Table
 interface TableProps {
