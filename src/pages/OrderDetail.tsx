@@ -19,9 +19,12 @@ import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import ComponentCard from "../components/common/ComponentCard";
 import { OrderDetailLinesCard } from "../components/order/OrderDetailLinesCard";
 // import { OrderDetailDeliveriesCard } from "../components/order/OrderDetailDeliveriesCard";
-import { OrderDetailDeliveryPlansCard } from "../components/order/OrderDetailDeliveryPlansCard";
+import { OrderDetailProductionPlansCard } from "../components/order/OrderDetailProductionPlansCard";
+import { ProductionPlanOrderSummary } from "../components/order/ProductionPlanOrderSummary";
+import { ProductionQuantityInputSection } from "../components/order/ProductionQuantityInputSection";
 import { OrderDetailLinkUnitsModal } from "../components/order/OrderDetailLinkUnitsModal";
-import ConfirmModal from "../components/common/ConfirmModal";
+import { OrderReceiveConfirmModal } from "../components/order/OrderReceiveConfirmModal";
+import { buttonClassName } from "../lib/buttonStyles";
 import LoadingLottie from "../components/common/LoadingLottie";
 import { Modal } from "../components/ui/modal";
 import { useAuth } from "../hooks/useAuth";
@@ -31,10 +34,15 @@ import {
   getPurchaseOrderFiles,
   getDeliveries,
   createDelivery,
-  createDeliveryPlan,
-  getPurchaseOrderDeliveryPlans,
+  createProductionPlan,
+  getProductionPlan,
+  getPurchaseOrderLotPreview,
+  issueProductionPlanLotUnits,
+  getPurchaseOrderProductionPlans,
+  getProductionPlanUnits,
   getPurchaseOrderSerialMaxSequence,
   aggregateDeliveredQtyByOrderItemId,
+  type ProductionPlanUnitTab,
   getPurchaseOrderRequestDepartmentLabel,
   updatePurchaseOrder,
   type PurchaseOrderDetail,
@@ -42,17 +50,17 @@ import {
   type PurchaseOrderItem,
   type Delivery,
   type DeliveryCreatePayload,
-  type DeliveryPlan,
+  type IssueLotUnitsPayload,
+  type ProductionPlan,
+  type ProductionPlanCreatePayload,
   type DeliveryCreateLinePayload,
   type Partner,
 } from "../api/purchaseOrder";
 import { API_BASE } from "../api/apiBase";
 import {
   COMMON_CODE_GROUP_COUNTRY,
-  COMMON_CODE_GROUP_WAVELENGTH,
+  COMMON_CODE_GROUP_LOT_YEAR_CODE,
 } from "../api/commonCode";
-import { getDetectors } from "../api/detectors";
-import { getProductList } from "../api/products";
 import { partnerSelectLabel } from "../lib/partnerDisplay";
 import { partnerCountryFlagUrl } from "../lib/partnerCountryOptions";
 import Label from "../components/form/Label";
@@ -68,16 +76,15 @@ import {
   getDueDateRelative,
 } from "../lib/dueDateDisplay";
 import { buildApiFileUrl, downloadFileWithAuth } from "../lib/fileDownload";
-import { IDDCA_TYPE_PATH } from "../lib/appRoutes";
 import { ReactComponent as ArrowDownTrayIcon } from "../icons/arrow-down-tray.svg?react";
 import {
-  ArrowTopRightOnSquareIcon,
   ListIcon,
   PencilIcon,
   PlusIcon,
   CalenderIcon,
   DollarLineIcon,
-  TruckIcon,
+  // TruckIcon,
+  CogIcon,
 } from "../icons";
 import IconTooltip from "../components/ui/tooltip/IconTooltip";
 import { getUsers } from "../api/user";
@@ -85,39 +92,38 @@ import {
   getOrganizationTree,
   flattenOrganizationUnitsForSelect,
 } from "../api/organization";
-function parsePositiveIntId(v: unknown): number | undefined {
-  if (typeof v === "number" && Number.isFinite(v)) return v;
-  if (typeof v === "string" && /^\d+$/.test(v.trim())) return Number(v.trim());
-  return undefined;
-}
-
-const DETECTOR_TYPE_GUIDE_URL = IDDCA_TYPE_PATH;
-
-/** 발주 폼(`OrderForm`)과 동일 — 조직 단위 선택값·레거시 부서 문자열 */
-const LEGACY_DEPT_PREFIX = "legacy-dept:";
-const LEGACY_USER_PREFIX = "legacy-user:";
-
-function legacyDeptValue(path: string) {
-  return `${LEGACY_DEPT_PREFIX}${encodeURIComponent(path)}`;
-}
-
-function tryDecodeLegacyDept(selectValue: string): string | null {
-  if (!selectValue.startsWith(LEGACY_DEPT_PREFIX)) return null;
-  try {
-    return decodeURIComponent(selectValue.slice(LEGACY_DEPT_PREFIX.length));
-  } catch {
-    return null;
-  }
-}
-
-function tryDecodeLegacyUser(selectValue: string): string | null {
-  if (!selectValue.startsWith(LEGACY_USER_PREFIX)) return null;
-  try {
-    return decodeURIComponent(selectValue.slice(LEGACY_USER_PREFIX.length));
-  } catch {
-    return null;
-  }
-}
+import { parsePositiveIntId } from "../lib/parseId";
+import {
+  LEGACY_USER_PREFIX,
+  legacyDeptValue,
+  tryDecodeLegacyDept,
+  tryDecodeLegacyUser,
+} from "../lib/legacySelectValue";
+import { detectorLabelFromOrderLine } from "../lib/orderLineItemRow";
+import {
+  buildLtSerialNo,
+  ltSerialExample,
+  ltSerialSequenceKey,
+  LT_SERIAL_PATTERN_DESCRIPTION,
+} from "../lib/ltSerialFormat";
+import {
+  LOT_UNIT_CODE_PATTERN_DESCRIPTION,
+  yearCodeFromOrderDate,
+} from "../lib/lotUnitCodeFormat";
+import {
+  distributeProductionPlanItems,
+  type ProductionPlanItemInput,
+} from "../lib/distributeProductionPlanItems";
+import {
+  aggregateProductionPlanQtyByOrderItemId,
+  aggregateProductionUnitQtyByOrderItemId,
+  mergeProductionRegisteredQtyByOrderItemId,
+} from "../lib/aggregateProductionRegisteredQty";
+import {
+  resolveOrderLineDetectorElementInitial,
+  resolveOrderLineDetectorId,
+  resolveOrderLineWavelengthCode,
+} from "../lib/productionPlanSerialFromOrderLine";
 
 function OrderDetailInfoRow({
   label,
@@ -211,90 +217,44 @@ function deliveryManagerUserIdFromSelect(selectValue: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-function deliveryQtyKey(orderItemId: number): string {
-  return `oi:${orderItemId}`;
-}
-
-const SERIAL_MAKER_CODE = "I";
-const PIXEL_PITCH_CODE_MAP: Record<string, string> = {
-  "7.5": "S",
-  "10.0": "T",
-  "15.0": "F",
-  "20.0": "W",
-  "30.0": "H",
+type DeliverySerialPreviewRow = {
+  key: string;
+  orderItemId: number;
+  lineLabel: string;
+  serialNo: string;
+  sequenceKey: string;
+  detectorElementCode: string;
+  wavelengthCode: string;
+  detectorId: number;
+  serialSnapshot?: Record<string, unknown>;
 };
 
-
-const YEAR_CODE_MAP: Record<string, string> = {
-  "2025": "O",
-  "2026": "P",
-  "2027": "Q",
-  "2028": "R",
-  "2029": "S",
-  "2030": "T",
-  "2031": "U",
-  "2032": "V",
-  "2033": "W",
-  "2034": "X",
-  "2035": "Y",
+type DeliveryLotPreviewRow = {
+  key: string;
+  orderItemId: number;
+  lineLabel: string;
+  offset: number;
+  unitCode: string;
+  operatorUserId: string;
 };
 
-function itemTypeCodeFromLine(line: PurchaseOrderItem): string {
-  const joined = [
-    line.itemName,
-    line.productNameSnapshot,
-    line.definitionNameSnapshot,
-    line.spec,
-  ]
-    .map((v) => String(v ?? "").toUpperCase())
-    .join(" ");
-  if (joined.includes("CAMERA") || joined.includes("카메라".toUpperCase())) return "C";
-  return "E";
-}
+const SERIAL_PREVIEW_DEBOUNCE_MS = 280;
+const LOT_PREVIEW_DEBOUNCE_MS = 280;
+const PRODUCTION_UNIT_QTY_FETCH_PAGE_SIZE = 500;
+const PRODUCTION_UNIT_TABS_FOR_QTY = [
+  "WAITING",
+  "IN_PROGRESS",
+  "COMPLETED",
+  "DELAYED",
+] as const satisfies readonly ProductionPlanUnitTab[];
 
-function detectorTypeSuffixCode(rawType: string): string {
-  const t = String(rawType ?? "").trim().toUpperCase();
-  if (!t) return "";
-  const parts = t.split("-").map((p) => p.trim()).filter(Boolean);
-  return (parts[parts.length - 1] ?? "").replace(/[^A-Z0-9]/g, "");
-}
-
-function pitchCodeFromRaw(rawPitch: string): string {
-  const trimmed = String(rawPitch ?? "").trim().replace(/UM$/i, "");
-  if (!trimmed) return "";
-  const parsed = Number(trimmed);
-  if (!Number.isFinite(parsed)) return "";
-  const normalized = parsed.toFixed(1);
-  return PIXEL_PITCH_CODE_MAP[normalized] ?? "";
-}
-
-function yearCodeFromDate(deliveryDate: string): string {
-  const year = String(deliveryDate ?? "").trim().slice(0, 4);
-  return YEAR_CODE_MAP[year] ?? "";
-}
-
-function sequenceText(n: number): string {
-  return String(n).padStart(4, "0");
-}
-
-/**
- * 발주 라인 사업명에서 소자 공통코드에 해당하는 토큰을 추출합니다.
- * 예: `ICC640_T2SL` 또는 표시명 `… (ICC640_T2SL)` → `T2SL` (`_` 기준 마지막 구간)
- */
-function detectorElementCodeFromBusinessName(raw: string): string {
-  const trimmed = String(raw ?? "").trim();
-  if (!trimmed) return "";
-  const parenMatch = trimmed.match(/\(([^)]+)\)\s*$/);
-  const core = (parenMatch ? parenMatch[1] : trimmed).trim();
-  const parts = core.split("_").map((p) => p.trim()).filter(Boolean);
-  if (parts.length < 2) return "";
-  return parts[parts.length - 1] ?? "";
-}
-
-function detectorElementInitial(code: string): string {
-  const normalized = String(code ?? "").trim().toUpperCase();
-  if (!normalized) return "";
-  return normalized.slice(0, 1);
+function parseThisProductionQtyInput(raw: string): number {
+  const trimmed = raw.trim();
+  const n = Number(trimmed);
+  if (!trimmed || !Number.isFinite(n) || n <= 0 || !Number.isInteger(n)) {
+    return 0;
+  }
+  return n;
 }
 
 function firstLineProductWithBusiness(
@@ -324,7 +284,7 @@ function firstLineProductWithBusiness(
   return `${baseLabel} (${lineCode})`;
 }
 
-function buildDeliveryPlanAutoTitle(opts: {
+function buildProductionPlanAutoTitle(opts: {
   plannedDeliveryDate: string;
   deliveryDate: string;
   lines: PurchaseOrderItem[];
@@ -341,15 +301,32 @@ function buildDeliveryPlanAutoTitle(opts: {
     (s, l) => s + (Number(l.qty) || 0),
     0
   );
-  return `${compact}-${productSeg}-${totalQty} ${opts.nextPlanSeq}차 납품계획`;
+  return `${compact}-${productSeg}-${totalQty} ${opts.nextPlanSeq}차 생산계획`;
+}
+
+function multiLineSummarySuffix(extraLineCount: number): string {
+  return extraLineCount > 0 ? ` 외 ${extraLineCount}건` : "";
+}
+
+function orderLineQtyLabel(line: PurchaseOrderItem | undefined): string {
+  if (!line) return "-";
+  const raw = line.qty;
+  const qty =
+    Number.isFinite(Number(raw))
+      ? Number(raw) % 1 === 0
+        ? String(Math.trunc(Number(raw)))
+        : String(raw)
+      : "-";
+  const unit = line.unit?.trim() || "EA";
+  return `${qty} ${unit}`;
 }
 
 /**
- * 접수 / 납품 계획 / 실제 납품
+ * 접수 / 생산 계획 / 실제 생산
  * -----------------------------------------------------------------
  * - 접수: PUT `.../purchase-orders/:id` (status=PO_CLOSED) — 발주 즉시 종결.
- * - 납품 계획: POST `.../delivery-plans` — 실제 납품과 동일 본문(`DeliveryCreatePayload`), 종결 후 등록, 상세는 `/order/:id/plan/:planId`.
- * - 실제 납품: POST `.../deliveries` — `PO_CLOSED` 일 때만 허용; 저장 후 Unit 연결 모달에서 `delivery-items/:id/units`.
+ * - 생산 계획: POST `.../production-plans` — `ProductionPlanCreatePayload`, 종결 후 등록, 상세는 `/order/:id/plan/:planId`.
+ * - 실제 생산: POST `.../deliveries` — `PO_CLOSED` 일 때만 허용; 저장 후 Unit 연결 모달에서 `delivery-items/:id/units`.
  *
  * UI: 과거 테이블형 상세(`?layout=classic`)는 제거됨 — 카드형 요약 레이아웃만 유지합니다.
  */
@@ -360,7 +337,7 @@ export default function OrderDetail() {
   const queryClient = useQueryClient();
   const { user: authUser, accessToken, isLoading: isAuthLoading } = useAuth();
 
-  /** 납품 모달: 실제 납품 vs 납품 계획 — 동일 폼·동일 `DeliveryCreatePayload`, 호출 API만 다름 */
+  /** 생산 모달: 실제 생산 vs 생산 계획 — 동일 폼 UI, 저장 API·payload 필드만 다름 */
   const [deliveryModalPurpose, setDeliveryModalPurpose] = useState<
     "actual" | "plan"
   >("actual");
@@ -373,48 +350,85 @@ export default function OrderDetail() {
   const [deliveryDate, setDeliveryDate] = useState("");
   const [plannedDeliveryDate, setPlannedDeliveryDate] = useState("");
   const [deliveryRemark, setDeliveryRemark] = useState("");
-  const [wavelengthCode, setWavelengthCode] = useState("");
-  const [detectorId, setDetectorId] = useState("");
-  /** 납품 담당자 — 발주 등록과 동일: 조직 단위 id(문자열) + 사용자 id(문자열) */
+  /** 생산 담당자 — 발주 등록과 동일: 조직 단위 id(문자열) + 사용자 id(문자열) */
   const [deliveryManagerDeptSelectValue, setDeliveryManagerDeptSelectValue] =
     useState("");
   const [deliveryManagerUserSelectValue, setDeliveryManagerUserSelectValue] =
     useState("");
-  /** 납품 라인 key(`oi:{orderItemId}`) → 이번 납품 수량 입력 문자열 */
-  const [deliveryLineQtyInput, setDeliveryLineQtyInput] = useState<
-    Record<string, string>
-  >({});
+  const [deliveryLotBulkOperatorUserValue, setDeliveryLotBulkOperatorUserValue] =
+    useState("");
   const [deliverySerialQtyInput, setDeliverySerialQtyInput] = useState("");
   const [isSerialRulePopoverOpen, setIsSerialRulePopoverOpen] = useState(false);
   const [deliverySerialPreviewRows, setDeliverySerialPreviewRows] = useState<
-    Array<{
-      key: string;
-      orderItemId: number;
-      lineLabel: string;
-      serialNo: string;
-      sequenceKey: string;
-      detectorElementCode: string;
-      wavelengthCode: string;
-      detectorId: number;
-      serialSnapshot?: Record<string, unknown>;
-    }>
+    DeliverySerialPreviewRow[]
   >([]);
-  /** 시리얼 미리보기가 있을 때, 생성 시점과 다른 입력이 되면 미리보기를 무효화 */
-  const lastSerialDepsWhenPreviewRef = useRef<string | null>(null);
+  const [deliveryLotPreviewRows, setDeliveryLotPreviewRows] = useState<
+    DeliveryLotPreviewRow[]
+  >([]);
+  const [isLotBulkOperatorPopoverOpen, setIsLotBulkOperatorPopoverOpen] =
+    useState(false);
+  const [isLotRulePopoverOpen, setIsLotRulePopoverOpen] = useState(false);
+  const serialPreviewGenRequestRef = useRef(0);
+  const lotPreviewGenRequestRef = useRef(0);
+  const lotBulkOperatorPopoverRef = useRef<HTMLDivElement | null>(null);
   const resetDeliveryModalForm = useCallback(() => {
     setDeliveryTitle("");
     setDeliveryDate("");
     setPlannedDeliveryDate("");
     setDeliveryRemark("");
-    setWavelengthCode("");
-    setDetectorId("");
     setDeliveryManagerDeptSelectValue("");
     setDeliveryManagerUserSelectValue("");
-    setDeliveryLineQtyInput({});
+    setDeliveryLotBulkOperatorUserValue("");
     setDeliverySerialQtyInput("");
     setIsSerialRulePopoverOpen(false);
     setDeliverySerialPreviewRows([]);
+    setIsLotBulkOperatorPopoverOpen(false);
+    setIsLotRulePopoverOpen(false);
+    setDeliveryLotPreviewRows([]);
   }, []);
+
+  const updateDeliveryLotPreviewOperatorUser = useCallback(
+    (index: number, nextOperatorUserId: string) => {
+      setDeliveryLotPreviewRows((prev) => {
+        if (index < 0 || index >= prev.length) return prev;
+        const copy = [...prev];
+        copy[index] = { ...copy[index], operatorUserId: nextOperatorUserId };
+        return copy;
+      });
+    },
+    []
+  );
+
+  const applyBulkOperatorUserToLotPreviewRows = useCallback(() => {
+    const operatorUserId = deliveryManagerUserIdFromSelect(
+      deliveryLotBulkOperatorUserValue
+    );
+    if (operatorUserId == null) return;
+    setDeliveryLotPreviewRows((prev) =>
+      prev.map((row) => ({ ...row, operatorUserId: String(operatorUserId) }))
+    );
+    setIsLotBulkOperatorPopoverOpen(false);
+  }, [deliveryLotBulkOperatorUserValue]);
+
+  useEffect(() => {
+    if (!isLotBulkOperatorPopoverOpen) return;
+    const onDocMouseDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (lotBulkOperatorPopoverRef.current?.contains(target)) return;
+      setIsLotBulkOperatorPopoverOpen(false);
+    };
+    const onDocKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsLotBulkOperatorPopoverOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDocMouseDown);
+    document.addEventListener("keydown", onDocKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onDocMouseDown);
+      document.removeEventListener("keydown", onDocKeyDown);
+    };
+  }, [isLotBulkOperatorPopoverOpen]);
 
   const updateDeliverySerialPreviewSerialNo = useCallback(
     (index: number, nextSerialNo: string) => {
@@ -454,21 +468,48 @@ export default function OrderDetail() {
     enabled: !!accessToken && id !== "",
   });
 
-  const { data: poDeliveryPlans = [] } = useQuery({
-    queryKey: ["purchaseOrderDeliveryPlans", id],
-    queryFn: () => getPurchaseOrderDeliveryPlans(id, accessToken!),
+  const { data: poProductionPlans = [] } = useQuery({
+    queryKey: ["purchaseOrderProductionPlans", id],
+    queryFn: () => getPurchaseOrderProductionPlans(id, accessToken!),
     enabled: !!accessToken && !isAuthLoading && id !== "",
   });
 
-  const nextDeliveryPlanSeq = useMemo(
+  const nextProductionPlanSeq = useMemo(
     () =>
-      Math.max(0, ...poDeliveryPlans.map((p) => p.planSeq ?? 0)) + 1,
-    [poDeliveryPlans]
+      Math.max(0, ...poProductionPlans.map((p) => p.planSeq ?? 0)) + 1,
+    [poProductionPlans]
   );
 
   const deliveredByOrderItemId = useMemo(
     () => aggregateDeliveredQtyByOrderItemId(deliveries as Delivery[]),
     [deliveries]
+  );
+
+  const { data: orderProductionUnitRows = [] } = useQuery({
+    queryKey: ["productionPlanUnits", id, "byOrderForQty"],
+    queryFn: async () => {
+      const results = await Promise.all(
+        PRODUCTION_UNIT_TABS_FOR_QTY.map((tab) =>
+          getProductionPlanUnits(accessToken!, {
+            tab,
+            orderId: id,
+            page: 1,
+            pageSize: PRODUCTION_UNIT_QTY_FETCH_PAGE_SIZE,
+          })
+        )
+      );
+      return results.flatMap((r) => r.items);
+    },
+    enabled: !!accessToken && !isAuthLoading && id !== "",
+  });
+
+  const registeredByOrderItemId = useMemo(
+    () =>
+      mergeProductionRegisteredQtyByOrderItemId(
+        aggregateProductionPlanQtyByOrderItemId(poProductionPlans),
+        aggregateProductionUnitQtyByOrderItemId(orderProductionUnitRows)
+      ),
+    [poProductionPlans, orderProductionUnitRows]
   );
 
   const { data: countryCodes = [] } = useCommonCodesByGroup(
@@ -477,32 +518,19 @@ export default function OrderDetail() {
     { enabled: !!accessToken && !isAuthLoading }
   );
 
-  /* 납품 실적 카드 비표시 시 DELIVERY_STATUS 코드 불필요 — 카드 복구 시 함께 해제
+  const { data: lotYearCodes = [] } = useCommonCodesByGroup(
+    COMMON_CODE_GROUP_LOT_YEAR_CODE,
+    accessToken,
+    { enabled: !!accessToken && !isAuthLoading && deliveryModalOpen }
+  );
+
+  /* 생산 실적 카드 비표시 시 DELIVERY_STATUS 코드 불필요 — 카드 복구 시 함께 해제
   const { data: deliveryStatusCodes = [] } = useCommonCodesByGroup(
     COMMON_CODE_GROUP_DELIVERY_STATUS,
     accessToken,
     { enabled: !!accessToken && !isAuthLoading }
   );
   */
-  const { data: wavelengthCodes = [] } = useCommonCodesByGroup(
-    COMMON_CODE_GROUP_WAVELENGTH,
-    accessToken,
-    { enabled: !!accessToken && !isAuthLoading }
-  );
-  const { data: detectorMasterList = [] } = useQuery({
-    queryKey: ["detectorMasterForDeliveryTypeSelect"],
-    queryFn: () => getDetectors(accessToken as string, { isActive: true }),
-    enabled: !!accessToken && !isAuthLoading,
-  });
-  const { data: productMasterList = [] } = useQuery({
-    queryKey: ["productMasterForSerialPrefix"],
-    queryFn: async () => {
-      const result = await getProductList(accessToken as string, { page: 1, size: 1000 });
-      return result.items;
-    },
-    enabled: !!accessToken && !isAuthLoading,
-  });
-
   /** 로그인 사용자 id 매칭용 전 사용자 목록 */
   const { data: users = [] } = useQuery({
     queryKey: ["users"],
@@ -552,57 +580,16 @@ export default function OrderDetail() {
     return opts;
   }, [users, deliveryManagerUserSelectValue]);
 
-  const wavelengthOptions = useMemo(
+  const operatorUserOptions = useMemo(
     () =>
-      wavelengthCodes
-        .filter((item) => item.isActive !== false)
-        .map((item) => ({ value: item.code, label: item.name || item.code })),
-    [wavelengthCodes]
+      users
+        .filter((u) => u.isActive !== false)
+        .map((u) => ({
+          value: String(u.id),
+          label: `${u.name} (${u.employeeNo})`,
+        })),
+    [users]
   );
-  const detectorTypeOptions = useMemo(
-    () =>
-      detectorMasterList
-        .filter((item) => item.isActive !== false)
-        .map((item) => {
-          const detectorType = String(item.detectorType ?? "").trim();
-          const arrayWidth = Number(item.arrayWidth);
-          const arrayHeight = Number(item.arrayHeight);
-          const pitch = String(item.pitch ?? "").trim();
-          const roicType = String(item.roicType ?? "").trim();
-          const resolution =
-            Number.isFinite(arrayWidth) && Number.isFinite(arrayHeight)
-              ? `${arrayWidth}*${arrayHeight}`
-              : "-";
-          const pitchLabel = pitch ? `${pitch}` : "-";
-          const roicLabel = roicType || "-";
-          const label = `${detectorType} | ${resolution} | ${pitchLabel} | ${roicLabel}`;
-          return {
-            value: String(item.id),
-            label,
-          };
-        })
-        .filter((item) => item.value.length > 0),
-    [detectorMasterList]
-  );
-  const productSerialMetaById = useMemo(() => {
-    const m = new Map<string, { businessCode: string; pixelPitch: string }>();
-    productMasterList.forEach((product) => {
-      const id = String(product.id ?? "").trim();
-      if (!id) return;
-      const businessCode = String(product.businessCode ?? "").trim().toUpperCase();
-      const pixelPitch = String(product.pixelPitch ?? "").trim();
-      if (!businessCode) return;
-      m.set(id, { businessCode, pixelPitch });
-    });
-    return m;
-  }, [productMasterList]);
-  const selectedDetector = useMemo(() => {
-    const selectedId = Number(detectorId);
-    if (!Number.isFinite(selectedId) || selectedId <= 0) return null;
-    return (
-      detectorMasterList.find((item) => Number(item.id) === selectedId) ?? null
-    );
-  }, [detectorMasterList, detectorId]);
 
   useEffect(() => {
     if (!deliveryModalOpen) return;
@@ -638,7 +625,7 @@ export default function OrderDetail() {
     deliveryManagerUserSelectValue,
   ]);
 
-  /* 납품 실적 카드 전용 — 카드 복구 시 함께 해제
+  /* 생산 실적 카드 전용 — 카드 복구 시 함께 해제
   const deliveryStatusDisplayName = useCallback(
     (statusCode: string | null | undefined) => {
       const code = String(statusCode ?? "").trim();
@@ -673,30 +660,88 @@ export default function OrderDetail() {
 
   const deliveryMutation = useMutation({
     mutationFn: async (vars: {
-      deliveryPayload: DeliveryCreatePayload;
+      deliveryPayload?: DeliveryCreatePayload;
+      productionPlanPayload?: ProductionPlanCreatePayload;
+      planDraftItems?: ProductionPlanItemInput[];
+      lotPreviewRows?: DeliveryLotPreviewRow[];
       purpose: "actual" | "plan";
     }) => {
       if (vars.purpose === "plan") {
-        return createDeliveryPlan(id, vars.deliveryPayload, accessToken!);
+        const createdPlan = await createProductionPlan(
+          id,
+          vars.productionPlanPayload!,
+          accessToken!
+        );
+        const plan = await getProductionPlan(createdPlan.id, accessToken!);
+        const planDraftItems = vars.planDraftItems ?? [];
+        const createdPlanItems = plan.items ?? [];
+        const lotIssuePayload: IssueLotUnitsPayload = {
+          issuedDate: vars.productionPlanPayload?.deliveryDate?.trim() || undefined,
+          items: planDraftItems.map((draftItem) => {
+            const createdItem = createdPlanItems.find(
+              (item) =>
+                Number(item.purchaseOrderItemId ?? NaN) ===
+                draftItem.purchaseOrderItemId
+            );
+            if (createdItem?.id == null) {
+              throw new Error(
+                `생산 계획 품목을 찾지 못했습니다. (품목 ${draftItem.purchaseOrderItemId})`
+              );
+            }
+            const unitAssignments = (vars.lotPreviewRows ?? [])
+              .filter(
+                (row) =>
+                  row.orderItemId === draftItem.purchaseOrderItemId &&
+                  row.operatorUserId.trim() !== ""
+              )
+              .map((row) => {
+                const operatorUserId = deliveryManagerUserIdFromSelect(
+                  row.operatorUserId
+                );
+                return operatorUserId == null
+                  ? null
+                  : {
+                      offset: row.offset,
+                      operatorUserId,
+                    };
+              })
+              .filter((row): row is { offset: number; operatorUserId: number } =>
+                row != null
+              );
+            return {
+              planItemId: createdItem.id,
+              quantity: draftItem.plannedQty,
+              ...(unitAssignments.length > 0 ? { unitAssignments } : {}),
+            };
+          }),
+        };
+        return issueProductionPlanLotUnits(
+          plan.id,
+          lotIssuePayload,
+          accessToken!
+        );
       }
-      return createDelivery(id, vars.deliveryPayload, accessToken!);
+      return createDelivery(id, vars.deliveryPayload!, accessToken!);
     },
     onSuccess: (data, vars) => {
       if (vars.purpose === "plan") {
-        const plan = data as DeliveryPlan;
-        toast.success("납품 계획이 등록되었습니다.");
+        const plan = data as ProductionPlan;
+        toast.success("생산 계획이 등록되고 LOT가 발급되었습니다.");
         setDeliveryModalOpen(false);
         resetDeliveryModalForm();
         setDeliveryModalPurpose("actual");
         queryClient.invalidateQueries({ queryKey: ["purchaseOrder", id] });
         queryClient.invalidateQueries({
-          queryKey: ["purchaseOrderDeliveryPlans", id],
+          queryKey: ["purchaseOrderProductionPlans", id],
+        });
+        queryClient.invalidateQueries({
+          queryKey: ["productionPlanUnits", id, "byOrderForQty"],
         });
         navigate(`/order/${id}/plan/${plan.id}`);
         return;
       }
       const delivery = data as Delivery;
-      toast.success("납품 및 시리얼이 등록되었습니다.");
+      toast.success("생산 및 시리얼이 등록되었습니다.");
       setDeliveryModalOpen(false);
       resetDeliveryModalForm();
       queryClient.invalidateQueries({ queryKey: ["purchaseOrderDeliveries", id] });
@@ -708,8 +753,8 @@ export default function OrderDetail() {
       toast.error(
         e.message ||
           (vars.purpose === "plan"
-            ? "납품 계획 등록에 실패했습니다."
-            : "납품/시리얼 등록에 실패했습니다.")
+            ? "생산 계획·LOT 발급에 실패했습니다."
+            : "생산/시리얼 등록에 실패했습니다.")
       ),
   });
 
@@ -734,11 +779,11 @@ export default function OrderDetail() {
     if (!deliveryModalOpen || deliveryModalPurpose !== "plan") return;
     startTransition(() => {
       setDeliveryTitle(
-        buildDeliveryPlanAutoTitle({
+        buildProductionPlanAutoTitle({
           plannedDeliveryDate,
           deliveryDate,
           lines: orderLines,
-          nextPlanSeq: nextDeliveryPlanSeq,
+          nextPlanSeq: nextProductionPlanSeq,
         })
       );
     });
@@ -748,40 +793,297 @@ export default function OrderDetail() {
     plannedDeliveryDate,
     deliveryDate,
     orderLines,
-    nextDeliveryPlanSeq,
+    nextProductionPlanSeq,
+  ]);
+
+  const generateSerialPreview = useCallback(async () => {
+    if (
+      !deliveryModalOpen ||
+      deliveryModalPurpose !== "actual" ||
+      !order ||
+      !accessToken ||
+      !id
+    ) {
+      return;
+    }
+
+    const requestId = ++serialPreviewGenRequestRef.current;
+    const poDetail = order as PurchaseOrderDetail;
+    const raw = deliverySerialQtyInput.trim();
+    const qtyRequested = parseThisProductionQtyInput(raw);
+
+    if (!raw || qtyRequested <= 0) {
+      setDeliverySerialPreviewRows([]);
+      return;
+    }
+
+    if (!deliveryDate.trim()) {
+      setDeliverySerialPreviewRows([]);
+      return;
+    }
+
+    const lines = ((poDetail.orderItems ?? poDetail.items ?? []) as PurchaseOrderItem[]);
+    if (lines.length === 0) {
+      setDeliverySerialPreviewRows([]);
+      return;
+    }
+
+    const totalQty = lines.reduce((sum, line) => sum + (Number(line.qty) || 0), 0);
+    const deliveredQty = lines.reduce(
+      (sum, line) => sum + (deliveredByOrderItemId.get(line.id) ?? 0),
+      0
+    );
+    const remainingQty = Math.max(0, totalQty - deliveredQty);
+    const qty = Math.min(qtyRequested, remainingQty);
+
+    if (qty <= 0) {
+      setDeliverySerialPreviewRows([]);
+      return;
+    }
+
+    const yearCode = yearCodeFromOrderDate(
+      deliveryDate.trim(),
+      lotYearCodes
+    );
+    if (!yearCode) {
+      setDeliverySerialPreviewRows([]);
+      return;
+    }
+
+    const partnerCode = String(poDetail.partner?.code ?? "").trim().toUpperCase();
+    if (!partnerCode) {
+      setDeliverySerialPreviewRows([]);
+      return;
+    }
+
+    const qtyEps = 1e-9;
+
+    const plannedRows: Array<{
+      orderItemId: number;
+      lineLabel: string;
+      assignQty: number;
+      detectorElementCode: string;
+      wavelengthCode: string;
+      detectorId: number;
+    }> = [];
+
+    let remainingToAssign = qty;
+    for (const line of lines) {
+      if (remainingToAssign <= qtyEps) break;
+      const prev = deliveredByOrderItemId.get(line.id) ?? 0;
+      const lineRemaining = Math.max(0, line.qty - prev);
+      const assignQty = Math.min(
+        Math.max(0, Math.floor(lineRemaining)),
+        Math.floor(remainingToAssign)
+      );
+      if (assignQty > 0 && resolveOrderLineDetectorId(line) == null) {
+        setDeliverySerialPreviewRows([]);
+        return;
+      }
+
+      plannedRows.push({
+        orderItemId: line.id,
+        lineLabel: firstLineProductWithBusiness(line),
+        assignQty,
+        detectorElementCode: resolveOrderLineDetectorElementInitial(line),
+        wavelengthCode: resolveOrderLineWavelengthCode(line),
+        detectorId: resolveOrderLineDetectorId(line) ?? 0,
+      });
+      remainingToAssign -= assignQty;
+    }
+
+    const sequenceKey = ltSerialSequenceKey(
+      deliveryDate.trim(),
+      yearCode,
+      partnerCode
+    );
+
+    let nextSequenceNo = 1;
+    try {
+      const sequenceResult = await getPurchaseOrderSerialMaxSequence(
+        id,
+        sequenceKey,
+        accessToken
+      );
+      nextSequenceNo = sequenceResult.nextSequence;
+    } catch {
+      if (requestId !== serialPreviewGenRequestRef.current) return;
+      setDeliverySerialPreviewRows([]);
+      return;
+    }
+
+    if (requestId !== serialPreviewGenRequestRef.current) return;
+
+    const nextSerialRows: DeliverySerialPreviewRow[] = [];
+    let sequenceOffset = 0;
+    plannedRows.forEach((row) => {
+      for (let i = 0; i < row.assignQty; i += 1) {
+        const seqNo = nextSequenceNo + sequenceOffset;
+        sequenceOffset += 1;
+        const serialNo = buildLtSerialNo({
+          deliveryDate: deliveryDate.trim(),
+          yearCode,
+          partnerCode,
+          sequenceNo: seqNo,
+        });
+        nextSerialRows.push({
+          key: `oi-${row.orderItemId}-lt-${seqNo}`,
+          orderItemId: row.orderItemId,
+          lineLabel: row.lineLabel,
+          serialNo,
+          sequenceKey,
+          detectorElementCode: row.detectorElementCode,
+          wavelengthCode: row.wavelengthCode,
+          detectorId: row.detectorId,
+          serialSnapshot: {
+            source: "frontend",
+            format: "LT",
+            detectorElementCode: row.detectorElementCode,
+            wavelengthCode: row.wavelengthCode,
+            detectorId: row.detectorId,
+            sequenceKey,
+            serialNo,
+            deliveryDate: deliveryDate.trim(),
+            yearCode,
+            partnerCode,
+            sequenceNo: seqNo,
+          },
+        });
+      }
+    });
+
+    setDeliverySerialPreviewRows(nextSerialRows);
+  }, [
+    deliveryModalOpen,
+    deliveryModalPurpose,
+    order,
+    accessToken,
+    id,
+    deliverySerialQtyInput,
+    deliveryDate,
+    deliveredByOrderItemId,
+    lotYearCodes,
   ]);
 
   useEffect(() => {
-    const snap = JSON.stringify({
-      deliveryDate,
-      wavelengthCode,
-      detectorId,
-      deliverySerialQtyInput,
-      deliveryLineQtyInput,
-    });
-    if (deliverySerialPreviewRows.length === 0) {
-      lastSerialDepsWhenPreviewRef.current = null;
+    if (!deliveryModalOpen || deliveryModalPurpose !== "actual") return;
+    const timer = window.setTimeout(() => {
+      void generateSerialPreview();
+    }, SERIAL_PREVIEW_DEBOUNCE_MS);
+    return () => window.clearTimeout(timer);
+  }, [deliveryModalOpen, deliveryModalPurpose, generateSerialPreview]);
+
+  const generateLotPreview = useCallback(async () => {
+    if (
+      !deliveryModalOpen ||
+      deliveryModalPurpose !== "plan" ||
+      !accessToken ||
+      !id
+    ) {
       return;
     }
-    if (lastSerialDepsWhenPreviewRef.current === null) {
-      lastSerialDepsWhenPreviewRef.current = snap;
+
+    const requestId = ++lotPreviewGenRequestRef.current;
+    const raw = deliverySerialQtyInput.trim();
+    const qtyRequested = parseThisProductionQtyInput(raw);
+
+    if (!raw || qtyRequested <= 0 || !deliveryDate.trim()) {
+      setDeliveryLotPreviewRows([]);
       return;
     }
-    if (lastSerialDepsWhenPreviewRef.current !== snap) {
-      lastSerialDepsWhenPreviewRef.current = snap;
-      startTransition(() => {
-        setDeliverySerialPreviewRows([]);
-        setIsSerialRulePopoverOpen(false);
+
+    const totalQty = orderLines.reduce(
+      (sum, line) => sum + (Number(line.qty) || 0),
+      0
+    );
+    const registeredQty = orderLines.reduce(
+      (sum, line) => sum + (registeredByOrderItemId.get(line.id) ?? 0),
+      0
+    );
+    const remainingQty = Math.max(0, totalQty - registeredQty);
+    const qty = Math.min(qtyRequested, remainingQty);
+
+    if (qty <= 0) {
+      setDeliveryLotPreviewRows([]);
+      return;
+    }
+
+    const { items: plannedItems, error } = distributeProductionPlanItems(
+      orderLines,
+      qty,
+      registeredByOrderItemId
+    );
+    if (error) {
+      setDeliveryLotPreviewRows([]);
+      return;
+    }
+
+    try {
+      const result = await getPurchaseOrderLotPreview(
+        id,
+        { quantity: qty, issuedDate: deliveryDate.trim() },
+        accessToken
+      );
+      if (requestId !== lotPreviewGenRequestRef.current) return;
+      const previewRows = result.previews;
+      if (previewRows.length < qty) {
+        setDeliveryLotPreviewRows([]);
+        return;
+      }
+      setDeliveryLotPreviewRows((prev) => {
+        const previousOperatorByKey = new Map(
+          prev.map((row) => [`${row.orderItemId}:${row.offset}`, row.operatorUserId])
+        );
+        const nextRows: DeliveryLotPreviewRow[] = [];
+        let previewIndex = 0;
+        plannedItems.forEach((item) => {
+          const line = orderLines.find(
+            (orderLine) => orderLine.id === item.purchaseOrderItemId
+          );
+          const lineLabel = firstLineProductWithBusiness(line);
+          for (let offset = 0; offset < item.plannedQty; offset += 1) {
+            const preview = previewRows[previewIndex];
+            if (!preview) break;
+            previewIndex += 1;
+            nextRows.push({
+              key:
+                `lot-preview-${item.purchaseOrderItemId}-${offset}-` +
+                `${preview.unitCode || previewIndex}`,
+              orderItemId: item.purchaseOrderItemId,
+              lineLabel,
+              offset,
+              unitCode: preview.unitCode,
+              operatorUserId:
+                previousOperatorByKey.get(
+                  `${item.purchaseOrderItemId}:${offset}`
+                ) ?? "",
+            });
+          }
+        });
+        return nextRows;
       });
+    } catch {
+      if (requestId !== lotPreviewGenRequestRef.current) return;
+      setDeliveryLotPreviewRows([]);
     }
   }, [
-    deliveryDate,
-    wavelengthCode,
-    detectorId,
+    deliveryModalOpen,
+    deliveryModalPurpose,
+    accessToken,
+    id,
     deliverySerialQtyInput,
-    deliveryLineQtyInput,
-    deliverySerialPreviewRows.length,
+    deliveryDate,
+    orderLines,
+    registeredByOrderItemId,
   ]);
+
+  useEffect(() => {
+    if (!deliveryModalOpen || deliveryModalPurpose !== "plan") return;
+    const timer = window.setTimeout(() => {
+      void generateLotPreview();
+    }, LOT_PREVIEW_DEBOUNCE_MS);
+    return () => window.clearTimeout(timer);
+  }, [deliveryModalOpen, deliveryModalPurpose, generateLotPreview]);
 
   if (orderLoading || !order) {
     return (
@@ -799,50 +1101,74 @@ export default function OrderDetail() {
   }
 
   const po = order as PurchaseOrderDetail;
-  /** 납품 모달 초기값 등에 쓰는 요청 부서 문자열(API 별칭 통합) */
+  /** 생산 모달 초기값 등에 쓰는 요청 부서 문자열(API 별칭 통합) */
   const requestDeptLabel = getPurchaseOrderRequestDepartmentLabel(po);
   const hasDeliveryTargets = orderLines.length > 0;
   const firstOrderLine = orderLines[0];
+  const extraOrderLineCount = Math.max(0, orderLines.length - 1);
+  const extraLineSummarySuffix = multiLineSummarySuffix(extraOrderLineCount);
   const deliveryHeaderProductName =
     firstOrderLine?.itemName?.trim() ||
     firstOrderLine?.productNameSnapshot?.trim() ||
     firstOrderLine?.definitionNameSnapshot?.trim() ||
     "-";
+  const deliveryHeaderBusinessName =
+    firstOrderLine?.businessName?.trim() ||
+    firstOrderLine?.businessNameSnapshot?.trim() ||
+    "";
+  const deliveryHeaderDetectorLabel =
+    detectorLabelFromOrderLine(firstOrderLine) + extraLineSummarySuffix;
   const deliveryHeaderLensName =
     firstOrderLine?.lens?.lensName?.trim() ||
     firstOrderLine?.lensNameSnapshot?.trim() ||
     "-";
+  const deliveryHeaderQtyLabel = orderLineQtyLabel(firstOrderLine);
+  const orderTotalQty = orderLines.reduce(
+    (sum, line) => sum + (Number(line.qty) || 0),
+    0
+  );
+  const orderRegisteredQty = orderLines.reduce(
+    (sum, line) => sum + (registeredByOrderItemId.get(line.id) ?? 0),
+    0
+  );
+  const orderDeliveredQty = orderLines.reduce(
+    (sum, line) => sum + (deliveredByOrderItemId.get(line.id) ?? 0),
+    0
+  );
+  const isPlanProductionModal = deliveryModalPurpose === "plan";
+  const orderConsumedQty = isPlanProductionModal
+    ? orderRegisteredQty
+    : orderDeliveredQty;
+  const orderRemainingQty = Math.max(0, orderTotalQty - orderConsumedQty);
+  const thisProductionQty = parseThisProductionQtyInput(deliverySerialQtyInput);
+  const displayedConsumedQty = orderConsumedQty + thisProductionQty;
+  const displayedRemainingQty = orderTotalQty - displayedConsumedQty;
 
   const openDeliveryRegistrationModal = (purpose: "actual" | "plan") => {
     setDeliveryModalPurpose(purpose);
-    const init: Record<string, string> = {};
-    for (const line of orderLines) {
-      init[deliveryQtyKey(line.id)] = "";
-    }
-    setDeliveryLineQtyInput(init);
     setDeliverySerialQtyInput("");
     setIsSerialRulePopoverOpen(false);
     setDeliverySerialPreviewRows([]);
+    setIsLotRulePopoverOpen(false);
+    setDeliveryLotPreviewRows([]);
     const orderTitle = (po.title ?? "").trim() || po.orderNo || "발주";
     const initialDeliveryDate = new Date().toISOString().slice(0, 10);
     if (purpose === "plan") {
       setDeliveryTitle(
-        buildDeliveryPlanAutoTitle({
+        buildProductionPlanAutoTitle({
           plannedDeliveryDate: "",
           deliveryDate: initialDeliveryDate,
           lines: orderLines,
-          nextPlanSeq: nextDeliveryPlanSeq,
+          nextPlanSeq: nextProductionPlanSeq,
         })
       );
     } else {
       const phase = (deliveries as Delivery[]).length + 1;
-      setDeliveryTitle(`${orderTitle} ${phase}차 납품`);
+      setDeliveryTitle(`${orderTitle} ${phase}차 생산`);
     }
     setDeliveryDate(initialDeliveryDate);
     setPlannedDeliveryDate("");
     setDeliveryRemark("");
-    setWavelengthCode("");
-    setDetectorId("");
     setDeliveryManagerUserSelectValue("");
     const deptLabel = requestDeptLabel.trim();
     if (deptLabel) {
@@ -853,200 +1179,6 @@ export default function OrderDetail() {
       setDeliveryManagerDeptSelectValue("");
     }
     setDeliveryModalOpen(true);
-  };
-  const handleGenerateSerialClick = async () => {
-    if (!hasDeliveryTargets) {
-      toast.error("등록할 제품 라인이 없습니다.");
-      return;
-    }
-    const raw = deliverySerialQtyInput.trim();
-    const qty = Number(raw);
-    if (!raw || !Number.isFinite(qty) || qty <= 0 || !Number.isInteger(qty)) {
-      toast.error("납품 수량은 1 이상의 정수로 입력하세요.");
-      return;
-    }
-    if (!wavelengthCode.trim()) {
-      toast.error("파장정보를 선택하세요.");
-      return;
-    }
-    if (!detectorId.trim()) {
-      toast.error("검출기 타입을 선택하세요.");
-      return;
-    }
-    if (!selectedDetector) {
-      toast.error("검출기 정보를 찾을 수 없습니다. 다시 선택하세요.");
-      return;
-    }
-    const normalizedWavelengthCode = wavelengthCode.trim().toUpperCase();
-    const arrayWidth = Number(selectedDetector.arrayWidth);
-    if (!Number.isFinite(arrayWidth) || arrayWidth <= 0) {
-      toast.error("검출기 해상도(가로) 정보가 없습니다.");
-      return;
-    }
-    const resolutionCode = String(Math.trunc(arrayWidth)).padStart(4, "0");
-    const detectorTypeCode = detectorTypeSuffixCode(
-      String(selectedDetector.detectorType ?? "")
-    );
-    if (!detectorTypeCode) {
-      toast.error("검출기 타입 코드(A/A2 등)를 파싱하지 못했습니다.");
-      return;
-    }
-    const yearCode = yearCodeFromDate(deliveryDate.trim());
-    if (!yearCode) {
-      toast.error("제작년도 코드 매핑이 없습니다. (예: 2025→O, 2026→P)");
-      return;
-    }
-    const customerCode = String(po.partner?.code ?? "").trim().toUpperCase();
-    if (!customerCode) {
-      toast.error("고객사 업체코드를 찾을 수 없습니다.");
-      return;
-    }
-    const qtyEps = 1e-9;
-    const nextInput = { ...deliveryLineQtyInput };
-    const nextSerialRows: Array<{
-      key: string;
-      orderItemId: number;
-      lineLabel: string;
-      serialNo: string;
-      sequenceKey: string;
-      detectorElementCode: string;
-      wavelengthCode: string;
-      detectorId: number;
-      serialSnapshot?: Record<string, unknown>;
-    }> = [];
-    let remainingToAssign = qty;
-    const plannedRows: Array<{
-      orderItemId: number;
-      lineLabel: string;
-      assignQty: number;
-      sequenceKey: string;
-      detectorElementCode: string;
-    }> = [];
-    for (const line of orderLines) {
-      if (remainingToAssign <= qtyEps) break;
-      const prev = deliveredByOrderItemId.get(line.id) ?? 0;
-      const lineRemaining = Math.max(0, line.qty - prev);
-      const assignQty = Math.min(
-        Math.max(0, Math.floor(lineRemaining)),
-        Math.floor(remainingToAssign)
-      );
-      nextInput[deliveryQtyKey(line.id)] = assignQty > 0 ? String(assignQty) : "";
-      const baseLabel =
-        line.itemName?.trim() ||
-        line.productNameSnapshot?.trim() ||
-        line.definitionNameSnapshot?.trim() ||
-        (line.productId != null && String(line.productId).trim() !== ""
-          ? `제품 #${line.productId}`
-          : `라인 #${line.id}`);
-      const lineCode =
-        line.businessName?.trim() ||
-        line.businessNameSnapshot?.trim() ||
-        line.versionSnapshot?.trim() ||
-        "";
-      const serialMeta = productSerialMetaById.get(String(line.productId ?? "").trim());
-      const businessCode = serialMeta?.businessCode ?? "";
-      if (!businessCode) {
-        toast.error(
-          `제품 business_code를 찾을 수 없습니다. (${line.itemName ?? "품목"})`
-        );
-        return;
-      }
-      const pitchCode = pitchCodeFromRaw(serialMeta?.pixelPitch ?? "");
-
-      if (!pitchCode) {
-        toast.error(
-          `제품 Pixel Pitch 코드 매핑이 없습니다. (${line.itemName ?? "품목"})`
-        );
-        return;
-      }
-      const detectorElementCode = detectorElementCodeFromBusinessName(lineCode);
-      if (!detectorElementCode) {
-        toast.error(
-          `소자정보를 찾을 수 없습니다. (${line.itemName ?? "품목"})`
-        );
-        return;
-      }
-      const itemTypeCode = itemTypeCodeFromLine(line);
-      const sequenceKey = `${businessCode}${detectorElementInitial(detectorElementCode)}${normalizedWavelengthCode}-${itemTypeCode}${SERIAL_MAKER_CODE}${resolutionCode}${pitchCode}${detectorTypeCode}-${yearCode}${customerCode}`;
-      const lineLabel =
-        !lineCode ||
-        baseLabel.includes(`(${lineCode})`) ||
-        baseLabel.startsWith("제품 #") ||
-        baseLabel.startsWith("라인 #")
-          ? baseLabel
-          : `${baseLabel} (${lineCode})`;
-      plannedRows.push({
-        orderItemId: line.id,
-        lineLabel,
-        assignQty,
-        sequenceKey,
-        detectorElementCode: detectorElementInitial(detectorElementCode),
-      });
-      remainingToAssign -= assignQty;
-    }
-    if (remainingToAssign > qtyEps) {
-      const totalRemaining = orderLines.reduce((sum, line) => {
-        const prev = deliveredByOrderItemId.get(line.id) ?? 0;
-        return sum + Math.max(0, line.qty - prev);
-      }, 0);
-      toast.error(`잔여 수량(${totalRemaining})을 초과했습니다.`);
-      return;
-    }
-    const uniqueSequenceKeys = [...new Set(plannedRows.map((row) => row.sequenceKey))];
-    const nextSequenceBaseByKey = new Map<string, number>();
-    try {
-      const sequenceResults = await Promise.all(
-        uniqueSequenceKeys.map((sequenceKey) =>
-          getPurchaseOrderSerialMaxSequence(id, sequenceKey, accessToken!)
-        )
-      );
-      sequenceResults.forEach((result) => {
-        nextSequenceBaseByKey.set(result.sequenceKey, result.nextSequence);
-      });
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : "시리얼 시퀀스 조회 중 오류가 발생했습니다.";
-      toast.error(message);
-      return;
-    }
-    const sequenceCounterByKey = new Map<string, number>();
-    plannedRows.forEach((row) => {
-      const startNo = nextSequenceBaseByKey.get(row.sequenceKey) ?? 1;
-      const serialPrefix = row.sequenceKey;
-      for (let i = 0; i < row.assignQty; i += 1) {
-        const offset = sequenceCounterByKey.get(row.sequenceKey) ?? 0;
-        const nextSequenceNo = startNo + offset;
-        sequenceCounterByKey.set(row.sequenceKey, offset + 1);
-        const serialNo = `${serialPrefix}${sequenceText(nextSequenceNo)}`;
-        nextSerialRows.push({
-          key: `oi-${row.orderItemId}-seq-${row.sequenceKey}-${nextSequenceNo}`,
-          orderItemId: row.orderItemId,
-          lineLabel: row.lineLabel,
-          serialNo,
-          sequenceKey: row.sequenceKey,
-          detectorElementCode: row.detectorElementCode,
-          wavelengthCode: normalizedWavelengthCode,
-          detectorId: Number(selectedDetector.id),
-          serialSnapshot: {
-            source: "frontend",
-            detectorElementCode: row.detectorElementCode,
-            wavelengthCode: normalizedWavelengthCode,
-            detectorId: Number(selectedDetector.id),
-            sequenceKey: row.sequenceKey,
-            serialNo,
-            deliveryDate: deliveryDate.trim(),
-            yearCode,
-            detectorTypeCode,
-            customerCode,
-          },
-        });
-      }
-    });
-    setDeliveryLineQtyInput(nextInput);
-    setDeliverySerialPreviewRows(nextSerialRows);
-    toast.success("시리얼 넘버를 발급했습니다.");
   };
 
   const createdById = po.createdBy?.id;
@@ -1079,9 +1211,13 @@ export default function OrderDetail() {
       : null);
   const totalAmountWithVat =
     subtotalForVat != null ? subtotalForVat * 1.1 : null;
-  const planCount = poDeliveryPlans.length;
+  const planCount = poProductionPlans.length;
   const deliveryOverviewText =
-    planCount === 0 ? "납품계획 없음" : `납품계획 ${planCount}건`;
+    orderTotalQty > 0
+      ? `${orderRegisteredQty} / ${orderTotalQty} EA`
+      : planCount === 0
+        ? "생산 등록 없음"
+        : `생산계획 ${planCount}건`;
   const dueDateDday = getDueDateRelative(po.dueDate);
   const totalAmountMainDisplay =
     totalAmountWithVat != null
@@ -1121,7 +1257,7 @@ export default function OrderDetail() {
             <div className="flex flex-wrap items-center gap-2 lg:justify-end">
             <Link
               to="/order"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-brand-500 bg-white px-3 py-2 text-sm font-medium text-brand-600 shadow-theme-xs hover:bg-brand-50 dark:border-brand-600 dark:bg-gray-800 dark:text-brand-400 dark:hover:bg-brand-500/10"
+              className={buttonClassName({ actionRole: "navigate", size: "compact" })}
             >
               <ListIcon className="size-4 shrink-0" aria-hidden />
               목록
@@ -1130,7 +1266,7 @@ export default function OrderDetail() {
               <button
                 type="button"
                 onClick={() => setReceiveConfirmOpen(true)}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-brand-500 bg-white px-3 py-2 text-sm font-medium text-brand-600 shadow-theme-xs hover:bg-brand-50 dark:border-brand-600 dark:bg-gray-800 dark:text-brand-400 dark:hover:bg-brand-500/10"
+                className={buttonClassName({ actionRole: "positive", size: "compact" })}
               >
                 접수
               </button>
@@ -1138,7 +1274,7 @@ export default function OrderDetail() {
             {canEditOrder ? (
               <Link
                 to={`/order/${id}/edit`}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-brand-500 bg-white px-3 py-2 text-sm font-medium text-brand-600 shadow-theme-xs hover:bg-brand-50 dark:border-brand-600 dark:bg-gray-800 dark:text-brand-400 dark:hover:bg-brand-500/10"
+                className={buttonClassName({ actionRole: "edit", size: "compact" })}
               >
                 <PencilIcon className="size-4 shrink-0" aria-hidden />
                 발주 수정
@@ -1153,10 +1289,14 @@ export default function OrderDetail() {
                   : "발주가 종결(PO_CLOSED)된 뒤에만 등록할 수 있습니다."
               }
               onClick={() => openDeliveryRegistrationModal("plan")}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-brand-500 px-3 py-2 text-sm font-medium text-white shadow-theme-xs hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-45 dark:bg-brand-600 dark:hover:bg-brand-500"
+              className={buttonClassName({
+                actionRole: "primary",
+                size: "compact",
+                disabled: !canRegisterDelivery,
+              })}
             >
               <PlusIcon className="size-4 shrink-0" aria-hidden />
-              납품계획 등록
+              생산계획 등록
             </button>
             </div>
           </div>
@@ -1196,8 +1336,8 @@ export default function OrderDetail() {
               ) : null}
             </OrderSummaryMetric>
             <OrderSummaryMetric
-              icon={<TruckIcon className="size-6" aria-hidden />}
-              label="납품 진행"
+              icon={<CogIcon className="size-6" aria-hidden />}
+              label="생산 진행"
             >
               {deliveryOverviewText}
             </OrderSummaryMetric>
@@ -1214,7 +1354,7 @@ export default function OrderDetail() {
         >
           {!canRegisterDelivery ? (
             <p className="mb-2 text-theme-xs text-amber-700 dark:text-amber-400/90">
-              발주가 종결된 뒤에만 납품 계획을 등록할 수 있습니다.
+              발주가 종결된 뒤에만 생산 계획을 등록할 수 있습니다.
             </p>
           ) : null}
           <div className="grid gap-x-8 md:grid-cols-2">
@@ -1306,10 +1446,11 @@ export default function OrderDetail() {
           orderLines={orderLines}
           defaultCurrencyCode={po.currencyCode ?? "KRW"}
           orderLineSummaries={orderLineSummaries}
+          registeredQtyByOrderItemId={registeredByOrderItemId}
           layoutMode="dashboard"
         />
 
-        <OrderDetailDeliveryPlansCard
+        <OrderDetailProductionPlansCard
           purchaseOrderId={id}
           accessToken={accessToken ?? ""}
           isAuthLoading={isAuthLoading}
@@ -1320,20 +1461,14 @@ export default function OrderDetail() {
         />
       </div>
 
-      <ConfirmModal
+      <OrderReceiveConfirmModal
         isOpen={receiveConfirmOpen}
-        title="발주 접수"
-        message="접수하면 발주가 즉시 종결됩니다. 종결 후에는 납품을 등록할 수 있습니다. 계속하시겠습니까?"
-        confirmText="접수하기"
-        cancelText="취소"
-        confirmVariant="primary"
-        illustration="check-circle"
         isConfirming={receiveMutation.isPending}
         onClose={() => setReceiveConfirmOpen(false)}
         onConfirm={() => receiveMutation.mutate()}
       />
 
-      {/* 납품 등록 모달 */}
+      {/* 생산 등록 모달 */}
       <Modal
         isOpen={deliveryModalOpen}
         onClose={() => {
@@ -1346,13 +1481,13 @@ export default function OrderDetail() {
           <>
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
               {deliveryModalPurpose === "plan"
-                ? "납품 계획 등록"
-                : "실제 납품 등록"}
+                ? "생산 계획 등록"
+                : "실제 생산 등록"}
             </h3>
             {deliveryModalPurpose === "plan" ? null : (
               <p className="mt-1 text-theme-sm text-gray-500 dark:text-gray-400">
-                발주 종결 후 실제 납품 헤더·라인·시리얼을 등록합니다. 저장 후
-                동일 발주의 납품 계획에서 출고 가능한 Unit을 납품 라인에 연결할
+                발주 종결 후 실제 생산 헤더·라인·시리얼을 등록합니다. 저장 후
+                동일 발주의 생산 계획에서 출고 가능한 Unit을 생산 라인에 연결할
                 수 있습니다.
               </p>
             )}
@@ -1360,22 +1495,27 @@ export default function OrderDetail() {
         }
       >
         <div className="mt-4 space-y-4">
-          <div className="rounded-lg border border-brand-200 bg-brand-50/60 px-3 py-2 text-theme-sm text-brand-700 dark:border-brand-800 dark:bg-brand-900/20 dark:text-brand-300">
-            <span className="font-semibold">발주번호 :</span> {po.orderNo}{" "}
-            <span className="mx-2 text-gray-400">|</span>
-            <span className="font-semibold">제품명 :</span> {deliveryHeaderProductName}{" "}
-            <span className="mx-2 text-gray-400">|</span>
-            <span className="font-semibold">렌즈 :</span> {deliveryHeaderLensName}
-          </div>
+          <ProductionPlanOrderSummary
+            orderNo={po.orderNo ?? "-"}
+            partnerLabel={partnerNameWithFlag}
+            productName={deliveryHeaderProductName}
+            businessName={deliveryHeaderBusinessName}
+            extraLinesSuffix={extraLineSummarySuffix}
+            detectorLabel={deliveryHeaderDetectorLabel}
+            lensLabel={deliveryHeaderLensName}
+            qtyLabel={deliveryHeaderQtyLabel}
+            dueDate={po.dueDate}
+            requesterName={po.requesterName}
+          />
           <div className="grid gap-4 sm:grid-cols-3">
             <div>
               <div className="flex items-center justify-between gap-2">
                 <Label htmlFor="delivery-date" required>
-                  제품 인계일
+                  IDCCA 인수일
                 </Label>
                 <IconTooltip
-                  ariaLabel="제품 인계일 안내"
-                  content="제품 인계일은 제조사업부로부터 검출기를 인계받는 일자를 의미합니다."
+                  ariaLabel="IDCCA 인수일 안내"
+                  content="IDCCA 인수일은 제조사업부로부터 IDCCA 인수를 받는 일자를 의미합니다."
                 />
               </div>
               <DatePicker
@@ -1389,14 +1529,14 @@ export default function OrderDetail() {
               <div className="flex items-center justify-between gap-2">
                 {deliveryModalPurpose === "plan" ? (
                   <Label htmlFor="delivery-planned-date" required>
-                    납품 예정일
+                    생산 예정일
                   </Label>
                 ) : (
-                  <Label htmlFor="delivery-planned-date">납품 예정일 (선택)</Label>
+                  <Label htmlFor="delivery-planned-date">생산 예정일 (선택)</Label>
                 )}
                 <IconTooltip
-                  ariaLabel="납품 예정일 안내"
-                  content="납품 예정일은 해당 납기 건에 대한 예정일을 의미합니다."
+                  ariaLabel="생산 예정일 안내"
+                  content="생산 예정일은 해당 생산계획 건에 대한 예정 생산일을 의미합니다."
                 />
               </div>
               <DatePicker
@@ -1409,7 +1549,7 @@ export default function OrderDetail() {
             <div>
               <SearchableSelectWithCreate
                 id="delivery-manager-user"
-                label="담당자"
+                label="관리 담당자"
                 required
                 value={deliveryManagerUserSelectValue}
                 onChange={setDeliveryManagerUserSelectValue}
@@ -1436,180 +1576,284 @@ export default function OrderDetail() {
                 className="mt-1"
               />
             </div>
-            <div className="sm:col-span-3 grid gap-4 sm:grid-cols-2">
-              <SearchableSelectWithCreate
-                id="wavelength-code"
-                label="파장정보"
-                required
-                value={wavelengthCode}
-                onChange={setWavelengthCode}
-                options={wavelengthOptions}
-                placeholder="선택하세요"
-                noOptionsMessage="WAVELENGTH 코드가 없습니다."
-                addTrigger="none"
-                addButtonLabel=""
-                onAddClick={() => {}}
-              />
-              <div>
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <Label htmlFor="detector-type-code" required>
-                    검출기 타입
-                  </Label>
-                  <a
-                    href={DETECTOR_TYPE_GUIDE_URL}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1 text-theme-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300"
-                  >
-                    타입 표 확인
-                    <ArrowTopRightOnSquareIcon className="h-4 w-4" />
-                  </a>
-                </div>
-                <SearchableSelectWithCreate
-                  id="detector-type-code"
-                  value={detectorId}
-                  onChange={setDetectorId}
-                  options={detectorTypeOptions}
-                  placeholder="선택하세요"
-                  noOptionsMessage="DETECTOR_TYPE 코드가 없습니다."
-                  addTrigger="none"
-                  addButtonLabel=""
-                  onAddClick={() => {}}
-                />
-              </div>
-            </div>
             <div className="sm:col-span-3">
-              <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-                <div>
-                  <Label htmlFor="delivery-serial-qty" required>
-                    이번 납품 수량
-                  </Label>
-                  <div className="mt-1.5 flex rounded-lg shadow-theme-xs">
-                    <input
-                      id="delivery-serial-qty"
-                      type="text"
-                      inputMode="numeric"
-                      value={deliverySerialQtyInput}
-                      onChange={(e) =>
-                        setDeliverySerialQtyInput(
-                          e.target.value.replace(/\D/g, "")
-                        )
-                      }
-                      placeholder="0"
-                      className="h-11 w-full rounded-l-lg rounded-r-none border border-gray-300 bg-white px-3 text-sm tabular-nums text-gray-900 shadow-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
-                    />
-                    <span className="inline-flex h-11 items-center rounded-r-lg border border-gray-300 border-l-0 px-3 text-sm font-medium text-gray-700 dark:border-gray-700 dark:text-gray-300">
-                      EA
-                    </span>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    void handleGenerateSerialClick();
-                  }}
-                  disabled={!deliverySerialQtyInput.trim()}
-                  className="inline-flex h-11 items-center justify-center rounded-lg bg-brand-500 px-4 text-sm font-medium text-white hover:bg-brand-600 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-600 dark:disabled:bg-gray-700 dark:disabled:text-gray-400"
-                >
-                  시리얼 생성
-                </button>
-              </div>
+              <ProductionQuantityInputSection
+                qtyInput={deliverySerialQtyInput}
+                onQtyInputChange={setDeliverySerialQtyInput}
+                orderTotalQty={orderTotalQty}
+                orderConsumedQty={orderConsumedQty}
+                thisProductionQty={thisProductionQty}
+                orderRemainingQty={orderRemainingQty}
+                displayedRemainingQty={displayedRemainingQty}
+                exceedsRemaining={thisProductionQty > orderRemainingQty}
+                purpose={deliveryModalPurpose}
+              />
             </div>
-
-            <div className="col-span-4 border-b border-gray-200 dark:border-gray-700 my-4"></div>
-            {/* <div className="sm:col-span-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-800/50 dark:text-gray-300">
-              시리얼 Prefix/시퀀스는 서버 템플릿(`DET_STD_V2`)으로 생성됩니다.
-              검출기 타입은 선택한 검출기 ID를 기준으로 서버에서 자동 계산됩니다.
-            </div> */}
           </div>
 
-          <div>
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-theme-sm font-medium text-gray-800 dark:text-gray-200">
-                시리얼 번호 미리보기
-              </p>
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setIsSerialRulePopoverOpen((v) => !v)}
-                  className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
-                >
-                  시리얼 구성 설명
-                </button>
-                {isSerialRulePopoverOpen ? (
-                  <div className="absolute top-9 right-0 z-20 w-[20rem] rounded-xl border border-gray-200 bg-white p-3 text-left text-xs leading-5 text-gray-700 shadow-lg dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
-                    <p className="font-semibold">시리얼 패턴</p>
-                    <p className="mt-1 break-all">
-                      {`[사업코드][소자1자리][파장]-[품목][제조사][해상도][피치][검출기]-[년도][고객][일련번호4자리]`}
-                    </p>
-                    <p className="mt-2 break-all text-gray-600 dark:text-gray-300">
-                      예: EIL-EI0320MB-PD0001
-                    </p>
+          {deliveryModalPurpose === "plan" ? (
+            <div>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-theme-sm font-medium text-gray-800 dark:text-gray-200">
+                  LOT 번호 미리보기
+                </p>
+                <div className="flex items-center gap-2">
+                  <div className="relative" ref={lotBulkOperatorPopoverRef}>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setIsLotBulkOperatorPopoverOpen((prev) => !prev)
+                      }
+                      disabled={deliveryLotPreviewRows.length === 0}
+                      className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+                    >
+                      생산 담당자 전체 적용
+                    </button>
+                    {isLotBulkOperatorPopoverOpen ? (
+                      <div className="absolute top-9 right-0 z-20 w-[18rem] rounded-xl border border-gray-200 bg-white p-3 text-left text-xs leading-5 text-gray-700 shadow-lg dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
+                        <p className="font-semibold text-gray-900 dark:text-white">
+                          생산 담당자 전체 적용
+                        </p>
+                        <p className="mt-1 text-gray-500 dark:text-gray-400">
+                          선택한 생산 담당자를 현재 LOT 미리보기 모든 행에
+                          반영합니다.
+                        </p>
+                        <div className="mt-3">
+                          <SearchableSelectWithCreate
+                            value={deliveryLotBulkOperatorUserValue}
+                            onChange={setDeliveryLotBulkOperatorUserValue}
+                            options={operatorUserOptions}
+                            placeholder="생산 담당자 선택"
+                            noOptionsMessage="표시할 담당자가 없습니다."
+                            addTrigger="none"
+                            addButtonLabel=""
+                            onAddClick={() => {}}
+                            isDisabled={isAuthLoading}
+                            compact
+                          />
+                        </div>
+                        <div className="mt-3 flex justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setIsLotBulkOperatorPopoverOpen(false)
+                            }
+                            className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+                          >
+                            닫기
+                          </button>
+                          <button
+                            type="button"
+                            onClick={applyBulkOperatorUserToLotPreviewRows}
+                            disabled={
+                              deliveryManagerUserIdFromSelect(
+                                deliveryLotBulkOperatorUserValue
+                              ) == null
+                            }
+                            className="rounded-md bg-brand-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            적용
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
-                ) : null}
+                  <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setIsLotRulePopoverOpen((v) => !v)}
+                    className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+                  >
+                    LOT 구성 설명
+                  </button>
+                  {isLotRulePopoverOpen ? (
+                    <div className="absolute top-9 right-0 z-20 w-[20rem] rounded-xl border border-gray-200 bg-white p-3 text-left text-xs leading-5 text-gray-700 shadow-lg dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
+                      <p className="font-semibold">LOT 패턴</p>
+                      <p className="mt-1 break-all">
+                        {LOT_UNIT_CODE_PATTERN_DESCRIPTION}
+                      </p>
+                      <p className="mt-2 text-gray-500 dark:text-gray-400">
+                        미리보기는 표시용이며 DB에 예약되지 않습니다. 저장 시 서버가
+                        다시 채번하므로 확정 번호는 달라질 수 있습니다. 생산
+                        담당자는 행 순서(offset) 기준으로 함께 저장됩니다.
+                      </p>
+                    </div>
+                  ) : null}
+                  </div>
+                </div>
               </div>
+              {!hasDeliveryTargets ? (
+                <p className="mt-2 text-theme-sm text-amber-700 dark:text-amber-400">
+                  생산 등록 가능한 제품 라인이 없습니다.
+                </p>
+              ) : (
+                <>
+                  <div className="mt-2 overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-600">
+                    <table className="min-w-full divide-y divide-gray-200 text-theme-sm dark:divide-gray-600">
+                      <thead className="bg-gray-50 dark:bg-gray-800/80">
+                        <tr>
+                          <th className="w-20 px-2 py-2 text-left font-medium text-gray-600 dark:text-gray-400">
+                            순번
+                          </th>
+                          <th className="min-w-[16rem] px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400">
+                            LOT 번호
+                          </th>
+                          <th className="min-w-[15rem] px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400">
+                            생산 담당자
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                        {deliveryLotPreviewRows.length === 0 ? (
+                          <tr>
+                            <td
+                              colSpan={3}
+                              className="px-3 py-8 text-center text-gray-500 dark:text-gray-400"
+                            >
+                              이번 생산 수량·IDCCA 인수일을 입력하면 LOT가
+                              표시됩니다.
+                            </td>
+                          </tr>
+                        ) : (
+                          deliveryLotPreviewRows.map((row, index) => (
+                            <tr key={row.key}>
+                              <td className="px-2 py-2 text-left tabular-nums text-gray-700 dark:text-gray-300">
+                                {index + 1}
+                              </td>
+                              <td className="px-3 py-2">
+                                <span className="block min-w-[14rem] rounded-md border border-gray-200 bg-gray-50 px-2 py-1.5 font-mono text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-900/60 dark:text-white">
+                                  {row.unitCode}
+                                </span>
+                              </td>
+                              <td className="px-3 py-2">
+                                <SearchableSelectWithCreate
+                                  value={row.operatorUserId}
+                                  onChange={(value) =>
+                                    updateDeliveryLotPreviewOperatorUser(index, value)
+                                  }
+                                  options={operatorUserOptions}
+                                  placeholder="생산 담당자 선택"
+                                  noOptionsMessage="표시할 담당자가 없습니다."
+                                  addTrigger="none"
+                                  addButtonLabel=""
+                                  onAddClick={() => {}}
+                                  isDisabled={isAuthLoading}
+                                  compact
+                                />
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                  <p className="mt-2 text-theme-xs text-gray-500 dark:text-gray-400">
+                    생산 담당자는 LOT 미리보기 행 순서 기준으로 저장됩니다. 일부
+                    행만 선택하지 않아도 저장할 수 있습니다.
+                  </p>
+                </>
+              )}
             </div>
-            {!hasDeliveryTargets ? (
-              <p className="mt-2 text-theme-sm text-amber-700 dark:text-amber-400">
-                납품 등록 가능한 제품 라인이 없습니다.
-              </p>
-            ) : (
-              <div className="mt-2 overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-600">
-                <table className="min-w-full divide-y divide-gray-200 text-theme-sm dark:divide-gray-600">
-                  <thead className="bg-gray-50 dark:bg-gray-800/80">
-                    <tr>
-                      <th className="w-20 px-2 py-2 text-left font-medium text-gray-600 dark:text-gray-400">
-                        순번
-                      </th>
-                      <th className="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400">
-                        라인
-                      </th>
-                      <th className="min-w-[16rem] px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400">
-                        시리얼 번호
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                    {deliverySerialPreviewRows.length === 0 ? (
+          ) : (
+            <div>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-theme-sm font-medium text-gray-800 dark:text-gray-200">
+                  시리얼 번호 미리보기
+                </p>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setIsSerialRulePopoverOpen((v) => !v)}
+                    className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+                  >
+                    시리얼 구성 설명
+                  </button>
+                  {isSerialRulePopoverOpen ? (
+                    <div className="absolute top-9 right-0 z-20 w-[20rem] rounded-xl border border-gray-200 bg-white p-3 text-left text-xs leading-5 text-gray-700 shadow-lg dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
+                      <p className="font-semibold">시리얼 패턴</p>
+                      <p className="mt-1 break-all">
+                        {LT_SERIAL_PATTERN_DESCRIPTION}
+                      </p>
+                      <p className="mt-2 break-all font-mono text-gray-600 dark:text-gray-300">
+                        예:{" "}
+                        {ltSerialExample(
+                          deliveryDate.trim() ||
+                            new Date().toISOString().slice(0, 10),
+                          yearCodeFromOrderDate(deliveryDate, lotYearCodes) ||
+                            "P",
+                          String(po.partner?.code ?? "EO").trim().toUpperCase()
+                        )}
+                      </p>
+                      <p className="mt-2 text-gray-500 dark:text-gray-400">
+                        yyyyMMdd·년도코드(1자)는 IDCCA 인수일 기준, 일련번호는
+                        발주·업체 단위로 증가합니다.
+                      </p>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+              {!hasDeliveryTargets ? (
+                <p className="mt-2 text-theme-sm text-amber-700 dark:text-amber-400">
+                  생산 등록 가능한 제품 라인이 없습니다.
+                </p>
+              ) : (
+                <div className="mt-2 overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-600">
+                  <table className="min-w-full divide-y divide-gray-200 text-theme-sm dark:divide-gray-600">
+                    <thead className="bg-gray-50 dark:bg-gray-800/80">
                       <tr>
-                        <td
-                          colSpan={3}
-                          className="px-3 py-8 text-center text-gray-500 dark:text-gray-400"
-                        >
-                          시리얼이 생성된 항목이 없습니다.
-                        </td>
+                        <th className="w-20 px-2 py-2 text-left font-medium text-gray-600 dark:text-gray-400">
+                          순번
+                        </th>
+                        <th className="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400">
+                          라인
+                        </th>
+                        <th className="min-w-[16rem] px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400">
+                          시리얼 번호
+                        </th>
                       </tr>
-                    ) : (
-                      deliverySerialPreviewRows.map((row, index) => (
-                        <tr key={row.key}>
-                          <td className="px-2 py-2 text-left tabular-nums text-gray-700 dark:text-gray-300">
-                            {index + 1}
-                          </td>
-                          <td className="px-3 py-2 text-gray-900 dark:text-gray-100">
-                            {row.lineLabel}
-                          </td>
-                          <td className="px-3 py-2">
-                            <input
-                              type="text"
-                              aria-label={`시리얼 번호 ${index + 1}`}
-                              value={row.serialNo}
-                              onChange={(e) =>
-                                updateDeliverySerialPreviewSerialNo(
-                                  index,
-                                  e.target.value
-                                )
-                              }
-                              className="w-full min-w-[14rem] rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm font-mono text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-900 dark:text-white dark:placeholder:text-gray-500"
-                            />
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                      {deliverySerialPreviewRows.length === 0 ? (
+                        <tr>
+                          <td
+                            colSpan={3}
+                            className="px-3 py-8 text-center text-gray-500 dark:text-gray-400"
+                          >
+                            이번 생산 수량을 입력하면 시리얼이 자동으로 표시됩니다.
                           </td>
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+                      ) : (
+                        deliverySerialPreviewRows.map((row, index) => (
+                          <tr key={row.key}>
+                            <td className="px-2 py-2 text-left tabular-nums text-gray-700 dark:text-gray-300">
+                              {index + 1}
+                            </td>
+                            <td className="px-3 py-2 text-gray-900 dark:text-gray-100">
+                              {row.lineLabel}
+                            </td>
+                            <td className="px-3 py-2">
+                              <input
+                                type="text"
+                                aria-label={`시리얼 번호 ${index + 1}`}
+                                value={row.serialNo}
+                                onChange={(e) =>
+                                  updateDeliverySerialPreviewSerialNo(
+                                    index,
+                                    e.target.value
+                                  )
+                                }
+                                className="w-full min-w-[14rem] rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm font-mono text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-900 dark:text-white dark:placeholder:text-gray-500"
+                              />
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
         </div>
         <div className="mt-6 flex justify-end gap-2">
           <button
@@ -1626,60 +1870,70 @@ export default function OrderDetail() {
             type="button"
             onClick={() => {
               if (!deliveryDate.trim()) {
-                toast.error("제품 인계일을 입력하세요.");
+                toast.error("IDCCA 인수일을 입력하세요.");
                 return;
               }
               if (
                 deliveryModalPurpose === "plan" &&
                 !plannedDeliveryDate.trim()
               ) {
-                toast.error("납품 예정일을 입력하세요.");
-                return;
-              }
-              if (!wavelengthCode.trim()) {
-                toast.error("파장정보를 선택하세요.");
-                return;
-              }
-              if (!detectorId.trim()) {
-                toast.error("검출기 타입을 선택하세요.");
-                return;
-              }
-              const selectedDetectorId = Number(detectorId);
-              if (!Number.isFinite(selectedDetectorId) || selectedDetectorId <= 0) {
-                toast.error("검출기를 다시 선택하세요.");
-                return;
-              }
-              if (!selectedDetector || Number(selectedDetector.id) !== selectedDetectorId) {
-                toast.error("검출기 정보를 찾을 수 없습니다. 다시 선택하세요.");
-                return;
-              }
-              const arrayWidth = Number(selectedDetector.arrayWidth);
-              if (!Number.isFinite(arrayWidth) || arrayWidth <= 0) {
-                toast.error("검출기 해상도(가로) 정보가 없습니다.");
-                return;
-              }
-              const resolutionCode = String(Math.trunc(arrayWidth)).padStart(4, "0");
-              const detectorTypeCode = detectorTypeSuffixCode(
-                String(selectedDetector.detectorType ?? "")
-              );
-              if (!detectorTypeCode) {
-                toast.error("검출기 타입 코드(A/A2 등)를 파싱하지 못했습니다.");
-                return;
-              }
-              const yearCode = yearCodeFromDate(deliveryDate.trim());
-              if (!yearCode) {
-                toast.error("제작년도 코드 매핑이 없습니다. (예: 2025→O, 2026→P)");
-                return;
-              }
-              const customerCode = String(po.partner?.code ?? "").trim().toUpperCase();
-              if (!customerCode) {
-                toast.error("고객사 업체코드를 찾을 수 없습니다.");
+                toast.error("생산 예정일을 입력하세요.");
                 return;
               }
               if (!hasDeliveryTargets) {
                 toast.error("등록할 제품 라인이 없습니다.");
                 return;
               }
+
+              const managerId = deliveryManagerUserIdFromSelect(
+                deliveryManagerUserSelectValue
+              );
+
+              if (deliveryModalPurpose === "plan") {
+                const qty = parseThisProductionQtyInput(deliverySerialQtyInput);
+                if (qty <= 0) {
+                  toast.error("이번 생산 수량을 1 이상 입력하세요.");
+                  return;
+                }
+                if (deliveryLotPreviewRows.length === 0) {
+                  toast.error("LOT 미리보기를 먼저 불러오세요.");
+                  return;
+                }
+                const { items, error } = distributeProductionPlanItems(
+                  orderLines,
+                  qty,
+                  registeredByOrderItemId
+                );
+                if (error) {
+                  toast.error(error);
+                  return;
+                }
+                const expectedPreviewCount = items.reduce(
+                  (sum, item) => sum + item.plannedQty,
+                  0
+                );
+                if (deliveryLotPreviewRows.length !== expectedPreviewCount) {
+                  toast.error(
+                    "LOT 미리보기가 현재 생산 수량과 맞지 않습니다. 잠시 후 다시 확인해 주세요."
+                  );
+                  return;
+                }
+                deliveryMutation.mutate({
+                  productionPlanPayload: {
+                    deliveryDate: deliveryDate.trim(),
+                    items,
+                    title: deliveryTitle.trim() || null,
+                    plannedDeliveryDate: plannedDeliveryDate.trim() || null,
+                    remark: deliveryRemark.trim() || null,
+                    productionManagerId: managerId,
+                  },
+                  planDraftItems: items,
+                  lotPreviewRows: deliveryLotPreviewRows,
+                  purpose: "plan",
+                });
+                return;
+              }
+
               if (deliverySerialPreviewRows.length === 0) {
                 toast.error("시리얼을 먼저 생성하세요.");
                 return;
@@ -1712,7 +1966,6 @@ export default function OrderDetail() {
                   }>;
                 }
               >();
-              const deliveryProductLog: Array<Record<string, unknown>> = [];
               for (const row of deliverySerialPreviewRows) {
                 const serialNoTrimmed = row.serialNo.trim();
                 const serialSnapshotTrimmed =
@@ -1757,42 +2010,11 @@ export default function OrderDetail() {
                   );
                   return;
                 }
-                const biz =
-                  line.businessName?.trim() ||
-                  line.businessNameSnapshot?.trim() ||
-                  "";
-                const serialMeta =
-                  productSerialMetaById.get(String(line.productId ?? "").trim());
-                const businessCode = serialMeta?.businessCode ?? "";
-                if (!businessCode) {
-                  toast.error(
-                    `제품 business_code를 찾을 수 없습니다. (${line.itemName ?? "품목"})`
-                  );
-                  return;
-                }
-                const pitchCode = pitchCodeFromRaw(serialMeta?.pixelPitch ?? "");
-                if (!pitchCode) {
-                  toast.error(
-                    `제품 Pixel Pitch 코드 매핑이 없습니다. (${line.itemName ?? "품목"})`
-                  );
-                  return;
-                }
-                const derivedElement = detectorElementCodeFromBusinessName(biz);
-                if (!derivedElement) {
-                  toast.error(
-                    `소자정보를 사업명에서 찾을 수 없습니다. 사업명에 '_' 뒤 소자 코드가 있어야 합니다. (${line.itemName ?? "품목"})`
-                  );
-                  return;
-                }
-                const itemTypeCode = itemTypeCodeFromLine(line);
-                const sequenceKey = `${businessCode}${detectorElementInitial(derivedElement)}${wavelengthCode
-                  .trim()
-                  .toUpperCase()}-${itemTypeCode}${SERIAL_MAKER_CODE}${resolutionCode}${pitchCode}${detectorTypeCode}-${yearCode}${customerCode}`;
                 linesPayload.push({
                   lineType: "PRODUCT",
                   lineId: line.id,
                   quantity: bundled.quantity,
-                  sequenceKey,
+                  sequenceKey: bundled.sequenceKey,
                   serials: bundled.serials.map((serial) => ({
                     serialNo: serial.serialNo,
                     detectorElementCode: serial.detectorElementCode,
@@ -1801,33 +2023,16 @@ export default function OrderDetail() {
                     serialSnapshot:
                       serial.serialSnapshot ?? {
                         source: "frontend",
+                        format: "LT",
                         detectorElementCode: serial.detectorElementCode,
                         wavelengthCode: serial.wavelengthCode,
                         detectorId: serial.detectorId,
                       },
                   })),
                 });
-                deliveryProductLog.push({
-                  orderItemId: line.id,
-                  productId: line.productId,
-                  itemName: line.itemName ?? null,
-                  productNameSnapshot: line.productNameSnapshot ?? null,
-                  definitionNameSnapshot: line.definitionNameSnapshot ?? null,
-                  businessName: biz || null,
-                  derivedDetectorElement: derivedElement,
-                  lensName:
-                    line.lens?.lensName?.trim() ||
-                    line.lensNameSnapshot?.trim() ||
-                    null,
-                  orderQty: line.qty,
-                  thisDeliveryQty: bundled.quantity,
-                  wavelengthCode: wavelengthCode.trim(),
-                  detectorId: selectedDetectorId,
-                  sequenceKey,
-                });
               }
               if (linesPayload.length === 0) {
-                toast.error("이번 납품 수량을 1건 이상 입력하세요.");
+                toast.error("이번 생산 수량을 1건 이상 입력하세요.");
                 return;
               }
               const payload: DeliveryCreatePayload = {
@@ -1836,39 +2041,30 @@ export default function OrderDetail() {
                 title: deliveryTitle.trim() || null,
                 plannedDeliveryDate: plannedDeliveryDate.trim() || null,
                 remark: deliveryRemark.trim() || null,
-                deliveryManagerId: deliveryManagerUserIdFromSelect(
-                  deliveryManagerUserSelectValue
-                ),
+                deliveryManagerId: managerId,
               };
-              console.log(
-                deliveryModalPurpose === "plan"
-                  ? "[납품 계획 등록] 제품 정보"
-                  : "[납품 등록] 제품 정보",
-                {
-                  발주번호: po.orderNo,
-                  납품제목: deliveryTitle.trim() || null,
-                  제품인계일: deliveryDate.trim(),
-                  납품예정일: plannedDeliveryDate.trim() || null,
-                  품목: deliveryProductLog,
-                }
-              );
               deliveryMutation.mutate({
                 deliveryPayload: payload,
-                purpose: deliveryModalPurpose,
+                purpose: "actual",
               });
             }}
             disabled={
               deliveryMutation.isPending ||
               !hasDeliveryTargets ||
-              deliverySerialPreviewRows.length === 0
+              (deliveryModalPurpose === "plan"
+                ? thisProductionQty <= 0 ||
+                  !deliveryDate.trim() ||
+                  !plannedDeliveryDate.trim() ||
+                  deliveryLotPreviewRows.length === 0
+                : deliverySerialPreviewRows.length === 0)
             }
             className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white hover:bg-brand-600 disabled:opacity-50"
           >
             {deliveryMutation.isPending
               ? "등록 중..."
               : deliveryModalPurpose === "plan"
-                ? "납품 계획 저장"
-                : "실제 납품 등록"}
+                ? "생산 계획 저장 및 LOT 발급"
+                : "실제 생산 등록"}
           </button>
         </div>
       </Modal>

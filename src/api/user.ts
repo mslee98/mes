@@ -96,6 +96,42 @@ export function getOrganizationPath(unit: OrganizationUnitRef): string {
   return path.join(" > ");
 }
 
+/**
+ * 영업담당자 사번으로 발주 `requesterDepartment` 경로 문자열을 구합니다.
+ * `users.id`가 아닌 `employeeNo`로 사용자를 찾습니다.
+ */
+export function requesterDepartmentPathForEmployeeNo(
+  employeeNoSelect: string,
+  users: UserItem[],
+  organizationTree: OrganizationUnitNode[] = []
+): string {
+  const raw = String(employeeNoSelect ?? "").trim();
+  if (!raw) return "";
+
+  const user = users.find(
+    (u) =>
+      String(u.employeeNo) === raw ||
+      (Number.isFinite(Number(raw)) && u.employeeNo === Number(raw))
+  );
+  if (!user) return "";
+
+  const orgs = (user.userOrganizations ?? []).filter((o) => o.isActive !== false);
+  const primary =
+    orgs.find((o) => o.isPrimary === true) ?? orgs[0];
+  const unit = primary?.organizationUnit;
+  if (!unit || !Number.isFinite(unit.id)) return "";
+
+  if (organizationTree.length > 0) {
+    const segs = getOrganizationUnitPathSegmentsFromTree(
+      unit.id,
+      organizationTree
+    );
+    if (segs.length > 0) return segs.join(" > ");
+  }
+
+  return getOrganizationPath(unit);
+}
+
 function parseOptionalBool(v: unknown): boolean | undefined {
   if (v === true || v === "true" || v === 1 || v === "1") return true;
   if (v === false || v === "false" || v === 0 || v === "0") return false;

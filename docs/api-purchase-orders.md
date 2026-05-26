@@ -42,23 +42,32 @@
 
 - `order.status === 'PO_CLOSED'` 일 때만 납품 등록 가능 (백엔드 검사).
 
-## 납품 계획 · Unit (delivery_plans)
+## 생산 계획 · Unit (production_plans)
 
-발주 → 납품 계획(`POST .../delivery-plans` — 본문은 납품 등록과 동일, 시리얼 1행 = Unit 1대) → 공정 PASS/FAIL → 실제 납품(`POST .../deliveries`) → 납품 라인에 Unit 연결.
+프론트·백엔드 LOT 연동 상세: [`backend-handoff-production-plan-lot.md`](./backend-handoff-production-plan-lot.md)
+
+발주 → 생산 계획(`POST .../production-plans` — `items` 또는 `lines` 수량만, LOT·Unit 서버 자동) → 공정 PASS/FAIL → 제품 시리얼 확정(`assign-product-serials`) → 실제 납품(`POST .../deliveries`) → 납품 라인에 Unit 연결.
 
 | 메서드 | 경로 | 본문 / 비고 |
 |--------|------|-------------|
-| GET | `/api/purchase-orders/:purchaseOrderId/delivery-plans` | 발주별 목록 (`purchase_order.read`). `planSeq` 오름차순, 관계(담당자·항목·유닛·검출기 등) 포함. |
-| POST | `/api/purchase-orders/:purchaseOrderId/delivery-plans` | **`lines` 있음:** `createDelivery`와 유사, `deliveryDate` 필수. **`items`만:** 품목+계획 수량만(시리얼 없는 Unit). |
-| GET | `/api/purchase-orders/delivery-plans/:planId` | 납품 계획 단건 상세 (`items[].units[]`) |
-| POST | `/api/purchase-orders/delivery-plan-units/:unitId/process/pass` | `{ processCode, processName, startedAt?, endedAt? }` |
-| POST | `/api/purchase-orders/delivery-plan-units/:unitId/process/fail` | `{ processCode, processName, failReason, actionTaken?, startedAt?, endedAt? }` |
-| GET | `/api/purchase-orders/delivery-plan-units/:unitId/process-records` | 공정 이력 배열 |
-| POST | `/api/purchase-orders/delivery-items/:deliveryItemId/units` | `{ unitIds: string[] }` — 출고 준비 완료·미납품 Unit만 연결 권장 |
+| GET | `/api/purchase-orders/:purchaseOrderId/production-plans` | 발주별 목록 (`purchase_order.read`). `planSeq` 오름차순, 관계(담당자·항목·유닛·검출기 등) 포함. |
+| GET | `/api/purchase-orders/:purchaseOrderId/lot/preview` | `quantity`, `issuedDate` — `previews[].unitCode` (DB 예약 없음) |
+| POST | `/api/purchase-orders/:purchaseOrderId/production-plans` | `deliveryDate` 필수. `items: [{ purchaseOrderItemId, plannedQty }]` — **`serials` 금지**, `items[].units = []` |
+| GET | `/api/purchase-orders/production-plans/:planId` | 생산 계획 단건 상세 (`items[].units[]`, `unitCode`=LOT) |
+| POST | `/api/purchase-orders/production-plans/:planId/issue-lot-units` | `{}` 또는 `items: [{ planItemId, quantity }]` — LOT 확정 발급 |
+| POST | `/api/purchase-orders/production-plans/:planId/assign-product-serials` | `{ units: [{ unitId, serialNo(전체, 예: `YIM_EI0640PA-PC0001`), detectorElementCode, wavelengthCode, detectorId? }], markPlanCompleted? }` — 서버는 `^(.*?)(\d{4})$` 파싱, 4자리만내면 오류 |
+| POST | `/api/purchase-orders/production-plan-items/:planItemId/units` | `{}` — `plannedQty`만 +1 (LOT 없음) |
+| POST | `/api/purchase-orders/production-plan-units/:unitId/process/pass` | `{ processCode, processName, startedAt?, endedAt? }` |
+| POST | `/api/purchase-orders/production-plan-units/:unitId/process/fail` | `{ processCode, processName, failReason, actionTaken?, startedAt?, endedAt? }` |
+| GET | `/api/purchase-orders/production-plan-units/:unitId/process-records` | 공정 이력 배열 |
+| GET | `/api/production-plan-units/overview`, `/tab-counts`, 목록 | 생산 유닛 대시보드 |
+| POST | `/api/purchase-orders/delivery-items/:deliveryItemId/units` | `{ unitIds: string[] }` — 출고 준비 완료·미출고 Unit만 연결 권장 (실납품 품목) |
 
 **프론트 라우트**: `/order/:orderId/plan/:planId` — 계획 상세·Unit 보드.
 
-**프론트**: 발주 상세 납품 계획 카드에서 목록 링크·`납품 계획 만들기` 제공.
+**프론트**: 발주 상세 생산 계획 카드에서 목록 링크·`생산 계획 만들기` 제공.
+
+**유닛 상태 필드(1차 유지)**: `isDeliveryReady`, `isDelivered`, `deliveredAt` — JSON 키 변경 없음.
 
 ## 공통 품목 `items` (참고)
 

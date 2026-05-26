@@ -1,7 +1,7 @@
 import type { CommonCodeItem } from "../api/commonCode";
 
 /**
- * 납품 계획 유닛 공정 코드 표시용.
+ * 생산 계획 유닛 공정 코드 표시용.
  * `unitProcessStepCodes`가 있으면 `UNIT_PROCESS_STEP` API 이름을 우선하고, 없거나 미매칭 시 로컬 폴백.
  */
 const PROCESS_CODE_LABELS: Record<string, string> = {
@@ -9,6 +9,7 @@ const PROCESS_CODE_LABELS: Record<string, string> = {
   DETECTOR_VISUAL_INSPECTION: "검출기 외관 검사",
   ELECTRONIC_INCOMING_INSPECTION: "전자부 입고 검사",
   ENGINE_ASSEMBLY: "엔진 조립",
+  ENGINE_PACKAGING: "포장",
   READY_TO_DELIVER: "출고 준비 완료",
 };
 

@@ -14,14 +14,28 @@ import {
   type LineAmountSummary,
 } from "../../lib/orderLineAmountSummary";
 import type { PurchaseOrderItem } from "../../api/purchaseOrder";
+import { detectorLabelFromOrderLine } from "../../lib/orderLineItemRow";
+import { DetectorTypeGuidePopover } from "../common/DetectorTypeGuidePopover";
 
 type OrderDetailLinesCardProps = {
   orderLines: PurchaseOrderItem[];
   defaultCurrencyCode: string;
   orderLineSummaries: LineAmountSummary[];
+  /** 라인별 생산 등록 수량(계획·유닛) — 없으면 API `deliveredQty` 폴백 */
+  registeredQtyByOrderItemId?: Map<number, number>;
   /** 기본: 표 + 하단 금액 요약 / `dashboard`: 표만(대시보드 발주 상세) */
   layoutMode?: "default" | "dashboard";
 };
+
+function lineRegisteredQty(
+  item: PurchaseOrderItem,
+  registeredQtyByOrderItemId?: Map<number, number>
+): number {
+  if (registeredQtyByOrderItemId) {
+    return registeredQtyByOrderItemId.get(item.id) ?? 0;
+  }
+  return item.deliveredQty ?? 0;
+}
 
 function getOrderLineDisplayName(item: PurchaseOrderItem): string {
   const baseName =
@@ -97,12 +111,13 @@ export function OrderDetailLinesCard({
   orderLines,
   defaultCurrencyCode,
   orderLineSummaries,
+  registeredQtyByOrderItemId,
   layoutMode = "default",
 }: OrderDetailLinesCardProps) {
   const isDashboard = layoutMode === "dashboard";
   const cardTitle = isDashboard ? "발주 제품" : "발주 제품 요약";
   const cardDesc = isDashboard
-    ? "품목별 수량·금액 및 납품 진행 현황입니다."
+    ? "품목별 수량·금액 및 생산 등록 진행 현황입니다."
     : undefined;
 
   const tableBlock = (
@@ -120,68 +135,125 @@ export function OrderDetailLinesCard({
           </h4>
         </div>
       ) : null}
-      <Table className="w-full text-center text-sm text-gray-900 dark:text-white md:table-fixed">
+      <Table
+        className={
+          isDashboard
+            ? "w-full min-w-[44rem] table-auto text-center text-sm text-gray-900 dark:text-white"
+            : "w-full text-center text-sm text-gray-900 dark:text-white md:table-fixed"
+        }
+      >
         <TableHeader className="border-b border-gray-100 dark:border-white/5">
           <TableRow className="hover:bg-transparent">
             <TableCell
               isHeader
-              className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[18%]"
+              className={
+                isDashboard
+                  ? "min-w-[10rem] px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400"
+                  : "whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[18%]"
+              }
             >
               {isDashboard ? "품목 / 사업명" : "제품/사업 명"}
             </TableCell>
             <TableCell
               isHeader
-              className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[14%]"
+              className={
+                isDashboard
+                  ? "min-w-[5rem] px-2 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400"
+                  : "whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[12%]"
+              }
             >
               렌즈
             </TableCell>
             <TableCell
               isHeader
-              className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[14%]"
+              className={
+                isDashboard
+                  ? "min-w-[6rem] px-2 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400"
+                  : "whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[14%]"
+              }
+            >
+              <div
+                className={
+                  isDashboard
+                    ? "flex items-center justify-center gap-1 whitespace-nowrap"
+                    : "flex flex-wrap items-center justify-center gap-1"
+                }
+              >
+                <span>검출기</span>
+                <DetectorTypeGuidePopover />
+              </div>
+            </TableCell>
+            <TableCell
+              isHeader
+              className={
+                isDashboard
+                  ? "w-px whitespace-nowrap px-2 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400"
+                  : "whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[12%]"
+              }
             >
               {isDashboard ? "수량" : "단위 · 수량"}
             </TableCell>
             <TableCell
               isHeader
-              className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[16%]"
+              className={
+                isDashboard
+                  ? "w-px whitespace-nowrap px-2 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400"
+                  : "whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[16%]"
+              }
             >
               {isDashboard ? "단가" : "통화 · 단가"}
             </TableCell>
             <TableCell
               isHeader
-              className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[14%]"
+              className={
+                isDashboard
+                  ? "w-px whitespace-nowrap px-2 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400"
+                  : "whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[14%]"
+              }
             >
               금액
             </TableCell>
             <TableCell
               isHeader
-              className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[22%]"
+              className={
+                isDashboard
+                  ? "min-w-[4rem] px-2 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400"
+                  : "whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[22%]"
+              }
             >
               비고
             </TableCell>
             <TableCell
               isHeader
-              className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[6%]"
+              className={
+                isDashboard
+                  ? "w-px whitespace-nowrap px-2 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400"
+                  : "whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[6%]"
+              }
             >
-              {isDashboard ? "납품현황" : "납품"}
+              {isDashboard ? "생산현황" : "생산"}
             </TableCell>
           </TableRow>
         </TableHeader>
         <TableBody className="divide-y divide-gray-200 dark:divide-gray-800">
           {orderLines.length === 0 ? (
             <TableRow>
-              <TableCell
-                colSpan={7}
-                className="px-3 py-6 text-center text-theme-sm text-gray-500 dark:text-gray-400"
-              >
+            <TableCell
+              colSpan={8}
+              className="px-3 py-6 text-center text-theme-sm text-gray-500 dark:text-gray-400"
+            >
                 등록된 발주 라인이 없습니다.
               </TableCell>
             </TableRow>
           ) : (
             orderLines.map((item) => {
               const lineCc = item.currencyCode ?? defaultCurrencyCode ?? "KRW";
-              const delivered = item.deliveredQty ?? 0;
+              const registered = lineRegisteredQty(
+                item,
+                registeredQtyByOrderItemId
+              );
               const qty = Number(item.qty ?? 0);
+              const isProductionComplete = qty > 0 && registered >= qty;
               return (
                 <TableRow
                   key={item.id}
@@ -190,12 +262,42 @@ export function OrderDetailLinesCard({
                   <TableCell className="min-w-0 max-w-[18rem] whitespace-nowrap px-3 py-3 text-center align-middle">
                     <ProductLineLink item={item} />
                   </TableCell>
-                  <TableCell className="min-w-0 max-w-[14rem] px-3 py-3 text-center align-middle">
+                  <TableCell
+                    className={
+                      isDashboard
+                        ? "min-w-0 max-w-[10rem] px-2 py-3 text-center align-middle"
+                        : "min-w-0 max-w-[14rem] px-3 py-3 text-center align-middle"
+                    }
+                  >
                     <LensLineLink item={item} />
                   </TableCell>
-                  <TableCell className="px-3 py-3 text-center align-middle tabular-nums text-gray-800 dark:text-gray-200">
+                  <TableCell
+                    className={
+                      isDashboard
+                        ? "min-w-0 max-w-[10rem] px-2 py-3 text-center align-middle text-theme-xs text-gray-800 dark:text-gray-200"
+                        : "min-w-0 max-w-[14rem] px-3 py-3 text-center align-middle text-theme-xs text-gray-800 dark:text-gray-200"
+                    }
+                  >
+                    <span
+                      className={
+                        item.detectorId == null
+                          ? "text-gray-500 dark:text-gray-400"
+                          : ""
+                      }
+                      title={detectorLabelFromOrderLine(item)}
+                    >
+                      {detectorLabelFromOrderLine(item)}
+                    </span>
+                  </TableCell>
+                  <TableCell
+                    className={
+                      isDashboard
+                        ? "w-px whitespace-nowrap px-2 py-3 text-center align-middle tabular-nums text-gray-800 dark:text-gray-200"
+                        : "px-3 py-3 text-center align-middle tabular-nums text-gray-800 dark:text-gray-200"
+                    }
+                  >
                     {isDashboard ? (
-                      <span>
+                      <span className="whitespace-nowrap">
                         <span className="text-gray-500 dark:text-gray-400">
                           {item.unit ?? "EA"}
                         </span>{" "}
@@ -209,9 +311,15 @@ export function OrderDetailLinesCard({
                       </>
                     )}
                   </TableCell>
-                  <TableCell className="px-3 py-3 text-center align-middle tabular-nums text-gray-800 dark:text-gray-200">
+                  <TableCell
+                    className={
+                      isDashboard
+                        ? "w-px whitespace-nowrap px-2 py-3 text-center align-middle tabular-nums text-gray-800 dark:text-gray-200"
+                        : "px-3 py-3 text-center align-middle tabular-nums text-gray-800 dark:text-gray-200"
+                    }
+                  >
                     {isDashboard ? (
-                      <span>
+                      <span className="whitespace-nowrap">
                         {item.unitPrice != null
                           ? formatCurrency(item.unitPrice, lineCc)
                           : "-"}
@@ -228,23 +336,66 @@ export function OrderDetailLinesCard({
                       </>
                     )}
                   </TableCell>
-                  <TableCell className="px-3 py-3 text-center align-middle font-medium tabular-nums text-gray-900 dark:text-white">
+                  <TableCell
+                    className={
+                      isDashboard
+                        ? "w-px whitespace-nowrap px-2 py-3 text-center align-middle font-medium tabular-nums text-gray-900 dark:text-white"
+                        : "px-3 py-3 text-center align-middle font-medium tabular-nums text-gray-900 dark:text-white"
+                    }
+                  >
                     {item.amount != null
                       ? formatCurrency(item.amount, lineCc)
                       : "-"}
                   </TableCell>
-                  <TableCell className="px-3 py-3 text-center align-middle text-gray-600 dark:text-gray-400">
-                    {item.remark ?? "-"}
+                  <TableCell
+                    className={
+                      isDashboard
+                        ? "min-w-0 max-w-[12rem] px-2 py-3 text-center align-middle text-gray-600 dark:text-gray-400"
+                        : "px-3 py-3 text-center align-middle text-gray-600 dark:text-gray-400"
+                    }
+                  >
+                    <span
+                      className={
+                        isDashboard
+                          ? "block truncate"
+                          : undefined
+                      }
+                      title={item.remark?.trim() || undefined}
+                    >
+                      {item.remark ?? "-"}
+                    </span>
                   </TableCell>
-                  <TableCell className="px-3 py-3 text-center align-middle tabular-nums text-gray-800 dark:text-gray-200">
+                  <TableCell
+                    className={
+                      isDashboard
+                        ? "w-px whitespace-nowrap px-2 py-3 text-center align-middle tabular-nums text-gray-800 dark:text-gray-200"
+                        : "px-3 py-3 text-center align-middle tabular-nums text-gray-800 dark:text-gray-200"
+                    }
+                  >
                     {isDashboard ? (
-                      <span className="inline-flex justify-center">
-                        <Badge size="sm" color="primary" variant="light">
-                          {delivered} / {qty}
+                      <span className="inline-flex shrink-0 justify-center whitespace-nowrap">
+                        <Badge
+                          size="sm"
+                          color={isProductionComplete ? "success" : "primary"}
+                          variant="light"
+                        >
+                          <span className="whitespace-nowrap tabular-nums">
+                            {registered}
+                            <span className="mx-0.5">/</span>
+                            {qty}
+                          </span>
                         </Badge>
                       </span>
                     ) : (
-                      <span>{delivered}</span>
+                      <span>
+                        {registered}
+                        {qty > 0 ? (
+                          <span className="text-gray-400 dark:text-gray-500">
+                            {" "}
+                            / {qty}
+                          </span>
+                        ) : null}
+                      </span>
                     )}
                   </TableCell>
                 </TableRow>

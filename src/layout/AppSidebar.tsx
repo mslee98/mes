@@ -17,6 +17,9 @@ import {
   WrenchScrewdriverIcon,
   TruckIcon,
   BugAntIcon,
+  HomeModernIcon,
+  ReceiptPercentIcon,
+  PresentationChartBarIcon
 } from "../icons";
 import { getMenus, type MenuItem } from "../api/menu";
 import { useAuth } from "../hooks/useAuth";
@@ -50,6 +53,9 @@ const iconMap = {
   WrenchScrewdriverIcon,
   TruckIcon,
   BugAntIcon,
+  HomeModernIcon,
+  ReceiptPercentIcon,
+  PresentationChartBarIcon
 } as const;
 
 function resolveIcon(iconName?: string | null) {

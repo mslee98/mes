@@ -17,8 +17,8 @@ import {
   type ProductFileLink,
   type RepresentativeProduct,
 } from "../api/products";
-import { API_BASE } from "../api/apiBase";
 import { safeReturnOrderPathFromSearchParams } from "../lib/orderReturnNavigation";
+import { buildAppApiFileUrl } from "../lib/fileDownload";
 import { fileTypeIconSrc } from "../lib/fileTypeIcon";
 import { ReactComponent as ArrowDownTrayIcon } from "../icons/arrow-down-tray.svg?react";
 
@@ -32,15 +32,6 @@ function formatAttachmentDateTime(iso?: string): string {
   if (!iso) return "";
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleString("ko-KR");
-}
-
-function buildFileDownloadUrl(filePath: string): string {
-  const raw = String(filePath ?? "").trim();
-  if (!raw) return "#";
-  if (/^https?:\/\//i.test(raw)) return raw;
-  const apiOrigin = new URL(API_BASE).origin;
-  if (raw.startsWith("/")) return `${apiOrigin}${raw}`;
-  return `${apiOrigin}/${raw}`;
 }
 
 async function forceDownloadFile(
@@ -296,7 +287,7 @@ export default function ProductDetail() {
                               onClick={async () => {
                                 try {
                                   await forceDownloadFile(
-                                    buildFileDownloadUrl(filePath),
+                                    buildAppApiFileUrl(filePath),
                                     fileName,
                                     accessToken as string
                                   );

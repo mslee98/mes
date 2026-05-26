@@ -92,12 +92,18 @@ export const COMMON_CODE_GROUP_DETECTOR_TYPE = "DETECTOR_TYPE";
 export const COMMON_CODE_GROUP_UNIT_PROCESS_STEP = "UNIT_PROCESS_STEP";
 /** 유닛 공정 진행 상태 — `GET /api/common-codes/groups/UNIT_PROCESS_STATUS/codes` */
 export const COMMON_CODE_GROUP_UNIT_PROCESS_STATUS = "UNIT_PROCESS_STATUS";
+/** LOT 년도 1자 코드 — `name`=연도(YYYY), `code`=O/P/… (`GET .../groups/LOT_YEAR_CODE/codes`) */
+export const COMMON_CODE_GROUP_LOT_YEAR_CODE = "LOT_YEAR_CODE";
 /**
  * 검출기 입고 대기 단계 — PASS 시 검출기 시리얼 입력이 필요한 공정 코드(백엔드 시드와 일치).
  * 표시·선택 목록의 정본은 `UNIT_PROCESS_STEP` API입니다.
  */
 export const UNIT_PROCESS_STEP_CODE_WAIT_DETECTOR_INCOMING =
   "WAIT_DETECTOR_INCOMING";
+/** 포장 — PASS 시 제품 시리얼(끝 4자리) + `assign-product-serials` */
+export const UNIT_PROCESS_STEP_CODE_ENGINE_PACKAGING = "ENGINE_PACKAGING";
+/** 출고 준비 완료 — PASS 후 납품 등록으로 이어지는 최종 준비 단계 */
+export const UNIT_PROCESS_STEP_CODE_READY_TO_DELIVER = "READY_TO_DELIVER";
 /** 활성 항목만, value=code·label=name (목록은 API에서 sortOrder·id 순 정렬됨) */
 export function commonCodesToSelectOptions(
   items: CommonCodeItem[]

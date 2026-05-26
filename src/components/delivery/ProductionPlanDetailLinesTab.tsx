@@ -1,19 +1,19 @@
 import { useMemo, useState } from "react";
-import type { DeliveryPlanItem } from "../../api/purchaseOrder";
+import type { ProductionPlanItem } from "../../api/purchaseOrder";
 import Checkbox from "../form/input/Checkbox";
 import Badge from "../ui/badge/Badge";
 
-type DeliveryPlanDetailLinesTabProps = {
-  items: DeliveryPlanItem[];
+type ProductionPlanDetailLinesTabProps = {
+  items: ProductionPlanItem[];
 };
 
-function lineRowKey(item: DeliveryPlanItem): string {
+function lineRowKey(item: ProductionPlanItem): string {
   return String(item.id ?? item.purchaseOrderItemId ?? "");
 }
 
-export function DeliveryPlanDetailLinesTab({
+export function ProductionPlanDetailLinesTab({
   items,
-}: DeliveryPlanDetailLinesTabProps) {
+}: ProductionPlanDetailLinesTabProps) {
   const [selectedIds, setSelectedIds] = useState(() => new Set<string>());
 
   const keys = useMemo(
@@ -27,7 +27,7 @@ export function DeliveryPlanDetailLinesTab({
   if (!items.length) {
     return (
       <p className="text-theme-sm text-gray-500 dark:text-gray-400">
-        납품 계획 품목이 없습니다.
+        생산 계획 품목이 없습니다.
       </p>
     );
   }

@@ -5,10 +5,10 @@ import Badge from "../ui/badge/Badge";
 import LoadingLottie from "../common/LoadingLottie";
 import { deliveryStatusIndexInSorted } from "./deliveryStepperUtils";
 
-const DELIVERY_PLAN_WIRE_DEMO_PREFIX = "deliveryPlanWireDemo";
+const PRODUCTION_PLAN_WIRE_DEMO_PREFIX = "productionPlanWireDemo";
 
 function planWireStorageKey(deliveryId: number): string {
-  return `${DELIVERY_PLAN_WIRE_DEMO_PREFIX}:${deliveryId}`;
+  return `${PRODUCTION_PLAN_WIRE_DEMO_PREFIX}:${deliveryId}`;
 }
 
 function readPlanPhase(deliveryId: number): number {
@@ -68,7 +68,7 @@ function StepCircle({ step, phase }: { step: 1 | 2 | 3; phase: WireDemoPhase }) 
   return <RoundStepMarker stepNumber={step} done={done} isCurrent={isCurrent} />;
 }
 
-export function DeliveryPlanApprovalDemoPanel({
+export function ProductionPlanApprovalDemoPanel({
   deliveryId,
   sortedCodes,
   codesLoading,
@@ -368,7 +368,7 @@ export function DeliveryPlanApprovalDemoPanel({
                 <span className={segmentClass(1)} aria-hidden />
               </div>
               <div className={panelClass(planPhase === 0)}>
-                <h4 className="text-sm font-semibold text-gray-900 dark:text-white">납품 계획 수립</h4>
+                <h4 className="text-sm font-semibold text-gray-900 dark:text-white">생산 계획 수립</h4>
                 <p className="mt-1 text-theme-xs text-gray-500 dark:text-gray-400">
                   일정·라인 수량·특이사항 등 현장 기준으로 확정
                 </p>

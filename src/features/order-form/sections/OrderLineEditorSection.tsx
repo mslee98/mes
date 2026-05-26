@@ -8,6 +8,7 @@ import {
   TableHeader,
   TableRow,
 } from "../../../components/ui/table";
+import { DetectorTypeGuidePopover } from "../../../components/common/DetectorTypeGuidePopover";
 import { ArrowDownTrayIcon, CloseIcon, PencilIcon } from "../../../icons";
 import { itemFormStrings as S } from "../../../pages/itemFormStrings";
 import type { SearchableSelectOption } from "../../../components/form/SearchableSelectWithCreate";
@@ -20,6 +21,8 @@ type Props = {
   editingLineIds: number[];
   productSelectOptions: SearchableSelectOption[];
   lensSelectOptions: SearchableSelectOption[];
+  detectorSelectOptions: SearchableSelectOption[];
+  detectorLabelById: Map<string, string>;
   unitOptions: { value: string; label: string }[];
   currencyOptions: { value: string; label: string }[];
   exchangeRateCurrencyCode: string;
@@ -33,6 +36,7 @@ type Props = {
   onAddItemRow: () => void;
   onSetLineProductId: (index: number, value: string) => void;
   onSetLineLensId: (index: number, value: string) => void;
+  onSetLineDetectorId: (index: number, value: string) => void;
   onUpdateItemRow: (
     index: number,
     key: keyof ItemRow,
@@ -52,6 +56,8 @@ export default function OrderLineEditorSection({
   editingLineIds,
   productSelectOptions,
   lensSelectOptions,
+  detectorSelectOptions,
+  detectorLabelById,
   unitOptions,
   currencyOptions,
   exchangeRateCurrencyCode,
@@ -65,6 +71,7 @@ export default function OrderLineEditorSection({
   onAddItemRow,
   onSetLineProductId,
   onSetLineLensId,
+  onSetLineDetectorId,
   onUpdateItemRow,
   onRemoveItemRow,
   onSaveLine,
@@ -133,13 +140,27 @@ export default function OrderLineEditorSection({
                 </TableCell>
                 <TableCell
                   isHeader
-                  className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[18%]"
+                  className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[16%]"
                 >
                   렌즈
                 </TableCell>
                 <TableCell
                   isHeader
-                  className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[18%]"
+                  className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[16%]"
+                >
+                  <div className="flex flex-wrap items-center justify-center gap-1">
+                    <span>
+                      검출기
+                      <span className="ml-1 align-middle text-error-500 dark:text-error-400">
+                        *
+                      </span>
+                    </span>
+                    <DetectorTypeGuidePopover />
+                  </div>
+                </TableCell>
+                <TableCell
+                  isHeader
+                  className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[16%]"
                 >
                   단위 · 수량
                   <span className="ml-1 align-middle text-error-500 dark:text-error-400">
@@ -148,7 +169,7 @@ export default function OrderLineEditorSection({
                 </TableCell>
                 <TableCell
                   isHeader
-                  className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[20%]"
+                  className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[18%]"
                 >
                   통화 · 단가
                   <span className="ml-1 align-middle text-error-500 dark:text-error-400">
@@ -157,7 +178,7 @@ export default function OrderLineEditorSection({
                 </TableCell>
                 <TableCell
                   isHeader
-                  className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[24%]"
+                  className="whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[20%]"
                 >
                   비고
                 </TableCell>
@@ -212,6 +233,45 @@ export default function OrderLineEditorSection({
                           isDisabled={isEditReadonly}
                           className="w-full min-w-0 max-w-[min(100%,28rem)]"
                         />
+                      </div>
+                    </TableCell>
+                    <TableCell className="min-w-0 px-3 py-3 text-center align-middle">
+                      <div className="flex w-full min-w-0 justify-center">
+                        {isEditReadonly ? (
+                          <span
+                            className={
+                              row.detectorId.trim()
+                                ? "max-w-full truncate text-theme-xs text-gray-800 dark:text-gray-200"
+                                : "text-theme-xs text-gray-500 dark:text-gray-400"
+                            }
+                            title={
+                              row.detectorId.trim()
+                                ? detectorLabelById.get(row.detectorId.trim()) ??
+                                  row.detectorId
+                                : "미지정"
+                            }
+                          >
+                            {row.detectorId.trim()
+                              ? detectorLabelById.get(row.detectorId.trim()) ??
+                                `검출기 #${row.detectorId}`
+                              : "미지정"}
+                          </span>
+                        ) : (
+                          <SearchableSelectWithCreate
+                            id={`order-line-detector-${index}`}
+                            value={row.detectorId}
+                            onChange={(v) => onSetLineDetectorId(index, v)}
+                            options={detectorSelectOptions}
+                            placeholder="선택"
+                            noOptionsMessage="검출기가 없습니다."
+                            addTrigger="none"
+                            addButtonLabel=""
+                            onAddClick={() => {}}
+                            compact
+                            isClearable={false}
+                            className="w-full min-w-0 max-w-[min(100%,28rem)]"
+                          />
+                        )}
                       </div>
                     </TableCell>
                     <TableCell className="px-3 py-3 text-center align-middle">

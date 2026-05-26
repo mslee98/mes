@@ -24,11 +24,7 @@ import {
   updateUserRole,
   type UserRoleAssignment,
 } from "../api/userRole";
-import { formatDateYmd } from "../lib/dateFormat";
-
-function todayString() {
-  return new Date().toISOString().slice(0, 10);
-}
+import { formatDateYmd, localYmdToday } from "../lib/dateFormat";
 
 const ACTIVE_OPTIONS = [
   { value: "active", label: "활성" },
@@ -47,7 +43,7 @@ export default function UserDetail() {
   const [assignForm, setAssignForm] = useState({
     roleCode: "",
     isActive: true,
-    startedAt: todayString(),
+    startedAt: localYmdToday(),
     endedAt: "",
   });
   const [editState, setEditState] = useState<
@@ -136,7 +132,7 @@ export default function UserDetail() {
       setAssignForm({
         roleCode: roles[0]?.code as string,
         isActive: true,
-        startedAt: todayString(),
+        startedAt: localYmdToday(),
         endedAt: "",
       });
       await queryClient.invalidateQueries({

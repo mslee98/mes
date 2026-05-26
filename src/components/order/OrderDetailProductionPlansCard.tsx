@@ -4,36 +4,36 @@ import ComponentCard from "../common/ComponentCard";
 import LoadingLottie from "../common/LoadingLottie";
 import { CalenderIcon, AngleRightIcon } from "../../icons";
 import {
-  getPurchaseOrderDeliveryPlans,
-  type DeliveryPlan,
+  getPurchaseOrderProductionPlans,
+  type ProductionPlan,
 } from "../../api/purchaseOrder";
 import { formatDateYmd } from "../../lib/dateFormat";
 
-type OrderDetailDeliveryPlansCardProps = {
+type OrderDetailProductionPlansCardProps = {
   purchaseOrderId: string;
   accessToken: string;
   isAuthLoading?: boolean;
   canCreate: boolean;
-  /** 실제 납품 등록과 동일한 모달을 연다 — 저장 시 `POST .../delivery-plans` */
+  /** 실제 납품 등록과 동일한 모달을 연다 — 저장 시 `POST .../production-plans` */
   onOpenPlanModal: () => void;
-  /** true면 카드 헤더의「납품 계획 만들기」숨김(페이지 상단 버튼과 중복 방지) */
+  /** true면 카드 헤더의「생산 계획 만들기」숨김(페이지 상단 버튼과 중복 방지) */
   hideHeaderCreateButton?: boolean;
   /** `dashboard`: 캘린더·생성일·상세보기 행 스타일 */
   visualVariant?: "default" | "dashboard";
 };
 
-function planListTitle(plan: DeliveryPlan): string {
+function planListTitle(plan: ProductionPlan): string {
   const t = plan.title?.trim();
   if (t) return t;
   const no = plan.planNo?.trim();
   if (no) return no;
   if (plan.planSeq != null && Number.isFinite(plan.planSeq)) {
-    return `납품 계획 ${plan.planSeq}차`;
+    return `생산 계획 ${plan.planSeq}차`;
   }
   return String(plan.id);
 }
 
-export function OrderDetailDeliveryPlansCard({
+export function OrderDetailProductionPlansCard({
   purchaseOrderId,
   accessToken,
   isAuthLoading = false,
@@ -41,7 +41,7 @@ export function OrderDetailDeliveryPlansCard({
   onOpenPlanModal,
   hideHeaderCreateButton = false,
   visualVariant = "default",
-}: OrderDetailDeliveryPlansCardProps) {
+}: OrderDetailProductionPlansCardProps) {
   const isDashboard = visualVariant === "dashboard";
   const {
     data: plans = [],
@@ -49,13 +49,13 @@ export function OrderDetailDeliveryPlansCard({
     isError,
     error,
   } = useQuery({
-    queryKey: ["purchaseOrderDeliveryPlans", purchaseOrderId],
-    queryFn: () => getPurchaseOrderDeliveryPlans(purchaseOrderId, accessToken),
+    queryKey: ["purchaseOrderProductionPlans", purchaseOrderId],
+    queryFn: () => getPurchaseOrderProductionPlans(purchaseOrderId, accessToken),
     enabled:
       !!accessToken && !isAuthLoading && String(purchaseOrderId).trim() !== "",
   });
 
-  const formatPlanDate = (plan: DeliveryPlan) => {
+  const formatPlanDate = (plan: ProductionPlan) => {
     const raw =
       plan.deliveryDate ??
       plan.plannedDeliveryDate ??
@@ -66,8 +66,8 @@ export function OrderDetailDeliveryPlansCard({
 
   return (
     <ComponentCard
-      title="납품 계획"
-      desc={isDashboard ? "등록된 납품 계획 목록입니다." : undefined}
+      title="생산 계획"
+      desc={isDashboard ? "등록된 생산 계획 목록입니다." : undefined}
       collapsible={!isDashboard}
       defaultCollapsed={false}
       className={isDashboard ? "[&>div:first-child]:px-4 [&>div:first-child]:py-3.5" : ""}
@@ -86,7 +86,7 @@ export function OrderDetailDeliveryPlansCard({
             onClick={onOpenPlanModal}
             className="rounded-lg border border-brand-500 bg-white px-3 py-1.5 text-sm font-medium text-brand-600 hover:bg-brand-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-brand-600 dark:bg-gray-800 dark:text-brand-400"
           >
-            납품 계획 만들기
+            생산 계획 만들기
           </button>
         )
       }
@@ -95,7 +95,7 @@ export function OrderDetailDeliveryPlansCard({
         <div className="min-w-[12rem] flex-1">
           {!canCreate ? (
             <p className="text-theme-xs text-amber-700 dark:text-amber-400/90">
-              발주가 종결(PO_CLOSED)된 뒤에만 납품 계획을 등록할 수 있습니다.
+              발주가 종결(PO_CLOSED)된 뒤에만 생산 계획을 등록할 수 있습니다.
             </p>
           ) : null}
         </div>
@@ -110,13 +110,13 @@ export function OrderDetailDeliveryPlansCard({
           <p className="text-theme-sm text-red-600 dark:text-red-400">
             {error instanceof Error
               ? error.message
-              : "납품 계획 목록을 불러오지 못했습니다."}
+              : "생산 계획 목록을 불러오지 못했습니다."}
           </p>
         ) : plans.length === 0 ? (
           <p className="text-theme-sm text-gray-500 dark:text-gray-400">
             {canCreate ? (
               <>
-                등록된 납품 계획이 없습니다. 납품 계획을 등록하시겠습니까?{" "}
+                등록된 생산 계획이 없습니다. 생산 계획을 등록하시겠습니까?{" "}
                 <button
                   type="button"
                   onClick={onOpenPlanModal}
@@ -126,7 +126,7 @@ export function OrderDetailDeliveryPlansCard({
                 </button>
               </>
             ) : (
-              "등록된 납품 계획이 없습니다."
+              "등록된 생산 계획이 없습니다."
             )}
           </p>
         ) : (

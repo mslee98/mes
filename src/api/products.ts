@@ -107,6 +107,24 @@ export function representativeProductLabel(p: RepresentativeProduct): string {
   return name || businessName || "-";
 }
 
+/** 제품 유형 — UI 표시용 (공통코드 그룹 없음, 고정 매핑) */
+export function productTypeDisplayLabel(
+  productType: RepresentativeProduct["productType"] | string | null | undefined
+): string {
+  const code = String(productType ?? "").trim().toUpperCase();
+  if (code === "CAMERA") return "카메라";
+  if (code === "ENGINE") return "엔진";
+  return code || "-";
+}
+
+/** 드롭다운용: 제품명 + 유형(엔진/카메라) */
+export function representativeProductSelectLabel(p: RepresentativeProduct): string {
+  const base = representativeProductLabel(p);
+  const typeLabel = productTypeDisplayLabel(p.productType);
+  if (base === "-") return typeLabel;
+  return `${base} · ${typeLabel}`;
+}
+
 function mapProduct(raw: unknown): RepresentativeProduct {
   const o = raw as Record<string, unknown>;
   const businessCodeRaw = o.businessCode ?? o.business_code;

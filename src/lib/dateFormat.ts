@@ -145,6 +145,17 @@ export function koLabelFromDiff(diff: number): string {
   return `${Math.abs(diff)}일 지남`;
 }
 
+/** `Y-m-d` 문자열 선후 비교 (발주일 ≤ 납기일 등) */
+export function isYmdRangeValid(
+  fromYmd: string,
+  toYmd: string
+): boolean {
+  const from = String(fromYmd ?? "").trim();
+  const to = String(toYmd ?? "").trim();
+  if (!from || !to) return true;
+  return from <= to;
+}
+
 export {
   dueDateDdayBadgeClassName,
   dueDateDdayFromToday,

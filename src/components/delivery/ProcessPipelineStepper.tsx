@@ -6,12 +6,12 @@ import {
   useState,
 } from "react";
 import type { CommonCodeItem } from "../../api/commonCode";
-import type { DeliveryPlanUnit } from "../../api/purchaseOrder";
-import { labelForProcessCode } from "../../lib/deliveryPlanProcessLabels";
+import type { ProductionPlanUnit } from "../../api/purchaseOrder";
+import { labelForProcessCode } from "../../lib/productionPlanProcessLabels";
 import {
   findProcessStepIndex,
   orderedUnitProcessSteps,
-} from "../../lib/deliveryPlanProcessSequence";
+} from "../../lib/productionPlanProcessSequence";
 
 type ProcessPipelineRowState = "done" | "current" | "pending";
 
@@ -22,16 +22,79 @@ function rowState(globalIndex: number, currentIndex: number): ProcessPipelineRow
   return "pending";
 }
 
+export type ProcessGateSubmitting = "pass" | "fail" | null;
+
 export interface ProcessPipelineStepperProps {
-  unit: DeliveryPlanUnit | null;
+  unit: ProductionPlanUnit | null;
   stepCodes: CommonCodeItem[];
+  /** 현재 공정 행에 PASS/FAIL 조작 UI 표시 */
+  interactive?: boolean;
+  submitting?: ProcessGateSubmitting;
+  failFormOpen?: boolean;
+  onFailFormOpenChange?: (open: boolean) => void;
+  onPass?: () => void;
+}
+
+function ProcessActionCheckbox({
+  id,
+  label,
+  tone,
+  disabled,
+  busy,
+  checked,
+  onToggle,
+}: {
+  id: string;
+  label: string;
+  tone: "pass" | "fail";
+  disabled?: boolean;
+  busy?: boolean;
+  checked?: boolean;
+  onToggle: (next: boolean) => void;
+}) {
+  const toneClass =
+    tone === "pass"
+      ? "accent-brand-500 text-brand-500 focus:ring-brand-500/20"
+      : "accent-red-600 text-red-600 focus:ring-red-500/20";
+
+  return (
+    <label
+      htmlFor={id}
+      className={`inline-flex items-center gap-1.5 text-theme-xs font-medium select-none ${
+        disabled
+          ? "cursor-not-allowed opacity-50"
+          : "cursor-pointer"
+      } ${
+        tone === "pass"
+          ? "text-brand-600 dark:text-brand-400"
+          : "text-red-600 dark:text-red-400"
+      }`}
+    >
+      <input
+        id={id}
+        type="checkbox"
+        checked={checked ?? false}
+        disabled={disabled || busy}
+        onChange={(e) => onToggle(e.target.checked)}
+        className={`size-4 shrink-0 rounded border-gray-300 dark:border-gray-600 ${toneClass}`}
+      />
+      <span>{busy ? "처리 중…" : label}</span>
+    </label>
+  );
 }
 
 /**
- * 공정 표준 순서 기준 세로 스테퍼 — 완료 / 진행중 / 대기, 연결선, 현재·다음 원형 펄스.
- * 약 4단계 높이만 보이는 뷰포트(스크롤바 숨김) + 상·하단 페이드로 위·아래에 더 있음을 표시합니다.
+ * 공정 표준 순서 기준 세로 스테퍼 — 완료 / (인터랙티브) PASS·FAIL / 대기.
  */
-export function ProcessPipelineStepper({ unit, stepCodes }: ProcessPipelineStepperProps) {
+export function ProcessPipelineStepper({
+  unit,
+  stepCodes,
+  interactive = false,
+  submitting = null,
+  failFormOpen = false,
+  onFailFormOpenChange,
+  onPass,
+}: ProcessPipelineStepperProps) {
   const ordered = useMemo(() => orderedUnitProcessSteps(stepCodes), [stepCodes]);
   const orderedKey = useMemo(() => ordered.map((s) => s.code).join(","), [ordered]);
   const currentIndex = useMemo(
@@ -70,6 +133,8 @@ export function ProcessPipelineStepper({ unit, stepCodes }: ProcessPipelineStepp
     ro.observe(el);
     return () => ro.disconnect();
   }, [currentIndex, unit?.id, unit?.currentProcessCode, orderedKey, updateFadeEdges]);
+
+  const isBusy = submitting != null;
 
   if (ordered.length === 0) {
     return (
@@ -120,6 +185,8 @@ export function ProcessPipelineStepper({ unit, stepCodes }: ProcessPipelineStepp
                 : isNext
                   ? "process-pipeline-node-pulse-soft"
                   : "";
+
+              const showActions = interactive && isCurrent && onPass;
 
               return (
                 <li
@@ -177,25 +244,53 @@ export function ProcessPipelineStepper({ unit, stepCodes }: ProcessPipelineStepp
                       </div>
                     ) : null}
                   </div>
-                <div
-                  className={`flex min-w-0 flex-1 items-start justify-between gap-3 pb-5 pt-0.5 ${
-                    isLast ? "pb-1.5" : ""
-                  }`}
-                >
-                    <span
-                      className={`min-w-0 break-words text-theme-sm leading-snug ${
-                        state === "pending"
-                          ? "text-gray-400 dark:text-gray-500"
-                          : "font-medium text-gray-900 dark:text-white"
-                      }`}
-                    >
-                      {label}
-                    </span>
-                    <span
-                      className={`shrink-0 whitespace-nowrap text-theme-xs sm:text-theme-sm ${statusClass}`}
-                    >
-                      {statusText}
-                    </span>
+                  <div
+                    className={`flex min-w-0 flex-1 flex-col gap-2 pb-5 pt-0.5 ${
+                      isLast ? "pb-1.5" : ""
+                    }`}
+                  >
+                    <div className="flex min-w-0 items-start justify-between gap-2">
+                      <span
+                        className={`min-w-0 break-words text-theme-sm leading-snug ${
+                          state === "pending"
+                            ? "text-gray-400 dark:text-gray-500"
+                            : "font-medium text-gray-900 dark:text-white"
+                        }`}
+                      >
+                        {label}
+                      </span>
+                      {showActions ? (
+                        <div className="flex shrink-0 flex-col items-end gap-1.5 sm:flex-row sm:items-center">
+                          <ProcessActionCheckbox
+                            id={`process-pass-${unit?.id ?? "unit"}`}
+                            label="PASS"
+                            tone="pass"
+                            disabled={isBusy || failFormOpen}
+                            busy={submitting === "pass"}
+                            onToggle={(checked) => {
+                              if (checked) onPass();
+                            }}
+                          />
+                          <ProcessActionCheckbox
+                            id={`process-fail-${unit?.id ?? "unit"}`}
+                            label="FAIL"
+                            tone="fail"
+                            disabled={isBusy}
+                            busy={submitting === "fail"}
+                            checked={failFormOpen}
+                            onToggle={(checked) =>
+                              onFailFormOpenChange?.(checked)
+                            }
+                          />
+                        </div>
+                      ) : (
+                        <span
+                          className={`shrink-0 whitespace-nowrap text-theme-xs sm:text-theme-sm ${statusClass}`}
+                        >
+                          {statusText}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </li>
               );

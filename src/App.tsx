@@ -14,7 +14,7 @@ import { ScrollToTop } from "./components/common/ScrollToTop";
 import AuthEntry from "./pages/AuthEntry";
 import Order from "./pages/Order";
 import OrderDetail from "./pages/OrderDetail";
-import DeliveryPlanDetail from "./pages/DeliveryPlanDetail";
+import ProductionPlanDetail from "./pages/ProductionPlanDetail";
 import OrderForm from "./pages/OrderForm";
 import Organization from "./pages/Organization";
 import Menu from "./pages/Menu";
@@ -165,7 +165,7 @@ function App() {
               <Route path="order/:orderId" element={<OrderDetail />} />
               <Route
                 path="order/:orderId/plan/:planId"
-                element={<DeliveryPlanDetail />}
+                element={<ProductionPlanDetail />}
               />
               <Route path="order/:orderId/edit" element={<OrderForm />} />
 
