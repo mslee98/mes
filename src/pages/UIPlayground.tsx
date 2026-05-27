@@ -14,7 +14,8 @@ import DatePicker from "../components/form/date-picker";
 import TimePickerInput from "../components/form/TimePickerInput";
 import Toggle from "../components/form/Toggle";
 import FormActionBar from "../components/form/FormActionBar";
-import { EnvelopeIcon, UserIcon } from "../icons";
+import { EnvelopeIcon, ListIcon, PencilIcon, PlusIcon, UserIcon } from "../icons";
+import { BUTTON_ACTION_ROLE_GUIDE, buttonClassName } from "../lib/buttonStyles";
 import IconTooltip from "../components/ui/tooltip/IconTooltip";
 import ButtonTooltip from "../components/ui/tooltip/ButtonTooltip";
 import { useAuth } from "../hooks/useAuth";
@@ -24,6 +25,9 @@ import { PARTNER_TYPE_SUPPLIER, PARTNER_SUPPLIER_SEGMENT_OTHER } from "../lib/pa
 import { partnerSelectLabel } from "../lib/partnerDisplay";
 import { validateRequiredFields } from "../lib/formValidation";
 import { Modal } from "../components/ui/modal";
+import InfoActionPopover from "../components/common/InfoActionPopover";
+import { DetectorTypeGuidePopover } from "../components/common/DetectorTypeGuidePopover";
+import { ProductionPlanOrderSummary } from "../components/order/ProductionPlanOrderSummary";
 
 export default function UIPlayground() {
   const { accessToken, isLoading: isAuthLoading } = useAuth();
@@ -89,9 +93,9 @@ export default function UIPlayground() {
             URL: <code>/ui</code>
           </p>
           <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
-            최근 공통화 항목: <code>Toggle</code>, <code>FormActionBar</code>,{" "}
-            <code>TimePickerInput</code>, <code>DatePicker monthOnly</code>,{" "}
-            <code>validateRequiredFields</code>, <code>usePartnersQuery</code>
+            최근 공통화 항목: <code>buttonStyles</code> (액션 역할),{" "}
+            <code>ProductionPlanOrderSummary</code>, <code>InfoActionPopover</code>,{" "}
+            <code>Toggle</code>, <code>FormActionBar</code>, <code>TimePickerInput</code>
           </p>
         </ComponentCard>
 
@@ -146,15 +150,131 @@ export default function UIPlayground() {
           </Modal>
         </ComponentCard>
 
-        <ComponentCard title="Button">
-          <div className="flex flex-wrap items-center gap-2">
-            <Button>Primary</Button>
-            <Button variant="outline">Outline</Button>
-            <Button variant="outlineBrand" size="xs">
-              Outline brand
-            </Button>
-            <Button size="sm">Small</Button>
-            <Button disabled>Disabled</Button>
+        <ComponentCard
+          title="Button"
+          desc="variant(solid|outline|ghost) × color(brand|neutral|success|warning|danger). 화면당 핵심 CTA 1개만 solid brand."
+        >
+          <div className="space-y-5">
+            <div>
+              <p className="mb-2 text-theme-xs font-medium text-gray-500 dark:text-gray-400">
+                기본 variant × color
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button variant="primary">Solid brand</Button>
+                <Button variant="outline">Outline neutral</Button>
+                <Button variant="outlineBrand" size="xs">
+                  Outline brand
+                </Button>
+                <Button color="success" variant="outline" size="compact">
+                  Success outline
+                </Button>
+                <Button color="warning" variant="outline" size="compact">
+                  Warning outline
+                </Button>
+                <Button disabled>Disabled</Button>
+              </div>
+            </div>
+
+            <div>
+              <p className="mb-2 text-theme-xs font-medium text-gray-500 dark:text-gray-400">
+                actionRole (상단 액션 바 — 발주 상세와 동일)
+              </p>
+              <div className="flex flex-wrap items-center gap-2 rounded-xl border border-gray-100 bg-gray-50/80 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                <Button actionRole="navigate" size="compact" startIcon={<ListIcon className="size-4" aria-hidden />}>
+                  목록
+                </Button>
+                <Button actionRole="positive" size="compact">
+                  접수
+                </Button>
+                <Button
+                  actionRole="edit"
+                  size="compact"
+                  startIcon={<PencilIcon className="size-4" aria-hidden />}
+                >
+                  발주 수정
+                </Button>
+                <Button
+                  actionRole="primary"
+                  size="compact"
+                  startIcon={<PlusIcon className="size-4" aria-hidden />}
+                >
+                  생산계획 등록
+                </Button>
+              </div>
+              <ul className="mt-3 space-y-1 text-theme-xs text-gray-600 dark:text-gray-300">
+                {BUTTON_ACTION_ROLE_GUIDE.map((item) => (
+                  <li key={item.role}>
+                    <strong>{item.label}</strong> — {item.description}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div>
+              <p className="mb-2 text-theme-xs font-medium text-gray-500 dark:text-gray-400">
+                Link + buttonClassName (앵커 버튼)
+              </p>
+              <a
+                href="/order"
+                className={buttonClassName({ actionRole: "navigate", size: "compact" })}
+              >
+                <ListIcon className="size-4 shrink-0" aria-hidden />
+                목록
+              </a>
+            </div>
+          </div>
+        </ComponentCard>
+
+        <ComponentCard
+          title="ProductionPlanOrderSummary"
+          desc="생산 계획·실제 생산 모달 상단 발주 스냅샷 — 납품 요약 카드와 동일한 그라데이션 + dl 그리드."
+        >
+          <ProductionPlanOrderSummary
+            orderNo="PO-20260521-001"
+            partnerLabel={<span>EOST</span>}
+            productName="MARKOS ENGINE"
+            businessName="ICE640_T2SL"
+            detectorLabel="320-B"
+            lensLabel="—"
+            qtyLabel="5 EA"
+            dueDate="2026-05-31"
+            requesterName="이민성"
+          />
+        </ComponentCard>
+
+        <ComponentCard
+          title="InfoActionPopover"
+          desc={
+            '라벨·테이블 헤더 옆 정보 아이콘 — 안내 문구 + 단일 액션. SearchableSelectWithCreate의 addTrigger="popover" 및 발주 검출기 타입 안내에 사용합니다.'
+          }
+        >
+          <div className="space-y-6">
+            <div>
+              <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
+                <Label className="!mb-0">거래처 (라벨 + 팝오버 패턴)</Label>
+                <InfoActionPopover
+                  ariaLabel="거래처 등록 안내"
+                  description="필터에 쓸 거래처가 없으면 등록한 뒤 목록이 갱신됩니다."
+                  actionLabel="거래처 등록"
+                  onAction={() => toast.success("데모: 거래처 등록 액션")}
+                />
+              </div>
+              <p className="text-theme-xs text-gray-500 dark:text-gray-400">
+                납품 목록 필터·발주 폼 셀렉트와 동일한 트리거 배치입니다.
+              </p>
+            </div>
+            <div>
+              <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
+                <Label className="!mb-0" required>
+                  검출기
+                </Label>
+                <DetectorTypeGuidePopover />
+              </div>
+              <p className="text-theme-xs text-gray-500 dark:text-gray-400">
+                발주 등록·상세 제품 라인 — 「타입 표 확인」으로{" "}
+                <code>/iddca-type</code>을 새 탭에서 엽니다.
+              </p>
+            </div>
           </div>
         </ComponentCard>
 

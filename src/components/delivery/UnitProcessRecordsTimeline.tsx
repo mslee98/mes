@@ -1,16 +1,19 @@
 import {
   useCallback,
+  useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
-import type { DeliveryPlanUnit, UnitProcessRecord } from "../../api/purchaseOrder";
+import toast from "react-hot-toast";
+import type { ProductionPlanUnit, UnitProcessRecord } from "../../api/purchaseOrder";
 import { UNIT_PROCESS_STEP_CODE_WAIT_DETECTOR_INCOMING } from "../../api/commonCode";
 import Badge from "../ui/badge/Badge";
 import { formatDateTimeKo } from "../../lib/dateFormat";
 import { normalizeUnitProcessRecordAttachments } from "../../lib/unitProcessRecordAttachments";
 import { ProcessHistoryAttachmentRow } from "./ProcessHistoryAttachmentRow";
+import FileUploadDropzone from "../form/FileUploadDropzone";
 
 function detectorSerialFromProcessRecord(record: UnitProcessRecord): string {
   const o = record as unknown as Record<string, unknown>;
@@ -28,7 +31,7 @@ function detectorSerialFromProcessRecord(record: UnitProcessRecord): string {
   return "";
 }
 
-function detectorSerialFromUnit(unit: DeliveryPlanUnit | null | undefined): string {
+function detectorSerialFromUnit(unit: ProductionPlanUnit | null | undefined): string {
   if (!unit) return "";
   const direct = String(unit.detectorSerialNo ?? "").trim();
   if (direct) return direct;
@@ -66,10 +69,21 @@ function remarkFromProcessRecord(record: UnitProcessRecord): string {
 export interface UnitProcessRecordsTimelineProps {
   records: UnitProcessRecord[];
   isLoading: boolean;
-  unit: DeliveryPlanUnit | null;
+  unit: ProductionPlanUnit | null;
   accessToken: string | null;
   /** 뷰포트 최대 높이 Tailwind 클래스 */
   viewportClassName?: string;
+  onUploadAttachments?: (recordId: string, files: File[]) => Promise<void>;
+  uploadingRecordKey?: string | null;
+}
+
+function recordUploadKey(
+  unitId: string | null | undefined,
+  recordId: string | number | null | undefined
+): string {
+  const uid = String(unitId ?? "").trim();
+  const rid = String(recordId ?? "").trim();
+  return uid && rid ? `${uid}:${rid}` : "";
 }
 
 /**
@@ -81,10 +95,15 @@ export function UnitProcessRecordsTimeline({
   unit,
   accessToken,
   viewportClassName = "max-h-[min(14rem,36vh)] sm:max-h-[min(16rem,32vh)]",
+  onUploadAttachments,
+  uploadingRecordKey = null,
 }: UnitProcessRecordsTimelineProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const [fadeTop, setFadeTop] = useState(false);
   const [fadeBottom, setFadeBottom] = useState(false);
+  const [openUploadRecordKey, setOpenUploadRecordKey] = useState<string | null>(
+    null
+  );
 
   const recordsKey = useMemo(
     () =>
@@ -111,6 +130,10 @@ export function UnitProcessRecordsTimeline({
     ro.observe(el);
     return () => ro.disconnect();
   }, [recordsKey, isLoading, updateFadeEdges]);
+
+  useEffect(() => {
+    setOpenUploadRecordKey(null);
+  }, [recordsKey]);
 
   if (isLoading) {
     return (
@@ -139,6 +162,14 @@ export function UnitProcessRecordsTimeline({
         <ol className="relative space-y-0">
           {records.map((r, idx) => {
             const isLast = idx === records.length - 1;
+            const currentUploadKey = recordUploadKey(unit?.id, r.id);
+            const canUpload =
+              Boolean(onUploadAttachments) &&
+              currentUploadKey !== "" &&
+              accessToken != null;
+            const isUploadOpen = canUpload && openUploadRecordKey === currentUploadKey;
+            const isUploadingThis = currentUploadKey !== "" &&
+              uploadingRecordKey === currentUploadKey;
             const isDetectorIncomingRecord =
               String(r.processCode ?? "").trim().toUpperCase() ===
               UNIT_PROCESS_STEP_CODE_WAIT_DETECTOR_INCOMING;
@@ -218,20 +249,67 @@ export function UnitProcessRecordsTimeline({
                       검출기 S/N: {detectorSerialText}
                     </p>
                   ) : null}
-                  {recordAttachments.length > 0 ? (
+                  {recordAttachments.length > 0 || canUpload ? (
                     <div className="mt-2 border-t border-gray-100 pt-2 dark:border-white/10">
-                      <p className="text-theme-xs font-medium text-gray-500 dark:text-gray-400">
-                        첨부
-                      </p>
-                      <ul className="mt-1 space-y-2">
-                        {recordAttachments.map((a) => (
-                          <ProcessHistoryAttachmentRow
-                            key={a.key}
-                            attachment={a}
-                            accessToken={accessToken}
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-theme-xs font-medium text-gray-500 dark:text-gray-400">
+                          첨부
+                        </p>
+                        {canUpload ? (
+                          <button
+                            type="button"
+                            className="rounded-md border border-gray-300 px-2.5 py-1 text-theme-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+                            disabled={uploadingRecordKey != null}
+                            onClick={() =>
+                              setOpenUploadRecordKey((prev) =>
+                                prev === currentUploadKey ? null : currentUploadKey
+                              )
+                            }
+                          >
+                            {isUploadingThis
+                              ? "업로드 중…"
+                              : isUploadOpen
+                                ? "첨부 닫기"
+                                : "첨부 추가"}
+                          </button>
+                        ) : null}
+                      </div>
+                      {recordAttachments.length > 0 ? (
+                        <ul className="mt-1 space-y-2">
+                          {recordAttachments.map((a) => (
+                            <ProcessHistoryAttachmentRow
+                              key={a.key}
+                              attachment={a}
+                              accessToken={accessToken}
+                            />
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="mt-1 text-theme-xs text-gray-400 dark:text-gray-500">
+                          첨부파일이 없습니다.
+                        </p>
+                      )}
+                      {canUpload && isUploadOpen ? (
+                        <div className="mt-2">
+                          <FileUploadDropzone
+                            onSelectFiles={async (files) => {
+                              if (!onUploadAttachments || r.id == null) return;
+                              try {
+                                await onUploadAttachments(String(r.id), files);
+                                setOpenUploadRecordKey(null);
+                              } catch {
+                                // 에러 토스트는 상위 mutation에서 처리합니다.
+                              }
+                            }}
+                            onError={(message) => toast.error(message)}
+                            disabled={uploadingRecordKey != null}
+                            buttonLabel={isUploadingThis ? "업로드 중…" : "파일 선택"}
+                            uploadGuideText="이 공정 이력에 첨부할 파일을 선택하세요."
+                            className="mt-1"
+                            maxFiles={10}
                           />
-                        ))}
-                      </ul>
+                        </div>
+                      ) : null}
                     </div>
                   ) : null}
                 </div>

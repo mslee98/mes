@@ -1,18 +1,18 @@
 import Badge from "../ui/badge/Badge";
-import type { DeliveryPlanUnit } from "../../api/purchaseOrder";
-import { processStageBadgeFromUnit } from "../../lib/deliveryPlanProcessLabels";
+import type { ProductionPlanUnit } from "../../api/purchaseOrder";
+import { processStageBadgeFromUnit } from "../../lib/productionPlanProcessLabels";
 
-type DeliveryPlanProcessStageBadgeProps = {
+type ProductionPlanProcessStageBadgeProps = {
   unit: Pick<
-    DeliveryPlanUnit,
+    ProductionPlanUnit,
     "processStatus" | "currentProcessCode" | "isDeliveryReady" | "isDelivered"
   >;
 };
 
 /** 공정 진행 단계 — PASS는 ‘진행’, 출고·납품 완료만 종료(완료) 느낌으로 표시 */
-export function DeliveryPlanProcessStageBadge({
+export function ProductionPlanProcessStageBadge({
   unit,
-}: DeliveryPlanProcessStageBadgeProps) {
+}: ProductionPlanProcessStageBadgeProps) {
   const { kind, label } = processStageBadgeFromUnit(unit);
 
   let color:

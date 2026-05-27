@@ -17,10 +17,14 @@ import {
   WrenchScrewdriverIcon,
   TruckIcon,
   BugAntIcon,
+  HomeModernIcon,
+  ReceiptPercentIcon,
+  PresentationChartBarIcon
 } from "../icons";
 import { getMenus, type MenuItem } from "../api/menu";
 import { useAuth } from "../hooks/useAuth";
 import { useSidebar } from "../context/SidebarContext";
+import { pathnameMatchesMenuPath } from "../lib/sidebarMenuActive";
 
 type NavItem = {
   code: string;
@@ -49,6 +53,9 @@ const iconMap = {
   WrenchScrewdriverIcon,
   TruckIcon,
   BugAntIcon,
+  HomeModernIcon,
+  ReceiptPercentIcon,
+  PresentationChartBarIcon
 } as const;
 
 function resolveIcon(iconName?: string | null) {
@@ -83,12 +90,6 @@ function toNavItem(menu: MenuItem): NavItem | null {
 
 function isOthersMenu(item: NavItem) {
   return item.code === "ADMIN" || item.name === "Admin";
-}
-
-function pathnameMatchesMenuPath(pathname: string, menuPath: string): boolean {
-  if (!menuPath) return false;
-  if (menuPath === "/") return pathname === "/";
-  return pathname === menuPath || pathname.startsWith(`${menuPath}/`);
 }
 
 const AppSidebar: React.FC = () => {
@@ -180,14 +181,21 @@ const AppSidebar: React.FC = () => {
 
   const renderMenuItems = (items: NavItem[], menuType: "main" | "others") => (
     <ul className="flex flex-col gap-4">
-      {items.map((nav, index) => (
+      {items.map((nav, index) => {
+        const isSubmenuOpen =
+          openSubmenu?.type === menuType && openSubmenu?.index === index;
+        const isSubmenuSectionActive =
+          nav.subItems?.some((subItem) => isActive(subItem.path)) ?? false;
+        const isParentMenuHighlighted = isSubmenuOpen || isSubmenuSectionActive;
+
+        return (
         <li key={nav.name}>
           {nav.subItems ? (
             <button
               type="button"
               onClick={() => handleSubmenuToggle(index, menuType)}
               className={`menu-item group ${
-                openSubmenu?.type === menuType && openSubmenu?.index === index
+                isParentMenuHighlighted
                   ? "menu-item-active"
                   : "menu-item-inactive"
               } cursor-pointer ${
@@ -198,7 +206,7 @@ const AppSidebar: React.FC = () => {
             >
               <span
                 className={`menu-item-icon-size  ${
-                  openSubmenu?.type === menuType && openSubmenu?.index === index
+                  isParentMenuHighlighted
                     ? "menu-item-icon-active"
                     : "menu-item-icon-inactive"
                 }`}
@@ -211,10 +219,7 @@ const AppSidebar: React.FC = () => {
               {(isExpanded || isHovered || isMobileOpen) && (
                 <ChevronDownIcon
                   className={`ml-auto w-5 h-5 transition-transform duration-200 ${
-                    openSubmenu?.type === menuType &&
-                    openSubmenu?.index === index
-                      ? "rotate-180 text-brand-500"
-                      : ""
+                    isSubmenuOpen ? "rotate-180 text-brand-500" : ""
                   }`}
                 />
               )}
@@ -249,10 +254,9 @@ const AppSidebar: React.FC = () => {
               }}
               className="overflow-hidden transition-all duration-300"
               style={{
-                height:
-                  openSubmenu?.type === menuType && openSubmenu?.index === index
-                    ? `${subMenuHeight[`${menuType}-${index}`]}px`
-                    : "0px",
+                height: isSubmenuOpen
+                  ? `${subMenuHeight[`${menuType}-${index}`]}px`
+                  : "0px",
               }}
             >
               <ul className="mt-2 space-y-1 ml-9">
@@ -274,7 +278,8 @@ const AppSidebar: React.FC = () => {
             </div>
           )}
         </li>
-      ))}
+        );
+      })}
     </ul>
   );
 

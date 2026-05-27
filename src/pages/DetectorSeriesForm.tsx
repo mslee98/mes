@@ -153,7 +153,7 @@ export default function DetectorSeriesForm() {
     existing?.code?.trim() ||
     (Number.isFinite(idNum) ? `#${idNum}` : "이 시리즈");
 
-  const deleteConfirmMessage = `시리즈「${seriesTitleForDelete}」을(를) 삭제합니다. 이 시리즈에 속한 검출기는 데이터베이스 규칙에 따라 함께 삭제됩니다. 납품 계획 또는 제품 시리얼에 연결된 검출기가 하나라도 있으면 삭제되지 않습니다. 삭제 후에는 복구할 수 없습니다. 계속할까요?`;
+  const deleteConfirmMessage = `시리즈「${seriesTitleForDelete}」을(를) 삭제합니다. 이 시리즈에 속한 검출기는 데이터베이스 규칙에 따라 함께 삭제됩니다. 생산 계획 또는 제품 시리얼에 연결된 검출기가 하나라도 있으면 삭제되지 않습니다. 삭제 후에는 복구할 수 없습니다. 계속할까요?`;
 
   return (
     <>

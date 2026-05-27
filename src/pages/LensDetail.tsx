@@ -10,7 +10,7 @@ import LoadingLottie from "../components/common/LoadingLottie";
 import Badge from "../components/ui/badge/Badge";
 import { useAuth } from "../hooks/useAuth";
 import { deleteLens, getLens, getLensFiles, type LensItem, type FileLink } from "../api/lenses";
-import { API_BASE } from "../api/apiBase";
+import { buildAppApiFileUrl } from "../lib/fileDownload";
 import { fileTypeIconSrc } from "../lib/fileTypeIcon";
 import { ReactComponent as ArrowDownTrayIcon } from "../icons/arrow-down-tray.svg?react";
 
@@ -18,15 +18,6 @@ function formatIsoDate(iso?: string): string {
   if (!iso) return "-";
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleString("ko-KR");
-}
-
-function buildFileDownloadUrl(filePath: string): string {
-  const raw = String(filePath ?? "").trim();
-  if (!raw) return "#";
-  if (/^https?:\/\//i.test(raw)) return raw;
-  const apiOrigin = new URL(API_BASE).origin;
-  if (raw.startsWith("/")) return `${apiOrigin}${raw}`;
-  return `${apiOrigin}/${raw}`;
 }
 
 async function forceDownloadFile(
@@ -210,7 +201,7 @@ export default function LensDetail() {
                           onClick={async () => {
                             try {
                               await forceDownloadFile(
-                                buildFileDownloadUrl(filePath),
+                                buildAppApiFileUrl(filePath),
                                 fileName,
                                 accessToken as string
                               );

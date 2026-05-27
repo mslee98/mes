@@ -3,6 +3,10 @@ import type {
   PurchaseOrderItemPayload,
   PurchaseOrderUpdatePayload,
 } from "../../../api/purchaseOrder";
+import type { RepresentativeProduct } from "../../../api/products";
+import { normalizeCurrencyCode } from "../../../lib/formatCurrency";
+import { resolveOrderLineDetectorPayload } from "../../../lib/orderLineDetectorFields";
+import { parseLineUnitPrice } from "../../../lib/priceInput";
 import type { ItemRow } from "../types";
 
 type BuildCreatePayloadParams = {
@@ -13,7 +17,7 @@ type BuildCreatePayloadParams = {
   requestDeliveryDate: string;
   requesterDepartment: string;
   requesterName: string;
-  requesterId: number | null;
+  requesterEmployeeNo: string | null;
   vendorOrderNo: string;
   vendorRequest: string;
   specialNote: string;
@@ -24,7 +28,7 @@ type BuildCreatePayloadParams = {
   /** 입력란 값 → null 이면 미전송에 가깝게 null */
   exchangeRate: number | null;
   validItems: ItemRow[];
-  parseLineUnitPrice: (display: string) => number;
+  productById: Map<string, RepresentativeProduct>;
 };
 
 export function buildCreatePayload({
@@ -35,7 +39,7 @@ export function buildCreatePayload({
   requestDeliveryDate,
   requesterDepartment,
   requesterName,
-  requesterId,
+  requesterEmployeeNo,
   vendorOrderNo,
   vendorRequest,
   specialNote,
@@ -45,19 +49,27 @@ export function buildCreatePayload({
   supplyAmount,
   exchangeRate,
   validItems,
-  parseLineUnitPrice,
+  productById,
 }: BuildCreatePayloadParams): PurchaseOrderCreatePayload {
-  const lines = validItems.map(
-    (row): PurchaseOrderItemPayload => ({
+  const lines = validItems.map((row): PurchaseOrderItemPayload => {
+    const detector = resolveOrderLineDetectorPayload(
+      row,
+      productById.get(row.productId.trim())
+    );
+    if (!detector) {
+      throw new Error("검출기·소자·파장 정보를 확인하세요.");
+    }
+    return {
       productId: row.productId.trim(),
       lensId: row.lensId.trim() ? row.lensId.trim() : null,
+      ...detector,
       qty: row.qty,
       unitPrice: parseLineUnitPrice(row.unitPrice),
       unit: row.unitCode.trim() || null,
-      currencyCode: row.currencyCode.trim() || "KRW",
+      currencyCode: normalizeCurrencyCode(row.currencyCode),
       remark: row.remark.trim() || null,
-    })
-  );
+    };
+  });
   return {
     title: title.trim(),
     partnerId: partnerId.trim(),
@@ -67,7 +79,9 @@ export function buildCreatePayload({
     requestDeliveryDate: requestDeliveryDate || null,
     requesterDepartment: requesterDepartment.trim() || null,
     requesterName: requesterName.trim() || null,
-    requesterId,
+    ...(requesterEmployeeNo
+      ? { requesterEmployeeNo }
+      : {}),
     vendorOrderNo: vendorOrderNo.trim() || null,
     vendorRequest: vendorRequest.trim() || null,
     specialNote: specialNote.trim() || null,
@@ -77,7 +91,6 @@ export function buildCreatePayload({
     supplyAmount,
     exchangeRate,
     exchangeRateDate: orderDate || null,
-    items: lines,
     lines,
   };
 }
@@ -90,7 +103,7 @@ type BuildUpdatePayloadParams = {
   requestDeliveryDate: string;
   requesterDepartment: string;
   requesterName: string;
-  requesterId: number | null;
+  requesterEmployeeNo: string | null;
   vendorOrderNo: string;
   vendorRequest: string;
   specialNote: string;
@@ -101,7 +114,7 @@ type BuildUpdatePayloadParams = {
   exchangeRate: number | null;
   /** 서버가 허용하면 발주 수정 시 라인 전체 갱신용 */
   validItems?: ItemRow[];
-  parseLineUnitPrice?: (display: string) => number;
+  productById?: Map<string, RepresentativeProduct>;
 };
 
 export function buildUpdatePayload({
@@ -112,7 +125,7 @@ export function buildUpdatePayload({
   requestDeliveryDate,
   requesterDepartment,
   requesterName,
-  requesterId,
+  requesterEmployeeNo,
   vendorOrderNo,
   vendorRequest,
   specialNote,
@@ -122,27 +135,28 @@ export function buildUpdatePayload({
   supplyAmount,
   exchangeRate,
   validItems,
-  parseLineUnitPrice,
+  productById,
 }: BuildUpdatePayloadParams): PurchaseOrderUpdatePayload {
-  const parsePrice =
-    parseLineUnitPrice ??
-    ((display: string) => {
-      const n = Number(display.replace(/,/g, "").trim());
-      return Number.isFinite(n) ? n : 0;
-    });
-
   const lines =
-    validItems?.map(
-      (row): PurchaseOrderItemPayload => ({
+    validItems?.map((row): PurchaseOrderItemPayload => {
+      const detector = resolveOrderLineDetectorPayload(
+        row,
+        productById?.get(row.productId.trim())
+      );
+      if (!detector) {
+        throw new Error("검출기·소자·파장 정보를 확인하세요.");
+      }
+      return {
         productId: row.productId.trim(),
         lensId: row.lensId.trim() ? row.lensId.trim() : null,
+        ...detector,
         qty: row.qty,
-        unitPrice: parsePrice(row.unitPrice),
+        unitPrice: parseLineUnitPrice(row.unitPrice),
         unit: row.unitCode.trim() || null,
-        currencyCode: row.currencyCode.trim() || "KRW",
+        currencyCode: normalizeCurrencyCode(row.currencyCode),
         remark: row.remark.trim() || null,
-      })
-    ) ?? undefined;
+      };
+    }) ?? undefined;
 
   return {
     title: title.trim(),
@@ -153,7 +167,9 @@ export function buildUpdatePayload({
     requestDeliveryDate: requestDeliveryDate || null,
     requesterDepartment: requesterDepartment.trim() || null,
     requesterName: requesterName.trim() || null,
-    requesterId,
+    ...(requesterEmployeeNo
+      ? { requesterEmployeeNo }
+      : {}),
     vendorOrderNo: vendorOrderNo.trim() || null,
     vendorRequest: vendorRequest.trim() || null,
     specialNote: specialNote.trim() || null,
@@ -162,6 +178,6 @@ export function buildUpdatePayload({
     supplyAmount,
     exchangeRate,
     exchangeRateDate: orderDate || null,
-    ...(lines && lines.length > 0 ? { items: lines, lines } : {}),
+    ...(lines && lines.length > 0 ? { lines } : {}),
   };
 }

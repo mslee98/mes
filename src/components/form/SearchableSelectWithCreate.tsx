@@ -7,7 +7,7 @@ import Select, {
 } from "react-select";
 import CreatableSelect from "react-select/creatable";
 import Label from "./Label";
-import InfoActionPopover from "./InfoActionPopover";
+import InfoActionPopover from "../common/InfoActionPopover";
 import { useTheme } from "../../context/ThemeContext";
 
 export type SearchableSelectOption = {

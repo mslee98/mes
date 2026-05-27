@@ -4,15 +4,15 @@ import toast from "react-hot-toast";
 import { Modal } from "../ui/modal";
 import Label from "../form/Label";
 import {
-  getDeliveryPlan,
+  getProductionPlan,
   linkUnitsToDeliveryItem,
   type Delivery,
-  type DeliveryPlan,
-  type DeliveryPlanItem,
-  type DeliveryPlanUnit,
+  type ProductionPlan,
+  type ProductionPlanItem,
+  type ProductionPlanUnit,
   type DeliveryRecordLine,
 } from "../../api/purchaseOrder";
-import { purchaseOrderItemIdFromDeliveryItemRow } from "../../lib/deliveryRegisterFromPlanUnit";
+import { purchaseOrderItemIdFromDeliveryItemRow } from "../../lib/productionRegisterFromPlanUnit";
 
 type DeliveryLinkLine = {
   deliveryItemId: number;
@@ -52,12 +52,12 @@ function extractDeliveryLinkLines(delivery: Delivery): DeliveryLinkLine[] {
 }
 
 function eligibleUnitsForPurchaseOrderItem(
-  plan: DeliveryPlan | undefined,
+  plan: ProductionPlan | undefined,
   purchaseOrderItemId: number
-): DeliveryPlanUnit[] {
+): ProductionPlanUnit[] {
   if (!plan?.items?.length) return [];
   const item = plan.items.find(
-    (i: DeliveryPlanItem) => i.purchaseOrderItemId === purchaseOrderItemId
+    (i: ProductionPlanItem) => i.purchaseOrderItemId === purchaseOrderItemId
   );
   const units = item?.units ?? [];
   return units.filter(
@@ -67,6 +67,14 @@ function eligibleUnitsForPurchaseOrderItem(
       typeof u.id === "string" &&
       u.id.trim() !== ""
   );
+}
+
+function operatorDisplay(unit: ProductionPlanUnit): string {
+  const name = String(unit.operatorNameSnapshot ?? "").trim();
+  if (name) return name;
+  const employeeNo = String(unit.operatorEmployeeNoSnapshot ?? "").trim();
+  if (employeeNo) return `사번 ${employeeNo}`;
+  return "";
 }
 
 type OrderDetailLinkUnitsModalProps = {
@@ -86,7 +94,7 @@ export function OrderDetailLinkUnitsModal({
 }: OrderDetailLinkUnitsModalProps) {
   const queryClient = useQueryClient();
   const [planIdInput, setPlanIdInput] = useState("");
-  const [loadedPlan, setLoadedPlan] = useState<DeliveryPlan | null>(null);
+  const [loadedPlan, setLoadedPlan] = useState<ProductionPlan | null>(null);
   /** deliveryItemId → 선택된 unit id 집합 */
   const [selectedByDeliveryItem, setSelectedByDeliveryItem] = useState<
     Record<number, Set<string>>
@@ -100,8 +108,8 @@ export function OrderDetailLinkUnitsModal({
   const loadPlanMutation = useMutation({
     mutationFn: async () => {
       const id = planIdInput.trim();
-      if (id.length < 8) throw new Error("납품 계획 ID를 입력하세요.");
-      return getDeliveryPlan(id, accessToken);
+      if (id.length < 8) throw new Error("생산 계획 ID를 입력하세요.");
+      return getProductionPlan(id, accessToken);
     },
     onSuccess: (plan) => {
       setLoadedPlan(plan);
@@ -110,10 +118,10 @@ export function OrderDetailLinkUnitsModal({
         next[line.deliveryItemId] = new Set();
       }
       setSelectedByDeliveryItem(next);
-      toast.success("납품 계획을 불러왔습니다.");
+      toast.success("생산 계획을 불러왔습니다.");
     },
     onError: (e: Error) =>
-      toast.error(e.message || "납품 계획을 불러오지 못했습니다."),
+      toast.error(e.message || "생산 계획을 불러오지 못했습니다."),
   });
 
   const linkMutation = useMutation({
@@ -150,7 +158,7 @@ export function OrderDetailLinkUnitsModal({
       });
       if (loadedPlan?.id) {
         void queryClient.invalidateQueries({
-          queryKey: ["deliveryPlan", loadedPlan.id],
+          queryKey: ["productionPlan", loadedPlan.id],
         });
       }
       onClose();
@@ -194,7 +202,7 @@ export function OrderDetailLinkUnitsModal({
           <p className="mt-1 text-theme-sm text-gray-500 dark:text-gray-400">
             출고 준비 완료(
             <code className="text-theme-xs">isDeliveryReady</code>)이고 아직
-            납품되지 않은 Unit만 선택할 수 있습니다. 납품 계획 ID를 불러온 뒤
+            납품되지 않은 Unit만 선택할 수 있습니다. 생산 계획 ID를 불러온 뒤
             품목별로 연결합니다.
           </p>
         </>
@@ -208,7 +216,7 @@ export function OrderDetailLinkUnitsModal({
 
       <div className="mt-4 flex flex-wrap items-end gap-2">
         <div className="min-w-[14rem] flex-1">
-          <Label htmlFor="link-plan-id">납품 계획 ID</Label>
+          <Label htmlFor="link-plan-id">생산 계획 ID</Label>
           <input
             id="link-plan-id"
             type="text"
@@ -280,6 +288,9 @@ export function OrderDetailLinkUnitsModal({
                           <span className="text-theme-xs text-gray-500">
                             {u.currentProcessCode ?? ""}{" "}
                             {u.processStatus ? `· ${u.processStatus}` : ""}
+                            {operatorDisplay(u)
+                              ? ` · 생산 담당자 ${operatorDisplay(u)}`
+                              : ""}
                           </span>
                         </label>
                       </li>

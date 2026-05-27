@@ -63,7 +63,7 @@ export interface Partner {
   updatedAt?: string;
 }
 
-/** 발주·납품 계획 등 응답에 포함되는 거래처 요약(경량) */
+/** 발주·생산 계획 등 응답에 포함되는 거래처 요약(경량) */
 export interface PartnerSummary {
   id?: string;
   code?: string;
@@ -71,8 +71,8 @@ export interface PartnerSummary {
   countryCode?: string | null;
 }
 
-/** 납품 계획 `GET` 등에서 중첩되는 발주 최소 필드 */
-export interface DeliveryPlanPurchaseOrderNested {
+/** 생산 계획 `GET` 등에서 중첩되는 발주 최소 필드 */
+export interface ProductionPlanPurchaseOrderNested {
   id?: string;
   orderNo?: string;
   /** 발주 납기(최종 납품 기준일로 표시) */
@@ -176,6 +176,9 @@ export interface PurchaseOrderItemPayload {
   productId: string;
   /** 활성 렌즈 마스터 id — 미선택 시 null 생략 가능 */
   lensId?: string | null;
+  detectorId: number;
+  detectorElementCode: string;
+  wavelengthCode: string;
   qty: number;
   unitPrice: number;
   /** 공통코드 UNIT (예: EA, BOX) */
@@ -206,6 +209,9 @@ export interface PurchaseOrderLensLinePayload {
 export interface PurchaseOrderLinePatchPayload {
   productId?: string | null;
   lensId?: string | null;
+  detectorId?: number;
+  detectorElementCode?: string;
+  wavelengthCode?: string;
   qty?: number;
   quantity?: number;
   unit?: string | null;
@@ -250,7 +256,9 @@ export interface PurchaseOrderCreatePayload {
   requesterDepartment?: string | null;
   /** 발주 담당자명 */
   requesterName?: string | null;
-  /** 발주 담당자 사번(employeeNo) */
+  /** 발주 담당자 사번 (`users.employee_no`, `users.id` 아님) */
+  requesterEmployeeNo?: string | number | null;
+  /** @deprecated 서버 미지원 — `requesterEmployeeNo` 사용 */
   requesterId?: number | null;
   vendorOrderNo?: string | null;
   vendorRequest?: string | null;
@@ -266,10 +274,10 @@ export interface PurchaseOrderCreatePayload {
   exchangeRate?: number | string | null;
   /** 환율 기준일 — 보통 발주일과 동일 (orders.exchange_rate_date) */
   exchangeRateDate?: string | null;
-  /** 하위호환 key */
-  items: PurchaseOrderItemPayload[];
-  /** 서버 신규 key */
-  lines?: PurchaseOrderItemPayload[];
+  /** 하위호환 key — `lines`와 중복 전송하지 않음 */
+  items?: PurchaseOrderItemPayload[];
+  /** 발주 제품 라인 */
+  lines: PurchaseOrderItemPayload[];
   /** 서버 신규 key: 렌즈 독립 라인 */
   lensLines?: PurchaseOrderLensLinePayload[];
   /** 서버 하위호환 key */
@@ -285,6 +293,8 @@ export interface PurchaseOrderUpdatePayload {
   requestDeliveryDate?: string | null;
   requesterDepartment?: string | null;
   requesterName?: string | null;
+  requesterEmployeeNo?: string | number | null;
+  /** @deprecated 서버 미지원 */
   requesterId?: number | null;
   vendorOrderNo?: string | null;
   vendorRequest?: string | null;
@@ -359,6 +369,21 @@ export interface PurchaseOrderItem {
   deliveredQty?: number;
   requestDeliveryDate?: string | null;
   remark?: string | null;
+  detectorId?: number | null;
+  detectorElementCode?: string | null;
+  wavelengthCode?: string | null;
+  detectorTypeSnapshot?: string | null;
+  detector?: {
+    id?: number;
+    detectorType?: string | null;
+    detectorSeries?: {
+      id?: number;
+      seriesCode?: string | null;
+      name?: string | null;
+      [key: string]: unknown;
+    } | null;
+    [key: string]: unknown;
+  } | null;
 }
 
 /** 발주에 종속된 렌즈 독립 라인 (GET 상세 `orderLenses`) */
@@ -668,19 +693,28 @@ export interface Delivery {
   items?: DeliveryItem[];
 }
 
-// --- 납품 계획 · Unit (delivery_plans / delivery_plan_units) ---
+// --- 생산 계획 · Unit (production_plans / production_plan_units) ---
 
-/** `delivery_plan_units` 응답 */
-export interface DeliveryPlanUnit {
+/** `production_plan_units` 응답 */
+export interface ProductionPlanUnit {
   id: string;
-  deliveryPlanItemId?: string | number;
+  productionPlanItemId?: string | number;
   unitNo?: number;
-  /** 최종 시리얼과 동일하게 둘 수 있음 */
+  /** LOT 관리 코드 (서버 자동 채번) */
   unitCode?: string;
+  lotIssuedDate?: string | null;
+  lotPoComposite?: string | null;
+  lotSequenceNo?: number | null;
+  /** 제품 시리얼 — `assign-product-serials` 확정 후 */
   serialNo?: string | null;
+  productSerialAssignedAt?: string | null;
   detectorElementCode?: string | null;
   wavelengthCode?: string | null;
   detectorId?: number | null;
+  operatorUserId?: number | null;
+  operatorEmployeeNoSnapshot?: string | number | null;
+  operatorNameSnapshot?: string | null;
+  operatorAssignedAt?: string | null;
   /** 검출기 시리얼 — 단건 응답 또는 스냅샷과 함께 내려올 수 있음 */
   detectorSerialNo?: string | null;
   serialPrefix?: string | null;
@@ -699,10 +733,10 @@ export interface DeliveryPlanUnit {
   updatedAt?: string;
 }
 
-/** `delivery_plan_items` 응답 (bigint `id`는 JSON에서 문자열일 수 있음) */
-export interface DeliveryPlanItem {
+/** `production_plan_items` 응답 (bigint `id`는 JSON에서 문자열일 수 있음) */
+export interface ProductionPlanItem {
   id?: string | number;
-  deliveryPlanId?: string;
+  productionPlanId?: string;
   purchaseOrderItemId?: number;
   plannedQty?: number;
   completedQty?: number;
@@ -710,17 +744,17 @@ export interface DeliveryPlanItem {
   productNameSnapshot?: string | null;
   businessNameSnapshot?: string | null;
   purchaseOrderItem?: unknown;
-  units?: DeliveryPlanUnit[];
+  units?: ProductionPlanUnit[];
 }
 
-/** `delivery_plans` 상세·목록 응답 */
-export interface DeliveryPlan {
+/** `production_plans` 상세·목록 응답 */
+export interface ProductionPlan {
   id: string;
   planNo?: string;
   purchaseOrderId?: string;
   planSeq?: number;
   title?: string | null;
-  /** 제품 인계일 등 — 납품 헤더와 정렬 */
+  /** 제품 인계일 등 — 실납품 헤더와 필드명 정렬 */
   deliveryDate?: string | null;
   plannedDeliveryDate?: string | null;
   detectorHandoverExpectedDate?: string | null;
@@ -728,16 +762,16 @@ export interface DeliveryPlan {
   plannedDate?: string | null;
   status?: string;
   remark?: string | null;
-  deliveryManagerId?: number | null;
-  deliveryManagerDepartment?: string | null;
-  deliveryManager?: DeliveryActorUserRef | null;
+  productionManagerId?: number | null;
+  productionManagerDepartment?: string | null;
+  productionManager?: DeliveryActorUserRef | null;
   isDeleted?: boolean;
   createdById?: number | null;
   updatedById?: number | null;
   createdAt?: string;
   updatedAt?: string;
-  purchaseOrder?: DeliveryPlanPurchaseOrderNested | null;
-  items?: DeliveryPlanItem[];
+  purchaseOrder?: ProductionPlanPurchaseOrderNested | null;
+  items?: ProductionPlanItem[];
   createdBy?: DeliveryActorUserRef | null;
   updatedBy?: DeliveryActorUserRef | null;
 }
@@ -787,16 +821,86 @@ export interface DeliveryItemUnit {
   deliveryItemId?: number;
   unitId?: string;
   createdAt?: string;
-  unit?: DeliveryPlanUnit;
+  unit?: ProductionPlanUnit;
+}
+
+export interface ProductionPlanCreateItemInput {
+  purchaseOrderItemId: number;
+  plannedQty: number;
+}
+
+/** 수량만 — `serials` 없음 */
+export interface ProductionPlanCreateLineInput {
+  orderItemId?: number;
+  lineId?: number;
+  quantity: number;
 }
 
 /**
- * `POST /purchase-orders/:id/delivery-plans`
- * 본문 구조는 납품 등록(`DeliveryCreatePayload`)과 동일 — 라인별 quantity = serials.length, 시리얼 1행 = Unit 1대.
+ * `POST /purchase-orders/:id/production-plans`
+ * `items` 또는 `lines`(수량만). 계획 등록 시 `serials` 금지 — LOT·Unit은 서버 자동.
  */
-export type CreateDeliveryPlanPayload = DeliveryCreatePayload;
+export interface ProductionPlanCreatePayload {
+  deliveryDate: string;
+  items?: ProductionPlanCreateItemInput[];
+  lines?: ProductionPlanCreateLineInput[];
+  title?: string | null;
+  plannedDeliveryDate?: string | null;
+  remark?: string | null;
+  productionManagerId?: number | null;
+}
 
-/** `POST .../delivery-plan-units/:unitId/process/pass` */
+export interface AssignProductSerialUnitInput {
+  unitId: string;
+  /** 완성 제품 시리얼 — 접두사+끝 4자리 숫자 전체 (예: `YIM_EI0640PA-PC0001`) */
+  serialNo: string;
+  detectorElementCode: string;
+  wavelengthCode: string;
+  detectorId?: number | null;
+}
+
+export interface AssignProductSerialsPayload {
+  units: AssignProductSerialUnitInput[];
+  markPlanCompleted?: boolean;
+}
+
+/** `GET .../purchase-orders/:orderId/lot/preview` — DB 예약 없음 */
+export interface PurchaseOrderLotPreviewEntry {
+  lotSequenceNo?: number;
+  lotSequenceText?: string;
+  unitCode: string;
+}
+
+export interface PurchaseOrderLotPreviewResponse {
+  previews: PurchaseOrderLotPreviewEntry[];
+  quantity?: number;
+  issuedDate?: string;
+  yearCode?: string;
+  partnerCode?: string;
+  poComposite?: string;
+  sequenceKey?: string;
+  maxSequence?: number;
+  nextSequence?: number;
+}
+
+export interface IssueLotUnitsAssignmentInput {
+  offset: number;
+  operatorUserId: number;
+}
+
+export interface IssueLotUnitsItemInput {
+  planItemId: string | number;
+  quantity: number;
+  unitAssignments?: IssueLotUnitsAssignmentInput[];
+}
+
+/** `POST .../production-plans/:planId/issue-lot-units` */
+export interface IssueLotUnitsPayload {
+  issuedDate?: string;
+  items?: IssueLotUnitsItemInput[];
+}
+
+/** `POST .../production-plan-units/:unitId/process/pass` */
 export interface ProcessUnitPassPayload {
   processCode: string;
   processName: string;
@@ -806,7 +910,7 @@ export interface ProcessUnitPassPayload {
   endedAt?: string | null;
 }
 
-/** `POST .../delivery-plan-units/:unitId/process/fail` */
+/** `POST .../production-plan-units/:unitId/process/fail` */
 export interface ProcessUnitFailPayload {
   processCode: string;
   processName: string;
@@ -821,14 +925,35 @@ export interface LinkDeliveryItemUnitsPayload {
   unitIds: string[];
 }
 
+export type ListSortOrder = "asc" | "desc";
+
+export type DeliveryListSortBy =
+  | "deliveryNo"
+  | "orderNo"
+  | "partnerName"
+  | "deliveryDate"
+  | "status"
+  | "createdAt";
+
+export type DeliveryListTab =
+  | "ALL"
+  | "PENDING"
+  | "READY"
+  | "COMPLETED"
+  | "DELAYED";
+
 /** GET `/api/deliveries` 쿼리 */
 export interface DeliveryListParams {
   page?: number;
   pageSize?: number;
+  q?: string;
   partnerId?: string;
   orderId?: string;
+  tab?: DeliveryListTab;
   /** `DELIVERY_STATUS` 의 code */
   status?: string;
+  sortBy?: DeliveryListSortBy;
+  sortOrder?: ListSortOrder;
 }
 
 export interface DeliveryListResponse {
@@ -836,26 +961,44 @@ export interface DeliveryListResponse {
   total: number;
   page: number;
   pageSize: number;
+  sortBy?: DeliveryListSortBy;
+  sortOrder?: ListSortOrder;
+  serverPaginationApplied?: boolean;
 }
 
-export type DeliveryPlanUnitTab =
+export interface DeliveryTabCountsParams {
+  q?: string;
+  partnerId?: string;
+  orderId?: string;
+}
+
+export interface DeliveryTabCountsResponse {
+  all: number;
+  pending: number;
+  ready: number;
+  completed: number;
+  delayed: number;
+  total: number;
+}
+
+export type ProductionPlanUnitTab =
   | "WAITING"
   | "IN_PROGRESS"
   | "COMPLETED"
   | "DELAYED";
 
-export type DeliveryPlanUnitDateBasis = "planned" | "delivery" | "coalesce";
+export type ProductionPlanUnitDateBasis = "planned" | "delivery" | "coalesce";
 
-export interface DeliveryPlanUnitOverviewParams {
+export interface ProductionPlanUnitOverviewParams {
   fromMonth?: string;
   toMonth?: string;
-  dateBasis?: DeliveryPlanUnitDateBasis;
+  dateBasis?: ProductionPlanUnitDateBasis;
   orderId?: string;
-  deliveryManagerId?: number;
+  productionManagerId?: number;
   tz?: string;
 }
 
-export interface DeliveryPlanUnitCounts {
+export interface ProductionPlanUnitCounts {
   waiting: number;
   inProgress: number;
   completed: number;
@@ -863,25 +1006,25 @@ export interface DeliveryPlanUnitCounts {
   total: number;
 }
 
-export interface DeliveryPlanUnitOverviewMonthlyRow extends DeliveryPlanUnitCounts {
+export interface ProductionPlanUnitOverviewMonthlyRow extends ProductionPlanUnitCounts {
   month: string;
 }
 
-export interface DeliveryPlanUnitOverviewResponse {
+export interface ProductionPlanUnitOverviewResponse {
   range: {
     fromMonth: string | null;
     toMonth: string | null;
     fromDate?: string | null;
     toDate?: string | null;
-    dateBasis: DeliveryPlanUnitDateBasis;
+    dateBasis: ProductionPlanUnitDateBasis;
     tz?: string;
   };
-  summary: DeliveryPlanUnitCounts;
-  monthly: DeliveryPlanUnitOverviewMonthlyRow[];
+  summary: ProductionPlanUnitCounts;
+  monthly: ProductionPlanUnitOverviewMonthlyRow[];
 }
 
-export interface DeliveryPlanUnitListParams extends DeliveryPlanUnitOverviewParams {
-  tab: DeliveryPlanUnitTab;
+export interface ProductionPlanUnitListParams extends ProductionPlanUnitOverviewParams {
+  tab: ProductionPlanUnitTab;
   page?: number;
   pageSize?: number;
   q?: string;
@@ -889,13 +1032,13 @@ export interface DeliveryPlanUnitListParams extends DeliveryPlanUnitOverviewPara
   sortOrder?: "asc" | "desc";
 }
 
-export interface DeliveryPlanUnitListResponse {
+export interface ProductionPlanUnitListResponse {
   meta: {
-    tab: DeliveryPlanUnitTab;
+    tab: ProductionPlanUnitTab;
     page: number;
     pageSize: number;
     total: number;
-    dateBasis: DeliveryPlanUnitDateBasis;
+    dateBasis: ProductionPlanUnitDateBasis;
     fromMonth: string | null;
     toMonth: string | null;
   };
@@ -903,6 +1046,10 @@ export interface DeliveryPlanUnitListResponse {
     unitId: string;
     unitCode?: string | null;
     serialNo?: string | null;
+    operatorUserId?: number | null;
+    operatorEmployeeNoSnapshot?: string | number | null;
+    operatorNameSnapshot?: string | null;
+    operatorAssignedAt?: string | null;
     /** 검출기 시리얼 — 목록 API가 내려주면 표시 */
     detectorSerialNo?: string | null;
     currentProcessCode?: string | null;
@@ -942,14 +1089,14 @@ export interface DeliveryPlanUnitListResponse {
       [key: string]: unknown;
     } | null;
     item?: {
-      deliveryPlanItemId?: number | null;
+      productionPlanItemId?: number | null;
       purchaseOrderItemId?: number | null;
       productNameSnapshot?: string | null;
       businessNameSnapshot?: string | null;
     } | null;
     manager?: {
-      deliveryManagerId?: number | null;
-      deliveryManagerName?: string | null;
+      productionManagerId?: number | null;
+      productionManagerName?: string | null;
       department?: string | null;
     } | null;
   }>;
@@ -991,13 +1138,37 @@ export function aggregateDeliveredQtyByOrderItemId(
   return m;
 }
 
-/** 발주 목록 쿼리 파라미터 — 서버 표준: `GET /purchase-orders?partnerId&status` */
+export type PurchaseOrderListSortBy =
+  | "orderNo"
+  | "partnerName"
+  | "orderedAt"
+  | "dueDate"
+  | "status";
+
+/** 발주 목록 쿼리 파라미터 — 서버 표준: `GET /purchase-orders` */
 export interface PurchaseOrderListParams {
+  page?: number;
+  pageSize?: number;
+  q?: string;
   partnerId?: string;
+  orderedFrom?: string;
+  orderedTo?: string;
   /** 쿼리 키 `status` (PURCHASE_ORDER_STATUS 의 code) */
   status?: string;
   /** @deprecated `status`와 동일. 전송 시 `status`로만 붙음 */
   orderStatus?: string;
+  sortBy?: PurchaseOrderListSortBy;
+  sortOrder?: ListSortOrder;
+}
+
+export interface PurchaseOrderListResponse {
+  items: PurchaseOrderListItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+  sortBy?: PurchaseOrderListSortBy;
+  sortOrder?: ListSortOrder;
+  serverPaginationApplied?: boolean;
 }
 
 type ApiOrderDetailRaw = PurchaseOrderDetail & {
@@ -1177,6 +1348,66 @@ function mapApiOrderLineToPurchaseOrderItem(
       ? x.amount
       : Math.round(qty * unitPrice * 10000) / 10000;
 
+  const detectorIdRaw = x.detectorId ?? x.detector_id;
+  const detectorIdParsed =
+    detectorIdRaw == null || detectorIdRaw === ""
+      ? null
+      : Number(detectorIdRaw);
+  const detectorId =
+    detectorIdParsed != null && Number.isFinite(detectorIdParsed)
+      ? detectorIdParsed
+      : null;
+
+  const detectorElementCode =
+    typeof x.detectorElementCode === "string"
+      ? x.detectorElementCode
+      : typeof x.detector_element_code === "string"
+        ? x.detector_element_code
+        : null;
+
+  const wavelengthCode =
+    typeof x.wavelengthCode === "string"
+      ? x.wavelengthCode
+      : typeof x.wavelength_code === "string"
+        ? x.wavelength_code
+        : null;
+
+  const detectorTypeSnapshot =
+    typeof x.detectorTypeSnapshot === "string"
+      ? x.detectorTypeSnapshot
+      : typeof x.detector_type_snapshot === "string"
+        ? x.detector_type_snapshot
+        : null;
+
+  const detectorRaw =
+    x.detector && typeof x.detector === "object"
+      ? (x.detector as Record<string, unknown>)
+      : null;
+  const detectorSeriesRaw =
+    detectorRaw?.detectorSeries ?? detectorRaw?.detector_series;
+  const detector = detectorRaw
+    ? {
+        ...(typeof detectorRaw.id === "number"
+          ? { id: detectorRaw.id }
+          : detectorRaw.id != null && Number.isFinite(Number(detectorRaw.id))
+            ? { id: Number(detectorRaw.id) }
+            : {}),
+        detectorType:
+          typeof detectorRaw.detectorType === "string"
+            ? detectorRaw.detectorType
+            : typeof detectorRaw.detector_type === "string"
+              ? detectorRaw.detector_type
+              : null,
+        ...(detectorSeriesRaw && typeof detectorSeriesRaw === "object"
+          ? {
+              detectorSeries: detectorSeriesRaw as NonNullable<
+                PurchaseOrderItem["detector"]
+              >["detectorSeries"],
+            }
+          : {}),
+      }
+    : null;
+
   return {
     id,
     productId: lineProductId,
@@ -1199,6 +1430,11 @@ function mapApiOrderLineToPurchaseOrderItem(
     deliveredQty,
     requestDeliveryDate,
     remark,
+    ...(detectorId != null ? { detectorId } : { detectorId: null }),
+    ...(detectorElementCode != null ? { detectorElementCode } : {}),
+    ...(wavelengthCode != null ? { wavelengthCode } : {}),
+    ...(detectorTypeSnapshot != null ? { detectorTypeSnapshot } : {}),
+    ...(detector != null ? { detector } : {}),
   };
 }
 
@@ -1605,15 +1841,83 @@ export function getPurchaseOrderRequestDepartmentLabel(
   return String(raw ?? "").trim();
 }
 
-/** `GET /purchase-orders` — 쿼리: `partnerId`, `status` (문서 표준). `orderStatus`는 `status`로 전송 */
+function parsePagedListNumber(
+  ...values: unknown[]
+): number | undefined {
+  for (const value of values) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed) && parsed >= 0) {
+      return parsed;
+    }
+  }
+  return undefined;
+}
+
+function parsePurchaseOrderListResponse(
+  raw: unknown,
+  params?: PurchaseOrderListParams
+): PurchaseOrderListResponse {
+  const obj = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : null;
+  const meta =
+    obj?.meta && typeof obj.meta === "object"
+      ? (obj.meta as Record<string, unknown>)
+      : null;
+  const listSource = Array.isArray(raw)
+    ? raw
+    : Array.isArray(obj?.items)
+      ? obj.items
+      : Array.isArray(obj?.data)
+        ? obj.data
+        : [];
+  const items = listSource
+    .map(mapPurchaseOrderListItem)
+    .filter((row): row is PurchaseOrderListItem => row != null);
+  const page =
+    parsePagedListNumber(obj?.page, obj?.currentPage, meta?.page) ||
+    params?.page ||
+    1;
+  const pageSize =
+    parsePagedListNumber(obj?.pageSize, obj?.limit, meta?.pageSize, meta?.limit) ||
+    params?.pageSize ||
+    items.length ||
+    20;
+  return {
+    items,
+    total:
+      parsePagedListNumber(obj?.total, obj?.totalCount, meta?.total, meta?.count) ??
+      items.length,
+    page,
+    pageSize,
+    sortBy:
+      typeof obj?.sortBy === "string"
+        ? (obj.sortBy as PurchaseOrderListSortBy)
+        : undefined,
+    sortOrder:
+      typeof obj?.sortOrder === "string"
+        ? (obj.sortOrder as ListSortOrder)
+        : undefined,
+    serverPaginationApplied: Array.isArray(obj?.items),
+  };
+}
+
+/** `GET /purchase-orders` — 쿼리: `page`, `pageSize`, `q`, `partnerId`, `status`, `sortBy`, `sortOrder` */
 export async function getPurchaseOrders(
   accessToken: string,
   params?: PurchaseOrderListParams
-): Promise<PurchaseOrderListItem[]> {
+): Promise<PurchaseOrderListResponse> {
   const q = new URLSearchParams();
+  if (params?.page != null && params.page > 0) q.set("page", String(params.page));
+  if (params?.pageSize != null && params.pageSize > 0) {
+    q.set("pageSize", String(params.pageSize));
+  }
+  if (params?.q?.trim()) q.set("q", params.q.trim());
   if (params?.partnerId != null) q.set("partnerId", String(params.partnerId));
+  if (params?.orderedFrom?.trim()) q.set("orderedFrom", params.orderedFrom.trim());
+  if (params?.orderedTo?.trim()) q.set("orderedTo", params.orderedTo.trim());
   const statusParam = params?.status ?? params?.orderStatus;
   if (statusParam) q.set("status", statusParam);
+  if (params?.sortBy) q.set("sortBy", params.sortBy);
+  if (params?.sortOrder) q.set("sortOrder", params.sortOrder);
   const query = q.toString();
   const url = query ? `${API_BASE}/purchase-orders?${query}` : `${API_BASE}/purchase-orders`;
   const res = await fetchAuthorized(
@@ -1627,12 +1931,7 @@ export async function getPurchaseOrders(
   if (!res.ok) {
     throw await createApiError(res, "발주 목록을 불러오지 못했습니다.");
   }
-  const data = await res.json();
-  const list = Array.isArray(data) ? data : data?.data ?? [];
-  const arr = Array.isArray(list) ? list : [];
-  return arr
-    .map(mapPurchaseOrderListItem)
-    .filter((row): row is PurchaseOrderListItem => row != null);
+  return parsePurchaseOrderListResponse(await res.json(), params);
 }
 
 /** `GET /purchase-orders/:id` — 상세·품목·attachments 등 (mapper로 정규화) */
@@ -2014,15 +2313,22 @@ export async function getDeliveriesList(
 ): Promise<DeliveryListResponse> {
   const sp = new URLSearchParams();
   const p = params ?? {};
+  if (p.tab && p.status?.trim()) {
+    throw new Error("tab과 status는 동시에 사용할 수 없습니다.");
+  }
   if (p.page != null && p.page > 0) sp.set("page", String(p.page));
   if (p.pageSize != null && p.pageSize > 0) sp.set("pageSize", String(p.pageSize));
+  if (p.q?.trim()) sp.set("q", p.q.trim());
   if (p.partnerId != null && String(p.partnerId).trim() !== "") {
     sp.set("partnerId", String(p.partnerId).trim());
   }
   if (p.orderId != null && String(p.orderId).trim() !== "") {
     sp.set("orderId", String(p.orderId).trim());
   }
+  if (p.tab) sp.set("tab", p.tab);
   if (p.status?.trim()) sp.set("status", p.status.trim());
+  if (p.sortBy) sp.set("sortBy", p.sortBy);
+  if (p.sortOrder) sp.set("sortOrder", p.sortOrder);
   const qs = sp.toString();
   const res = await fetchAuthorized(
     `${API_BASE}/deliveries${qs ? `?${qs}` : ""}`,
@@ -2043,6 +2349,15 @@ export async function getDeliveriesList(
       total: Number(o.total) || 0,
       page: Number(o.page) || p.page || 1,
       pageSize: Number(o.pageSize) || p.pageSize || 20,
+      sortBy:
+        typeof o.sortBy === "string"
+          ? (o.sortBy as DeliveryListSortBy)
+          : undefined,
+      sortOrder:
+        typeof o.sortOrder === "string"
+          ? (o.sortOrder as ListSortOrder)
+          : undefined,
+      serverPaginationApplied: true,
     };
   }
   const arr = Array.isArray(raw) ? raw : [];
@@ -2051,12 +2366,50 @@ export async function getDeliveriesList(
     total: arr.length,
     page: 1,
     pageSize: arr.length || 20,
+    serverPaginationApplied: false,
   };
 }
 
-function appendDeliveryPlanUnitOverviewParams(
+/** `GET /api/deliveries/tab-counts` */
+export async function getDeliveriesTabCounts(
+  accessToken: string,
+  params?: DeliveryTabCountsParams
+): Promise<DeliveryTabCountsResponse> {
+  const sp = new URLSearchParams();
+  const p = params ?? {};
+  if (p.q?.trim()) sp.set("q", p.q.trim());
+  if (p.partnerId != null && String(p.partnerId).trim() !== "") {
+    sp.set("partnerId", String(p.partnerId).trim());
+  }
+  if (p.orderId != null && String(p.orderId).trim() !== "") {
+    sp.set("orderId", String(p.orderId).trim());
+  }
+  const qs = sp.toString();
+  const res = await fetchAuthorized(
+    `${API_BASE}/deliveries/tab-counts${qs ? `?${qs}` : ""}`,
+    {
+      headers: authHeaders(accessToken),
+      credentials: "include",
+    },
+    accessToken
+  );
+  if (!res.ok) {
+    throw await createApiError(res, "납품 탭 건수를 불러오지 못했습니다.");
+  }
+  const raw = (await res.json()) as Record<string, unknown>;
+  return {
+    all: Number(raw.all) || 0,
+    pending: Number(raw.pending) || 0,
+    ready: Number(raw.ready) || 0,
+    completed: Number(raw.completed) || 0,
+    delayed: Number(raw.delayed) || 0,
+    total: Number(raw.total) || Number(raw.all) || 0,
+  };
+}
+
+function appendProductionPlanUnitOverviewParams(
   sp: URLSearchParams,
-  params: DeliveryPlanUnitOverviewParams
+  params: ProductionPlanUnitOverviewParams
 ) {
   const fromMonth = String(params.fromMonth ?? "").trim();
   const toMonth = String(params.toMonth ?? "").trim();
@@ -2069,26 +2422,26 @@ function appendDeliveryPlanUnitOverviewParams(
     sp.set("orderId", String(params.orderId).trim());
   }
   if (
-    params.deliveryManagerId != null &&
-    Number.isFinite(Number(params.deliveryManagerId))
+    params.productionManagerId != null &&
+    Number.isFinite(Number(params.productionManagerId))
   ) {
-    sp.set("deliveryManagerId", String(params.deliveryManagerId));
+    sp.set("productionManagerId", String(params.productionManagerId));
   }
   if (params.tz && String(params.tz).trim() !== "") {
     sp.set("tz", String(params.tz).trim());
   }
 }
 
-/** `GET /api/delivery-plan-units/overview` */
-export async function getDeliveryPlanUnitOverview(
+/** `GET /api/production-plan-units/overview` */
+export async function getProductionPlanUnitOverview(
   accessToken: string,
-  params: DeliveryPlanUnitOverviewParams
-): Promise<DeliveryPlanUnitOverviewResponse> {
+  params: ProductionPlanUnitOverviewParams
+): Promise<ProductionPlanUnitOverviewResponse> {
   const sp = new URLSearchParams();
-  appendDeliveryPlanUnitOverviewParams(sp, params);
+  appendProductionPlanUnitOverviewParams(sp, params);
   const qs = sp.toString();
   const res = await fetchAuthorized(
-    `${API_BASE}/delivery-plan-units/overview${qs ? `?${qs}` : ""}`,
+    `${API_BASE}/production-plan-units/overview${qs ? `?${qs}` : ""}`,
     {
       headers: authHeaders(accessToken),
       credentials: "include",
@@ -2098,22 +2451,22 @@ export async function getDeliveryPlanUnitOverview(
   if (!res.ok) {
     throw await createApiError(
       res,
-      "유닛 납품 오버뷰를 불러오지 못했습니다."
+      "생산 유닛 오버뷰를 불러오지 못했습니다."
     );
   }
   return res.json();
 }
 
-/** `GET /api/delivery-plan-units/tab-counts` */
-export async function getDeliveryPlanUnitTabCounts(
+/** `GET /api/production-plan-units/tab-counts` */
+export async function getProductionPlanUnitTabCounts(
   accessToken: string,
-  params: DeliveryPlanUnitOverviewParams
-): Promise<DeliveryPlanUnitCounts> {
+  params: ProductionPlanUnitOverviewParams
+): Promise<ProductionPlanUnitCounts> {
   const sp = new URLSearchParams();
-  appendDeliveryPlanUnitOverviewParams(sp, params);
+  appendProductionPlanUnitOverviewParams(sp, params);
   const qs = sp.toString();
   const res = await fetchAuthorized(
-    `${API_BASE}/delivery-plan-units/tab-counts${qs ? `?${qs}` : ""}`,
+    `${API_BASE}/production-plan-units/tab-counts${qs ? `?${qs}` : ""}`,
     {
       headers: authHeaders(accessToken),
       credentials: "include",
@@ -2123,19 +2476,19 @@ export async function getDeliveryPlanUnitTabCounts(
   if (!res.ok) {
     throw await createApiError(
       res,
-      "유닛 탭 건수를 불러오지 못했습니다."
+      "생산 유닛 탭 건수를 불러오지 못했습니다."
     );
   }
   return res.json();
 }
 
-/** `GET /api/delivery-plan-units` */
-export async function getDeliveryPlanUnits(
+/** `GET /api/production-plan-units` */
+export async function getProductionPlanUnits(
   accessToken: string,
-  params: DeliveryPlanUnitListParams
-): Promise<DeliveryPlanUnitListResponse> {
+  params: ProductionPlanUnitListParams
+): Promise<ProductionPlanUnitListResponse> {
   const sp = new URLSearchParams();
-  appendDeliveryPlanUnitOverviewParams(sp, params);
+  appendProductionPlanUnitOverviewParams(sp, params);
   sp.set("tab", params.tab);
   if (params.page != null && params.page > 0) sp.set("page", String(params.page));
   if (params.pageSize != null && params.pageSize > 0) {
@@ -2146,7 +2499,7 @@ export async function getDeliveryPlanUnits(
   if (params.sortOrder) sp.set("sortOrder", params.sortOrder);
   const qs = sp.toString();
   const res = await fetchAuthorized(
-    `${API_BASE}/delivery-plan-units${qs ? `?${qs}` : ""}`,
+    `${API_BASE}/production-plan-units${qs ? `?${qs}` : ""}`,
     {
       headers: authHeaders(accessToken),
       credentials: "include",
@@ -2156,7 +2509,7 @@ export async function getDeliveryPlanUnits(
   if (!res.ok) {
     throw await createApiError(
       res,
-      "유닛 납품 목록을 불러오지 못했습니다."
+      "생산 유닛 목록을 불러오지 못했습니다."
     );
   }
   return res.json();
@@ -2201,14 +2554,14 @@ export async function getDeliveries(
   return Array.isArray(data) ? data : data?.data ?? [];
 }
 
-/** `POST /purchase-orders/:purchaseOrderId/delivery-plans` */
-export async function createDeliveryPlan(
+/** `POST /purchase-orders/:purchaseOrderId/production-plans` */
+export async function createProductionPlan(
   purchaseOrderId: string,
-  payload: CreateDeliveryPlanPayload,
+  payload: ProductionPlanCreatePayload,
   accessToken: string
-): Promise<DeliveryPlan> {
+): Promise<ProductionPlan> {
   const res = await fetchAuthorized(
-    `${API_BASE}/purchase-orders/${purchaseOrderId}/delivery-plans`,
+    `${API_BASE}/purchase-orders/${purchaseOrderId}/production-plans`,
     {
       method: "POST",
       headers: jsonHeaders(accessToken),
@@ -2218,18 +2571,22 @@ export async function createDeliveryPlan(
     accessToken
   );
   if (!res.ok) {
-    throw await createApiError(res, "납품 계획을 등록하지 못했습니다.");
+    throw await createApiError(res, "생산 계획을 등록하지 못했습니다.");
   }
   return res.json();
 }
 
-/** `GET /purchase-orders/:purchaseOrderId/delivery-plans` — 발주별 목록 (planSeq 오름차순·관계 로드) */
-export async function getPurchaseOrderDeliveryPlans(
+/** `GET /purchase-orders/:purchaseOrderId/lot/preview` */
+export async function getPurchaseOrderLotPreview(
   purchaseOrderId: string,
+  params: { quantity: number; issuedDate: string },
   accessToken: string
-): Promise<DeliveryPlan[]> {
+): Promise<PurchaseOrderLotPreviewResponse> {
+  const q = new URLSearchParams();
+  q.set("quantity", String(Math.max(1, Math.trunc(params.quantity))));
+  q.set("issuedDate", String(params.issuedDate ?? "").trim());
   const res = await fetchAuthorized(
-    `${API_BASE}/purchase-orders/${purchaseOrderId}/delivery-plans`,
+    `${API_BASE}/purchase-orders/${purchaseOrderId}/lot/preview?${q.toString()}`,
     {
       headers: authHeaders(accessToken),
       credentials: "include",
@@ -2237,19 +2594,132 @@ export async function getPurchaseOrderDeliveryPlans(
     accessToken
   );
   if (!res.ok) {
-    throw await createApiError(res, "납품 계획 목록을 불러오지 못했습니다.");
+    throw await createApiError(res, "LOT 미리보기를 불러오지 못했습니다.");
+  }
+  const data = await res.json();
+  const previews = Array.isArray(data?.previews)
+    ? data.previews
+    : Array.isArray(data?.data?.previews)
+      ? data.data.previews
+      : [];
+  return {
+    previews: previews.map(
+      (p: {
+        lotSequenceNo?: number;
+        lotSequenceText?: string;
+        unitCode?: string;
+      }) => ({
+        lotSequenceNo:
+          typeof p?.lotSequenceNo === "number" && Number.isFinite(p.lotSequenceNo)
+            ? p.lotSequenceNo
+            : undefined,
+        lotSequenceText: String(p?.lotSequenceText ?? "").trim() || undefined,
+      unitCode: String(p?.unitCode ?? "").trim(),
+      })
+    ),
+    quantity: data?.quantity ?? data?.data?.quantity,
+    issuedDate: data?.issuedDate ?? data?.data?.issuedDate,
+    yearCode: data?.yearCode ?? data?.data?.yearCode,
+    partnerCode: data?.partnerCode ?? data?.data?.partnerCode,
+    poComposite: data?.poComposite ?? data?.data?.poComposite,
+    sequenceKey: data?.sequenceKey ?? data?.data?.sequenceKey,
+    maxSequence: data?.maxSequence ?? data?.data?.maxSequence,
+    nextSequence: data?.nextSequence ?? data?.data?.nextSequence,
+  };
+}
+
+/** `POST /purchase-orders/production-plans/:planId/issue-lot-units` */
+export async function issueProductionPlanLotUnits(
+  planId: string,
+  payload: IssueLotUnitsPayload,
+  accessToken: string
+): Promise<ProductionPlan> {
+  const res = await fetchAuthorized(
+    `${API_BASE}/purchase-orders/production-plans/${planId}/issue-lot-units`,
+    {
+      method: "POST",
+      headers: jsonHeaders(accessToken),
+      body: JSON.stringify(payload ?? {}),
+      credentials: "include",
+    },
+    accessToken
+  );
+  if (!res.ok) {
+    throw await createApiError(res, "LOT를 발급하지 못했습니다.");
+  }
+  return res.json();
+}
+
+/** `POST /purchase-orders/production-plans/:planId/assign-product-serials` */
+export async function assignProductSerialsToPlan(
+  planId: string,
+  payload: AssignProductSerialsPayload,
+  accessToken: string
+): Promise<ProductionPlan> {
+  const res = await fetchAuthorized(
+    `${API_BASE}/purchase-orders/production-plans/${planId}/assign-product-serials`,
+    {
+      method: "POST",
+      headers: jsonHeaders(accessToken),
+      body: JSON.stringify(payload),
+      credentials: "include",
+    },
+    accessToken
+  );
+  if (!res.ok) {
+    throw await createApiError(res, "제품 시리얼을 확정하지 못했습니다.");
+  }
+  return res.json();
+}
+
+/** `POST /purchase-orders/production-plan-items/:planItemId/units` — LOT 자동, 본문 `{}` */
+export async function createProductionPlanItemUnit(
+  planItemId: string,
+  accessToken: string
+): Promise<ProductionPlanUnit> {
+  const res = await fetchAuthorized(
+    `${API_BASE}/purchase-orders/production-plan-items/${planItemId}/units`,
+    {
+      method: "POST",
+      headers: jsonHeaders(accessToken),
+      body: JSON.stringify({}),
+      credentials: "include",
+    },
+    accessToken
+  );
+  if (!res.ok) {
+    throw await createApiError(res, "생산 유닛을 추가하지 못했습니다.");
+  }
+  return res.json();
+}
+
+/** `GET /purchase-orders/:purchaseOrderId/production-plans` — 발주별 목록 (planSeq 오름차순·관계 로드) */
+export async function getPurchaseOrderProductionPlans(
+  purchaseOrderId: string,
+  accessToken: string
+): Promise<ProductionPlan[]> {
+  const res = await fetchAuthorized(
+    `${API_BASE}/purchase-orders/${purchaseOrderId}/production-plans`,
+    {
+      headers: authHeaders(accessToken),
+      credentials: "include",
+    },
+    accessToken
+  );
+  if (!res.ok) {
+    throw await createApiError(res, "생산 계획 목록을 불러오지 못했습니다.");
   }
   const data = await res.json();
   return Array.isArray(data) ? data : data?.data ?? [];
 }
 
-/** `GET /purchase-orders/delivery-plans/:planId` */
-export async function getDeliveryPlan(
+/** `GET /purchase-orders/production-plans/:planId` */
+export async function getProductionPlan(
   planId: string,
   accessToken: string
-): Promise<DeliveryPlan> {
+): Promise<ProductionPlan> {
   const res = await fetchAuthorized(
-    `${API_BASE}/purchase-orders/delivery-plans/${planId}`,
+    `${API_BASE}/purchase-orders/production-plans/${planId}`,
     {
       headers: authHeaders(accessToken),
       credentials: "include",
@@ -2257,35 +2727,35 @@ export async function getDeliveryPlan(
     accessToken
   );
   if (!res.ok) {
-    throw await createApiError(res, "납품 계획을 불러오지 못했습니다.");
+    throw await createApiError(res, "생산 계획을 불러오지 못했습니다.");
   }
   return res.json();
 }
 
-/** `POST /purchase-orders/:orderId/delivery-plans/split` — 새 계획 + 품목 행 + 유닛 이동(한 트랜잭션) */
-export interface SplitDeliveryPlanPayload {
+/** `POST /purchase-orders/:orderId/production-plans/split` — 새 계획 + 품목 행 + 유닛 이동(한 트랜잭션) */
+export interface SplitProductionPlanPayload {
   unitIds: string[];
   deliveryDate?: string | null;
   plannedDeliveryDate?: string | null;
   detectorHandoverExpectedDate?: string | null;
-  deliveryManagerId?: number | null;
+  productionManagerId?: number | null;
   title?: string | null;
   remark?: string | null;
 }
 
-export interface SplitDeliveryPlanResponse {
-  plan: DeliveryPlan;
+export interface SplitProductionPlanResponse {
+  plan: ProductionPlan;
   newPlanItemId?: number;
-  movedUnits?: DeliveryPlanUnit[];
+  movedUnits?: ProductionPlanUnit[];
 }
 
-export async function splitDeliveryPlan(
+export async function splitProductionPlan(
   orderId: string,
-  payload: SplitDeliveryPlanPayload,
+  payload: SplitProductionPlanPayload,
   accessToken: string
-): Promise<SplitDeliveryPlanResponse> {
+): Promise<SplitProductionPlanResponse> {
   const res = await fetchAuthorized(
-    `${API_BASE}/purchase-orders/${orderId}/delivery-plans/split`,
+    `${API_BASE}/purchase-orders/${orderId}/production-plans/split`,
     {
       method: "POST",
       headers: jsonHeaders(accessToken),
@@ -2295,23 +2765,23 @@ export async function splitDeliveryPlan(
     accessToken
   );
   if (!res.ok) {
-    throw await createApiError(res, "납품 계획 분할에 실패했습니다.");
+    throw await createApiError(res, "생산 계획 분할에 실패했습니다.");
   }
   return res.json();
 }
 
-/** `POST /purchase-orders/delivery-plans/:planId/plan-items` — 유닛 없이 품목 행만 추가 */
-export interface AddDeliveryPlanItemPayload {
+/** `POST /purchase-orders/production-plans/:planId/plan-items` — 유닛 없이 품목 행만 추가 */
+export interface AddProductionPlanItemPayload {
   purchaseOrderItemId: number;
   /** 생략·null이면 서버에서 0 */
   plannedQty?: number | null;
 }
 
-export async function addDeliveryPlanPlanItem(
+export async function addProductionPlanPlanItem(
   planId: string,
-  payload: AddDeliveryPlanItemPayload,
+  payload: AddProductionPlanItemPayload,
   accessToken: string
-): Promise<DeliveryPlanItem> {
+): Promise<ProductionPlanItem> {
   const body: Record<string, unknown> = {
     purchaseOrderItemId: payload.purchaseOrderItemId,
   };
@@ -2319,7 +2789,7 @@ export async function addDeliveryPlanPlanItem(
     body.plannedQty = payload.plannedQty;
   }
   const res = await fetchAuthorized(
-    `${API_BASE}/purchase-orders/delivery-plans/${planId}/plan-items`,
+    `${API_BASE}/purchase-orders/production-plans/${planId}/plan-items`,
     {
       method: "POST",
       headers: jsonHeaders(accessToken),
@@ -2329,23 +2799,23 @@ export async function addDeliveryPlanPlanItem(
     accessToken
   );
   if (!res.ok) {
-    throw await createApiError(res, "납품 계획 품목을 추가하지 못했습니다.");
+    throw await createApiError(res, "생산 계획 품목을 추가하지 못했습니다.");
   }
   return res.json();
 }
 
-/** `POST /purchase-orders/delivery-plan-items/:planItemId/move-units` */
-export interface MoveDeliveryPlanUnitsPayload {
+/** `POST /purchase-orders/production-plan-items/:planItemId/move-units` */
+export interface MoveProductionPlanUnitsPayload {
   unitIds: string[];
 }
 
-export async function moveDeliveryPlanItemUnits(
+export async function moveProductionPlanItemUnits(
   planItemId: string | number,
-  payload: MoveDeliveryPlanUnitsPayload,
+  payload: MoveProductionPlanUnitsPayload,
   accessToken: string
-): Promise<DeliveryPlanUnit[]> {
+): Promise<ProductionPlanUnit[]> {
   const res = await fetchAuthorized(
-    `${API_BASE}/purchase-orders/delivery-plan-items/${planItemId}/move-units`,
+    `${API_BASE}/purchase-orders/production-plan-items/${planItemId}/move-units`,
     {
       method: "POST",
       headers: jsonHeaders(accessToken),
@@ -2355,15 +2825,15 @@ export async function moveDeliveryPlanItemUnits(
     accessToken
   );
   if (!res.ok) {
-    throw await createApiError(res, "납품 계획 제품을 옮기지 못했습니다.");
+    throw await createApiError(res, "생산 계획 제품을 옮기지 못했습니다.");
   }
   const data = await res.json();
   return Array.isArray(data) ? data : data?.data ?? [];
 }
 
-/** `POST .../process/pass` · `.../process/fail` 응답 — `{ unit, processRecord }` 또는 구형 단일 `DeliveryPlanUnit` */
+/** `POST .../process/pass` · `.../process/fail` 응답 — `{ unit, processRecord }` 또는 구형 단일 `ProductionPlanUnit` */
 export type ProcessUnitMutationResult = {
-  unit: DeliveryPlanUnit;
+  unit: ProductionPlanUnit;
   processRecord: UnitProcessRecord | null;
 };
 
@@ -2395,20 +2865,20 @@ function parseProcessUnitMutationResponse(
 ): ProcessUnitMutationResult {
   let o = asObjectRecord(data);
   if (!o) {
-    return { unit: data as DeliveryPlanUnit, processRecord: null };
+    return { unit: data as ProductionPlanUnit, processRecord: null };
   }
 
   // `{ data: { unit, processRecord } }` 등
   const wrapped = asObjectRecord(o.data);
-  if (wrapped && (wrapped.unit != null || wrapped.deliveryPlanUnit != null)) {
+  if (wrapped && (wrapped.unit != null || wrapped.productionPlanUnit != null)) {
     o = wrapped;
   }
 
   const unitRaw =
-    o.unit ?? o.deliveryPlanUnit ?? o.delivery_plan_unit ?? null;
+    o.unit ?? o.productionPlanUnit ?? o.production_plan_unit ?? null;
   if (unitRaw && typeof unitRaw === "object") {
     return {
-      unit: unitRaw as DeliveryPlanUnit,
+      unit: unitRaw as ProductionPlanUnit,
       processRecord: pickProcessRecordFromEnvelope(o),
     };
   }
@@ -2420,7 +2890,7 @@ function parseProcessUnitMutationResponse(
     (o.result === "PASS" || o.result === "FAIL") && recordUnitId !== "";
   if (looksLikeProcessRecord) {
     return {
-      unit: { id: recordUnitId } as DeliveryPlanUnit,
+      unit: { id: recordUnitId } as ProductionPlanUnit,
       processRecord: o as unknown as UnitProcessRecord,
     };
   }
@@ -2429,25 +2899,25 @@ function parseProcessUnitMutationResponse(
   if (typeof o.id === "string" && o.id.trim() !== "") {
     const nested = pickProcessRecordFromEnvelope(o);
     return {
-      unit: o as unknown as DeliveryPlanUnit,
+      unit: o as unknown as ProductionPlanUnit,
       processRecord: nested,
     };
   }
 
   return {
-    unit: data as DeliveryPlanUnit,
+    unit: data as ProductionPlanUnit,
     processRecord: null,
   };
 }
 
-/** `POST /purchase-orders/delivery-plan-units/:unitId/process/pass` */
-export async function processDeliveryPlanUnitPass(
+/** `POST /purchase-orders/production-plan-units/:unitId/process/pass` */
+export async function processProductionPlanUnitPass(
   unitId: string,
   payload: ProcessUnitPassPayload,
   accessToken: string
 ): Promise<ProcessUnitMutationResult> {
   const res = await fetchAuthorized(
-    `${API_BASE}/purchase-orders/delivery-plan-units/${unitId}/process/pass`,
+    `${API_BASE}/purchase-orders/production-plan-units/${unitId}/process/pass`,
     {
       method: "POST",
       headers: jsonHeaders(accessToken),
@@ -2463,14 +2933,14 @@ export async function processDeliveryPlanUnitPass(
   return parseProcessUnitMutationResponse(data);
 }
 
-/** `POST /purchase-orders/delivery-plan-units/:unitId/process/fail` */
-export async function processDeliveryPlanUnitFail(
+/** `POST /purchase-orders/production-plan-units/:unitId/process/fail` */
+export async function processProductionPlanUnitFail(
   unitId: string,
   payload: ProcessUnitFailPayload,
   accessToken: string
 ): Promise<ProcessUnitMutationResult> {
   const res = await fetchAuthorized(
-    `${API_BASE}/purchase-orders/delivery-plan-units/${unitId}/process/fail`,
+    `${API_BASE}/purchase-orders/production-plan-units/${unitId}/process/fail`,
     {
       method: "POST",
       headers: jsonHeaders(accessToken),
@@ -2487,10 +2957,10 @@ export async function processDeliveryPlanUnitFail(
 }
 
 /**
- * `POST /purchase-orders/delivery-plan-units/:unitId/process-records/:recordId/files`
+ * `POST /purchase-orders/production-plan-units/:unitId/process-records/:recordId/files`
  * multipart, 필드명 `files` (`POST /purchase-orders/:id/files`와 동일).
  */
-export async function uploadDeliveryPlanUnitProcessRecordFiles(
+export async function uploadProductionPlanUnitProcessRecordFiles(
   unitId: string,
   recordId: string,
   files: File[],
@@ -2510,7 +2980,7 @@ export async function uploadDeliveryPlanUnitProcessRecordFiles(
   const form = new FormData();
   files.forEach((file) => form.append("files", file));
   const res = await fetchAuthorized(
-    `${API_BASE}/purchase-orders/delivery-plan-units/${uid}/process-records/${encodeURIComponent(rid)}/files`,
+    `${API_BASE}/purchase-orders/production-plan-units/${uid}/process-records/${encodeURIComponent(rid)}/files`,
     {
       method: "POST",
       headers: authHeaders(accessToken),
@@ -2524,13 +2994,13 @@ export async function uploadDeliveryPlanUnitProcessRecordFiles(
   }
 }
 
-/** `GET /purchase-orders/delivery-plan-units/:unitId/process-records` */
-export async function getDeliveryPlanUnitProcessRecords(
+/** `GET /purchase-orders/production-plan-units/:unitId/process-records` */
+export async function getProductionPlanUnitProcessRecords(
   unitId: string,
   accessToken: string
 ): Promise<UnitProcessRecord[]> {
   const res = await fetchAuthorized(
-    `${API_BASE}/purchase-orders/delivery-plan-units/${unitId}/process-records`,
+    `${API_BASE}/purchase-orders/production-plan-units/${unitId}/process-records`,
     {
       headers: authHeaders(accessToken),
       credentials: "include",
@@ -2572,7 +3042,7 @@ export async function resolveProcessRecordIdForUpload(
     return String(fromResponse);
   }
 
-  const list = await getDeliveryPlanUnitProcessRecords(unitId, accessToken);
+  const list = await getProductionPlanUnitProcessRecords(unitId, accessToken);
   const code = processCode.trim();
   const sorted = [...list].sort((a, b) => {
     const sb = Number(b.processSeq ?? 0);

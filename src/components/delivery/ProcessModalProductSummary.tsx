@@ -1,13 +1,13 @@
 import type { CommonCodeItem } from "../../api/commonCode";
-import type { DeliveryPlanUnit } from "../../api/purchaseOrder";
-import type { FlatPlanUnitRow } from "../../lib/deliveryPlanDetailHelpers";
-import { labelForProcessCode } from "../../lib/deliveryPlanProcessLabels";
+import type { ProductionPlanUnit } from "../../api/purchaseOrder";
+import type { FlatPlanUnitRow } from "../../lib/productionPlanDetailHelpers";
+import { labelForProcessCode } from "../../lib/productionPlanProcessLabels";
 
 export interface ProcessModalProductSummaryProps {
   /** 평탄화 행이 있으면 품목 라벨·제품 정보를 우선 사용 */
   flatRow: FlatPlanUnitRow | null;
   /** `flatRow`가 없을 때 최소 표시용 */
-  unit: DeliveryPlanUnit | null;
+  unit: ProductionPlanUnit | null;
   stepCodes: CommonCodeItem[];
   /** `false`면 「진행 중인 공정」 카드 숨김 — 현황 전용(타임라인) 모달에서 중복 방지 */
   showCurrentProcessBlock?: boolean;
@@ -16,7 +16,7 @@ export interface ProcessModalProductSummaryProps {
 }
 
 /**
- * 납품 계획 공정 처리 모달용 — `default`는 품목·S/N·관리 코드·진행 공정, `minimal`은 S/N·품목만.
+ * 생산 계획 공정 처리 모달용 — `default`는 품목·S/N·관리 코드·진행 공정, `minimal`은 S/N·품목만.
  */
 export function ProcessModalProductSummary({
   flatRow,

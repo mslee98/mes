@@ -1,40 +1,37 @@
 import { useMemo, type ReactNode } from "react";
 import { Link } from "react-router";
 import {
-  labelForCommonCode,
+  UNIT_PROCESS_STEP_CODE_READY_TO_DELIVER,
   type CommonCodeItem,
 } from "../../api/commonCode";
 import type {
-  DeliveryPlan,
-  DeliveryPlanPurchaseOrderNested,
-  DeliveryPlanUnit,
+  ProductionPlan,
+  ProductionPlanPurchaseOrderNested,
+  ProductionPlanUnit,
 } from "../../api/purchaseOrder";
-import type { FlatPlanUnitRow } from "../../lib/deliveryPlanDetailHelpers";
-import { computeDeliveryPlanUnitStats } from "../../lib/deliveryPlanDetailHelpers";
+import type { FlatPlanUnitRow } from "../../lib/productionPlanDetailHelpers";
+import { computeProductionPlanUnitStats } from "../../lib/productionPlanDetailHelpers";
+import { formatDateYmd, formatDateYmdKoLong } from "../../lib/dateFormat";
 import {
-  calendarDaysFromLocalToday,
-  formatDateYmd,
-  formatDateYmdKoLong,
-  formatDaysRelativeToTodayKo,
-} from "../../lib/dateFormat";
-import type { DeliveryPlanDetailTab } from "./deliveryPlanDetailTabTypes";
+  dueDateDdayBadgeClassName,
+  getDueDateRelative,
+} from "../../lib/dueDateDisplay";
+import type { ProductionPlanDetailTab } from "./productionPlanDetailTabTypes";
 import {
   labelForProcessCode,
-} from "../../lib/deliveryPlanProcessLabels";
+} from "../../lib/productionPlanProcessLabels";
 import Checkbox from "../form/input/Checkbox";
 import Badge from "../ui/badge/Badge";
 import Button from "../ui/button/Button";
 import { ReactComponent as DocumentDuplicateIcon } from "../../icons/document-duplicate.svg?react";
-import { DeliveryPlanProcessStageBadge } from "./DeliveryPlanProcessStageBadge";
+import { ProductionPlanProcessStageBadge } from "./ProductionPlanProcessStageBadge";
 
-type DeliveryPlanDetailOverviewTabProps = {
-  plan: DeliveryPlan;
+type ProductionPlanDetailOverviewTabProps = {
+  plan: ProductionPlan;
   orderId: string;
   orderNo: string | undefined;
   partnerLabel: ReactNode;
   flatUnits: FlatPlanUnitRow[];
-  wavelengthCommonCodes: CommonCodeItem[];
-  detectorElementCommonCodes: CommonCodeItem[];
   unitProcessStepCodes: CommonCodeItem[];
   /** 제품 행 체크박스 선택(상위에서 분할 등에 사용) */
   selectedUnitIds: Set<string>;
@@ -43,69 +40,32 @@ type DeliveryPlanDetailOverviewTabProps = {
   splitDisabledReason: string | null;
   onSplitClick: () => void;
   /** 표에서는 PASS/FAIL 없이 진입만 — 모달에서 처리 */
-  onProcess: (unit: DeliveryPlanUnit) => void;
+  onProcess: (unit: ProductionPlanUnit) => void;
   /** 출고 준비 완료 제품 — 실제 납품 등록(최소 입력 모달) */
   onDeliver: (ctx: {
-    unit: DeliveryPlanUnit;
+    unit: ProductionPlanUnit;
     purchaseOrderItemId?: number;
   }) => void;
   onRecords: (unitId: string) => void;
-  onNavigateTab: (tab: DeliveryPlanDetailTab) => void;
+  onNavigateTab: (tab: ProductionPlanDetailTab) => void;
 };
 
-function productSerialDisplay(unit: DeliveryPlanUnit): string {
-  return (
-    String(unit.serialNo ?? "").trim() ||
-    String(unit.unitCode ?? "").trim() ||
-    "—"
-  );
+function productSerialDisplay(unit: ProductionPlanUnit): string {
+  const sn = String(unit.serialNo ?? "").trim();
+  return sn || "미할당";
 }
 
-function unitNoDisplay(unit: DeliveryPlanUnit): string {
+function unitLotDisplay(unit: ProductionPlanUnit): string {
+  const lot = String(unit.unitCode ?? "").trim();
+  if (lot) return lot;
   if (unit.unitNo != null && Number.isFinite(unit.unitNo)) {
     return String(unit.unitNo);
   }
-  return String(unit.unitCode ?? unit.id);
-}
-
-/**
- * 검출기 열: 관계 `detector.detectorType`(예: 640-A) 우선, 없으면 소자코드 공통명·원문.
- * `wavelengthCode`는 WAVELENGTH 공통코드로 표시명(SWIR/MWIR/LWIR/Visible 등).
- */
-function buildDetectorCellText(
-  unit: DeliveryPlanUnit,
-  wavelengthItems: CommonCodeItem[],
-  elementItems: CommonCodeItem[]
-): string {
-  const chunks: string[] = [];
-
-  const det = unit.detector;
-  if (det && typeof det === "object") {
-    const dt = String(
-      (det as { detectorType?: string | null }).detectorType ?? ""
-    ).trim();
-    if (dt) chunks.push(dt);
-  }
-
-  if (chunks.length === 0) {
-    const elName = labelForCommonCode(elementItems, unit.detectorElementCode);
-    if (elName !== "—") chunks.push(elName);
-    else {
-      const elRaw = String(unit.detectorElementCode ?? "").trim();
-      if (elRaw) chunks.push(elRaw);
-    }
-  }
-
-  const wlRaw = String(unit.wavelengthCode ?? "").trim();
-  if (wlRaw) {
-    chunks.push(labelForCommonCode(wavelengthItems, wlRaw));
-  }
-
-  return chunks.length ? chunks.join(" · ") : "—";
+  return unit.id;
 }
 
 /** 검출기 S/N — 명시 필드 또는 `detector` 관계 객체에서 추출 */
-function detectorSerialDisplay(unit: DeliveryPlanUnit): string {
+function detectorSerialDisplay(unit: ProductionPlanUnit): string {
   const direct = String(unit.detectorSerialNo ?? "").trim();
   if (direct) return direct;
   const d = unit.detector;
@@ -124,17 +84,23 @@ function detectorSerialDisplay(unit: DeliveryPlanUnit): string {
       }
     }
   }
-  return "";
+  return "미할당";
 }
 
-export function DeliveryPlanDetailOverviewTab({
+function operatorDisplay(unit: ProductionPlanUnit): string {
+  const name = String(unit.operatorNameSnapshot ?? "").trim();
+  if (name) return name;
+  const employeeNo = String(unit.operatorEmployeeNoSnapshot ?? "").trim();
+  if (employeeNo) return `사번 ${employeeNo}`;
+  return "미지정";
+}
+
+export function ProductionPlanDetailOverviewTab({
   plan,
   orderId,
   orderNo,
   partnerLabel,
   flatUnits,
-  wavelengthCommonCodes,
-  detectorElementCommonCodes,
   unitProcessStepCodes,
   selectedUnitIds,
   onSelectedUnitIdsChange,
@@ -144,14 +110,14 @@ export function DeliveryPlanDetailOverviewTab({
   onDeliver,
   onRecords,
   onNavigateTab,
-}: DeliveryPlanDetailOverviewTabProps) {
+}: ProductionPlanDetailOverviewTabProps) {
   /* 검색 UI·필터 일시 비활성화
   const [search, setSearch] = useState("");
   */
 
   const stats = useMemo(
-    () => computeDeliveryPlanUnitStats(flatUnits),
-    [flatUnits]
+    () => computeProductionPlanUnitStats(flatUnits, unitProcessStepCodes),
+    [flatUnits, unitProcessStepCodes]
   );
 
   /* 검색 필터 일시 비활성화
@@ -164,11 +130,6 @@ export function DeliveryPlanDetailOverviewTab({
         unit.unitCode,
         unit.serialNo,
         detectorSerialDisplay(unit),
-        buildDetectorCellText(
-          unit,
-          wavelengthCommonCodes,
-          detectorElementCommonCodes
-        ),
         unit.currentProcessCode,
         labelForProcessCode(unit.currentProcessCode, unitProcessStepCodes),
         unit.processStatus,
@@ -183,8 +144,6 @@ export function DeliveryPlanDetailOverviewTab({
   }, [
     flatUnits,
     search,
-    wavelengthCommonCodes,
-    detectorElementCommonCodes,
     unitProcessStepCodes,
   ]);
   */
@@ -202,11 +161,6 @@ export function DeliveryPlanDetailOverviewTab({
     selectedUnitIds.has(id)
   );
 
-  const progressPercent =
-    stats.total > 0
-      ? Math.round((stats.deliveredOrReadyCount / stats.total) * 100)
-      : 0;
-
   const planCode = plan.planNo?.trim() || plan.id;
 
   const purchaseOrder = plan.purchaseOrder;
@@ -221,7 +175,7 @@ export function DeliveryPlanDetailOverviewTab({
 
   const finalYmd = useMemo(() => {
     if (!purchaseOrder || typeof purchaseOrder !== "object") return "";
-    const po = purchaseOrder as DeliveryPlanPurchaseOrderNested;
+    const po = purchaseOrder as ProductionPlanPurchaseOrderNested;
     const raw =
       String(po.dueDate ?? "").trim() ||
       String(po.requestDeliveryDate ?? "").trim() ||
@@ -230,30 +184,19 @@ export function DeliveryPlanDetailOverviewTab({
     return y && y !== "-" ? y : "";
   }, [purchaseOrder]);
 
-  const finalDiff = finalYmd ? calendarDaysFromLocalToday(finalYmd) : null;
-  const finalRelLabel = finalYmd ? formatDaysRelativeToTodayKo(finalYmd) : "";
-  const finalRelToneClass =
-    finalDiff == null
-      ? ""
-      : finalDiff < 0
-        ? "text-red-700 bg-red-50 dark:bg-red-950/40 dark:text-red-300"
-        : finalDiff === 0
-          ? "text-amber-900 bg-amber-50 dark:bg-amber-950/40 dark:text-amber-200"
-          : finalDiff <= 14
-            ? "text-amber-900 bg-amber-50 dark:bg-amber-950/35 dark:text-amber-200"
-            : "text-brand-800 bg-brand-50 dark:bg-brand-950/35 dark:text-brand-200";
+  const finalDueRel = finalYmd ? getDueDateRelative(finalYmd) : null;
 
   return (
     <div className="space-y-6">
       <div
         className="rounded-xl border border-gray-100 bg-gradient-to-br from-gray-50/90 to-white px-4 py-4 dark:border-white/10 dark:from-white/[0.04] dark:to-white/[0.02] sm:px-5 sm:py-5"
         role="region"
-        aria-label="납품 계획 요약"
+        aria-label="생산 계획 요약"
       >
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <p className="text-theme-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-              납품 계획
+              생산 계획
             </p>
             <p className="mt-1 break-words text-xl font-semibold text-gray-900 dark:text-white">
               {planCode}
@@ -295,11 +238,12 @@ export function DeliveryPlanDetailOverviewTab({
                   <span className="font-semibold text-gray-900 dark:text-white">
                     {finalYmd ? formatDateYmdKoLong(finalYmd) : "—"}
                   </span>
-                  {finalRelLabel ? (
+                  {finalDueRel ? (
                     <span
-                      className={`inline-flex rounded-md px-2 py-0.5 text-theme-xs font-medium ${finalRelToneClass}`}
+                      className={dueDateDdayBadgeClassName(finalDueRel.diff)}
+                      title={finalDueRel.koLabel}
                     >
-                      {finalRelLabel}
+                      {finalDueRel.ddayLabel}
                     </span>
                   ) : null}
                 </dd>
@@ -319,14 +263,24 @@ export function DeliveryPlanDetailOverviewTab({
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
               <p className="text-theme-xs text-gray-500 dark:text-gray-400">
-                진행률 (출고 준비 이상)
+                전체 공정 진행률
               </p>
-              <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">
-                {stats.deliveredOrReadyCount} / {stats.total}
-              </p>
+              <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                  {stats.totalProcessStepCount > 0
+                    ? `${stats.completedProcessStepCount} / ${stats.totalProcessStepCount}`
+                    : "공정 단계 정보 없음"}
+                </p>
+                {stats.totalProcessStepCount > 0 ? (
+                  <span className="text-theme-sm font-semibold text-brand-600 dark:text-brand-400">
+                    {stats.progressPercent}%
+                  </span>
+                ) : null}
+              </div>
               <p className="mt-0.5 text-theme-xs text-gray-500 dark:text-gray-400">
-                납품 완료 {stats.deliveredCount}대 · 출고 준비 가능{" "}
-                {stats.deliveryReadyCount}대
+                {stats.engineUnitCount > 0
+                  ? `엔진은 기능 시험 후 포장 · 카메라는 최종 기능 시험 후 포장`
+                  : `제품 ${stats.total}대 × 공정 ${stats.processStepCount}단계 기준`}
               </p>
             </div>
             <button
@@ -341,7 +295,7 @@ export function DeliveryPlanDetailOverviewTab({
             <div
               className="h-full rounded-full bg-brand-500 transition-[width] duration-300 dark:bg-brand-400"
               style={{
-                width: `${Math.min(100, Math.max(0, progressPercent))}%`,
+                width: `${Math.min(100, Math.max(0, stats.progressPercent))}%`,
               }}
             />
           </div>
@@ -445,16 +399,16 @@ export function DeliveryPlanDetailOverviewTab({
                     />
                   </th>
                   <th className="whitespace-nowrap px-3 py-2 font-medium">
-                    관리 코드
+                    LOT
                   </th>
                   <th className="whitespace-nowrap px-3 py-2 font-medium">
                     품목
                   </th>
                   <th className="whitespace-nowrap px-3 py-2 font-medium">
-                    제품 S/N
+                    생산 담당자
                   </th>
                   <th className="whitespace-nowrap px-3 py-2 font-medium">
-                    검출기
+                    제품 S/N
                   </th>
                   <th className="whitespace-nowrap px-3 py-2 font-medium">
                     검출기 S/N
@@ -476,11 +430,14 @@ export function DeliveryPlanDetailOverviewTab({
               <tbody className="divide-y divide-gray-100 dark:divide-white/5">
                 {filteredRows.map(({ unit, lineLabel, purchaseOrderItemId }) => {
                   const detectorSn = detectorSerialDisplay(unit);
-                  const detectorCell = buildDetectorCellText(
-                    unit,
-                    wavelengthCommonCodes,
-                    detectorElementCommonCodes
-                  );
+                  const currentProcessCode = String(
+                    unit.currentProcessCode ?? ""
+                  )
+                    .trim()
+                    .toUpperCase();
+                  const isReadyToDeliverStep =
+                    currentProcessCode ===
+                    UNIT_PROCESS_STEP_CODE_READY_TO_DELIVER;
                   const isRework = String(
                     unit.processStatus ?? ""
                   )
@@ -508,7 +465,7 @@ export function DeliveryPlanDetailOverviewTab({
                       />
                     </td>
                     <td className="whitespace-nowrap px-3 py-2 font-mono text-theme-xs text-gray-800 dark:text-white/90">
-                      {unitNoDisplay(unit)}
+                      {unitLotDisplay(unit)}
                     </td>
                     <td
                       className="max-w-[10rem] truncate px-3 py-2 text-gray-800 dark:text-white/90"
@@ -516,20 +473,14 @@ export function DeliveryPlanDetailOverviewTab({
                     >
                       {lineLabel}
                     </td>
+                    <td className="whitespace-nowrap px-3 py-2 text-theme-xs text-gray-800 dark:text-white/90">
+                      {operatorDisplay(unit)}
+                    </td>
                     <td className="whitespace-nowrap px-3 py-2 font-mono text-theme-xs text-gray-800 dark:text-white/90">
                       {productSerialDisplay(unit)}
                     </td>
-                    <td className="whitespace-nowrap px-3 py-2 text-theme-xs text-gray-700 dark:text-gray-300">
-                      {detectorCell}
-                    </td>
                     <td className="whitespace-nowrap px-3 py-2 font-mono text-theme-xs text-gray-800 dark:text-white/90">
-                      {detectorSn ? (
-                        detectorSn
-                      ) : (
-                        <span className="text-gray-400 dark:text-gray-500">
-                          -
-                        </span>
-                      )}
+                      {detectorSn}
                     </td>
                     <td className="max-w-[14rem] px-3 py-2 align-middle text-center">
                       <span className="font-medium text-gray-900 dark:text-white">
@@ -541,7 +492,7 @@ export function DeliveryPlanDetailOverviewTab({
                     </td>
                     <td className="whitespace-nowrap px-3 py-2 align-middle">
                       <div className="flex justify-center">
-                        <DeliveryPlanProcessStageBadge unit={unit} />
+                        <ProductionPlanProcessStageBadge unit={unit} />
                       </div>
                     </td>
                     <td className="whitespace-nowrap px-3 py-2 align-middle text-center">
@@ -577,7 +528,9 @@ export function DeliveryPlanDetailOverviewTab({
                               ? "납품 완료된 제품은 공정 처리할 수 없습니다."
                               : unit.isDeliveryReady && !unit.isDelivered
                                 ? "출고 준비가 완료되었습니다. 납품 등록을 진행합니다."
-                                : "PASS·FAIL은 다음 단계 모달에서 선택합니다."
+                                : isReadyToDeliverStep
+                                  ? "출고 준비 완료 처리 후 납품 등록으로 이어집니다."
+                                : "현재 공정에서 PASS·FAIL을 선택합니다."
                           }
                           onClick={() => {
                             if (unit.isDeliveryReady && !unit.isDelivered) {
@@ -589,6 +542,8 @@ export function DeliveryPlanDetailOverviewTab({
                         >
                           {unit.isDeliveryReady && !unit.isDelivered
                             ? "납품 등록"
+                            : isReadyToDeliverStep
+                              ? "출고 준비 처리"
                             : "공정 처리"}
                         </Button>
                         <Button

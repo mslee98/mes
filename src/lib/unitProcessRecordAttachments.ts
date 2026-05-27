@@ -1,5 +1,4 @@
-import { API_BASE } from "../api/apiBase";
-import { buildApiFileUrl } from "./fileDownload";
+import { buildAppApiFileUrl } from "./fileDownload";
 
 export type NormalizedProcessAttachment = {
   key: string;
@@ -79,7 +78,7 @@ function pushOne(
   rawPath: string,
   createdAt?: string
 ): void {
-  const downloadUrl = buildApiFileUrl(rawPath, API_BASE);
+  const downloadUrl = buildAppApiFileUrl(rawPath);
   const key = `${downloadUrl}\0${label}\0${createdAt ?? ""}`;
   if (seen.has(key)) return;
   seen.add(key);

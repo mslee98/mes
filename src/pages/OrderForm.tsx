@@ -27,6 +27,7 @@ import SearchableSelectWithCreate from "../components/form/SearchableSelectWithC
 import { renderPartnerOptionLabel } from "../components/form/PartnerOptionLabel";
 import FormActionBar from "../components/form/FormActionBar";
 import { useAuth } from "../hooks/useAuth";
+import { useDetectorSelectOptions } from "../hooks/useDetectorSelectOptions";
 import { useOrderCommonCodes } from "../hooks/useOrderCommonCodes";
 import { usePartnersQuery } from "../hooks/usePartnersQuery";
 import { getCurrencySymbol, normalizeCurrencyCode } from "../lib/formatCurrency";
@@ -35,13 +36,16 @@ import { toPartnerSearchableSelectOptions } from "../lib/partnerSelectOptions";
 import {
   getProductList,
   representativeProductLabel,
+  representativeProductSelectLabel,
   type RepresentativeProduct,
 } from "../api/products";
 import { getLensList, type LensItem } from "../api/lenses";
 import {
   getEmployeeDirectory,
-  type EmployeeDirectoryItem,
+  getUsers,
+  requesterDepartmentPathForEmployeeNo,
 } from "../api/user";
+import { getOrganizationTree } from "../api/organization";
 import {
   getPurchaseOrder,
   getPurchaseOrderItems,
@@ -67,166 +71,35 @@ import {
   buildCreatePayload,
   buildUpdatePayload,
 } from "../features/order-form/utils/payload";
+import {
+  emptyItemRow,
+  isPartialProductRow,
+} from "../features/order-form/utils/itemRow";
+import { computeHeaderSupplyAmount } from "../features/order-form/utils/supplyAmount";
 import { validateRequiredFields } from "../lib/formValidation";
+import { compactYmd, isYmdRangeValid, localYmdToday } from "../lib/dateFormat";
+import { parsePositiveIntId } from "../lib/parseId";
+import {
+  legacyUserValue,
+  tryDecodeLegacyUser,
+} from "../lib/legacySelectValue";
+import {
+  parseLineUnitPrice,
+  formatLineUnitPriceDisplay,
+  parseOptionalExchangeRate,
+} from "../lib/priceInput";
+import {
+  parseRequesterEmployeeNoFromSelect,
+  parseRequesterNameFromSelect,
+} from "../lib/orderRequesterSelect";
+import {
+  defaultHiddenDetectorCodesForProduct,
+  ORDER_LINE_WAVELENGTH_CODE,
+  resolveOrderLineDetectorPayload,
+} from "../lib/orderLineDetectorFields";
+import { detectorFieldsFromOrderLine } from "../lib/orderLineItemRow";
 
 const PARTNER_TYPE_CUSTOMER = "CUSTOMER";
-
-function todayString() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function isOrderDateRangeValid(orderDate: string, dueDate: string): boolean {
-  const order = String(orderDate ?? "").trim();
-  const due = String(dueDate ?? "").trim();
-  if (!order || !due) return true;
-  // yyyy-mm-dd 형식은 문자열 비교로도 날짜 선후 비교가 가능합니다.
-  return order <= due;
-}
-
-function parsePositiveIntId(v: unknown): number | undefined {
-  if (typeof v === "number" && Number.isFinite(v)) return v;
-  if (typeof v === "string" && /^\d+$/.test(v.trim())) return Number(v.trim());
-  return undefined;
-}
-
-/**
- * 
- * @param display - 단가 표시 문자열 (콤마 포함)
- * @returns 
- */
-function parseLineUnitPrice(display: string): number {
-  const n = Number(display.replace(/,/g, "").trim());
-  return Number.isFinite(n) ? n : 0;
-}
-
-/**
- * 
- * @param value - 단가 값
- * @returns 단가 표시 문자열 (콤마 포함)
- */
-function formatLineUnitPriceDisplay(value: unknown): string {
-  const raw = String(value ?? "").trim();
-  if (!raw) return "";
-  const normalized = raw.replace(/,/g, "");
-  const [intPartRaw, decPartRaw] = normalized.split(".");
-  const intDigits = (intPartRaw ?? "").replace(/\D/g, "");
-  if (!intDigits && !decPartRaw) return "";
-  const formattedInt = (intDigits || "0").replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-  if (decPartRaw == null) return formattedInt;
-  const decDigits = decPartRaw.replace(/\D/g, "");
-  return decDigits ? `${formattedInt}.${decDigits}` : formattedInt;
-}
-
-/** 환율 입력 — 비어 있으면 null (exchange_rate 미입력) */
-function parseOptionalExchangeRate(display: string): number | null {
-  const t = display.trim();
-  if (!t) return null;
-  const n = Number(t.replace(/,/g, ""));
-  return Number.isFinite(n) ? n : null;
-}
-
-/**
- * 헤더 통화 기준 라인 공급가액 (백엔드 `supplyAmount`)
- */
-function computeHeaderSupplyAmount(rows: ItemRow[], headerCurrency: string): number {
-  const cc = normalizeCurrencyCode(headerCurrency);
-  let subtotal = 0;
-  for (const row of rows) {
-    const rcc = normalizeCurrencyCode(row.currencyCode);
-    if (rcc !== cc) continue;
-    if (row.qty <= 0) continue;
-    subtotal += row.qty * parseLineUnitPrice(row.unitPrice);
-  }
-  return subtotal;
-}
-
-function isBlankProductRow(row: ItemRow): boolean {
-  return (
-    row.productId.trim() === "" &&
-    row.unitCode.trim() === "" &&
-    row.qty <= 0 &&
-    row.unitPrice.trim() === "" &&
-    row.remark.trim() === ""
-  );
-}
-
-function isPartialProductRow(row: ItemRow): boolean {
-  if (isBlankProductRow(row)) return false;
-  const price = parseLineUnitPrice(row.unitPrice);
-  return (
-    row.productId.trim() === "" ||
-    row.unitCode.trim() === "" ||
-    row.qty <= 0 ||
-    !Number.isFinite(price) ||
-    price < 0
-  );
-}
-
-/**
- * 
- * @returns 빈 행 데이터
- */
-const emptyItemRow = (): ItemRow => ({
-  lineId: undefined,
-  productId: "",
-  lensId: "",
-  unitCode: "",
-  qty: 0,
-  unitPrice: "",
-  currencyCode: "KRW",
-  requestDeliveryDate: "",
-  remark: "",
-});
-
-const LEGACY_USER_PREFIX = "legacy-user:";
-
-/**
- * 
- * @param name - 사용자 이름
- * @returns 사용자 이름 문자열 (레거시 접두사 포함)
- */
-function legacyUserValue(name: string) {
-  return `${LEGACY_USER_PREFIX}${encodeURIComponent(name)}`;
-}
-
-/**
- * 
- * @param selectValue - 사용자 선택값
- * @returns 사용자 이름 문자열 (레거시 접두사 제거)
- */
-function tryDecodeLegacyUser(selectValue: string): string | null {
-  if (!selectValue.startsWith(LEGACY_USER_PREFIX)) return null;
-  try {
-    return decodeURIComponent(selectValue.slice(LEGACY_USER_PREFIX.length));
-  } catch {
-    return null;
-  }
-}
-
-/**
- * 
- * @param selectValue - 사용자 선택값
- * @param users - 사용자 리스트
- * @returns 사용자 이름
- */
-function parseRequesterNameFromSelect(
-  selectValue: string,
-  users: EmployeeDirectoryItem[]
-): string {
-  if (!selectValue) return "";
-  const legacy = tryDecodeLegacyUser(selectValue);
-  if (legacy !== null) return legacy;
-  return (
-    users.find((u) => String(u.employeeNo) === selectValue)?.name?.trim() ?? ""
-  );
-}
-
-function parseRequesterIdFromSelect(selectValue: string): number | null {
-  if (!selectValue) return null;
-  if (tryDecodeLegacyUser(selectValue) !== null) return null;
-  const n = Number(selectValue);
-  return Number.isFinite(n) ? n : null;
-}
 
 /**
  * 
@@ -243,7 +116,7 @@ export default function OrderForm() {
   const [title, setTitle] = useState("");
   const [isTitleAutoFilled, setIsTitleAutoFilled] = useState(true);
   const [partnerId, setPartnerId] = useState<string>("");
-  const [orderDate, setOrderDate] = useState(todayString());
+  const [orderDate, setOrderDate] = useState(localYmdToday());
   const [dueDate, setDueDate] = useState("");
   const [requestDeliveryDate, setRequestDeliveryDate] = useState("");
   const [requesterUserSelectValue, setRequesterUserSelectValue] =
@@ -397,6 +270,16 @@ export default function OrderForm() {
     enabled: !!accessToken,
   });
   const productList: RepresentativeProduct[] = productListResult?.items ?? [];
+  const productById = useMemo(() => {
+    const m = new Map<string, RepresentativeProduct>();
+    productList.forEach((p) => {
+      const pid = String(p.id ?? "").trim();
+      if (pid) m.set(pid, p);
+    });
+    return m;
+  }, [productList]);
+  const { options: detectorSelectOptions, labelById: detectorLabelById } =
+    useDetectorSelectOptions(accessToken, !!accessToken);
   const { data: lensListResult } = useQuery({
     queryKey: ["lenses", "select", "active", 100],
     queryFn: () =>
@@ -409,24 +292,45 @@ export default function OrderForm() {
   });
   const lensList: LensItem[] = lensListResult?.items ?? [];
 
-  const firstLineTitleLabel = useMemo(() => {
+  const firstLineTitleParts = useMemo(() => {
     const firstRow = items[0];
-    if (!firstRow || !firstRow.productId.trim()) return "제품 미선택";
+    const qty = firstRow && Number.isFinite(firstRow.qty) ? firstRow.qty : 0;
+    if (!firstRow || !firstRow.productId.trim()) {
+      return { businessLabel: "제품미선택", productName: "", qty };
+    }
     const product = productList.find((p) => p.id === firstRow.productId);
-    if (!product) return "제품 미선택";
-    return representativeProductLabel(product);
+    if (!product) {
+      return { businessLabel: "제품미선택", productName: "", qty };
+    }
+    const businessName = (product.businessName ?? "").trim();
+    const businessCode = (product.businessCode ?? "").trim();
+    const productName = (product.productName ?? "").trim();
+    const businessLabel =
+      businessName ||
+      businessCode ||
+      representativeProductLabel(product).replace(/\s+/g, "");
+    return { businessLabel, productName, qty };
   }, [items, productList]);
 
-  const firstLineQtyLabel = useMemo(() => {
-    const firstRow = items[0];
-    if (!firstRow) return "0";
-    return String(Number.isFinite(firstRow.qty) ? firstRow.qty : 0);
-  }, [items]);
-
   const autoGeneratedTitle = useMemo(() => {
-    const dateLabel = orderDate || todayString();
-    return `${dateLabel} - ${firstLineTitleLabel} - ${firstLineQtyLabel}`;
-  }, [orderDate, firstLineTitleLabel, firstLineQtyLabel]);
+    const compactDate =
+      compactYmd(orderDate || localYmdToday()) ||
+      compactYmd(localYmdToday()) ||
+      "";
+    const { businessLabel, productName, qty } = firstLineTitleParts;
+    let productSegment = businessLabel;
+    if (
+      productName &&
+      productName !== businessLabel &&
+      !businessLabel.includes(`(${productName})`)
+    ) {
+      productSegment = `${businessLabel} (${productName})`;
+    }
+    const dateAndProduct = compactDate
+      ? `${compactDate}-${productSegment}`
+      : productSegment;
+    return `${dateAndProduct} - ${qty}`;
+  }, [orderDate, firstLineTitleParts]);
 
   const {
     data: employeeDirectory = [],
@@ -437,6 +341,41 @@ export default function OrderForm() {
     queryFn: () => getEmployeeDirectory(accessToken!),
     enabled: !!accessToken,
   });
+
+  const { data: usersForRequester = [] } = useQuery({
+    queryKey: ["users"],
+    queryFn: () => getUsers(accessToken!),
+    enabled: !!accessToken,
+  });
+
+  const { data: organizationTree = [] } = useQuery({
+    queryKey: ["organizationTree"],
+    queryFn: () => getOrganizationTree(accessToken!),
+    enabled: !!accessToken,
+  });
+
+  const requesterDepartmentForPayload = useMemo(() => {
+    const fromEmployee = requesterDepartmentPathForEmployeeNo(
+      requesterUserSelectValue,
+      usersForRequester,
+      organizationTree
+    );
+    if (fromEmployee) return fromEmployee;
+    if (!isNew && order) {
+      return (
+        order.requesterDepartment?.trim() ||
+        order.requestDepartment?.trim() ||
+        ""
+      );
+    }
+    return "";
+  }, [
+    requesterUserSelectValue,
+    usersForRequester,
+    organizationTree,
+    isNew,
+    order,
+  ]);
 
   /**
    * 
@@ -511,7 +450,7 @@ export default function OrderForm() {
       startTransition(() => {
         setTitle(order.title ?? "");
         setPartnerId(String(order.partnerId ?? ""));
-        setOrderDate(order.orderDate ?? todayString());
+        setOrderDate(order.orderDate ?? localYmdToday());
         setDueDate(order.dueDate ?? "");
         const persistedCurrencyCode = normalizeCurrencyCode(order.currencyCode);
         setOrderCurrencyCode(persistedCurrencyCode);
@@ -574,7 +513,7 @@ export default function OrderForm() {
   const productSelectOptions = useMemo(() => {
     return productList.map((p) => ({
       value: String(p.id),
-      label: representativeProductLabel(p),
+      label: representativeProductSelectLabel(p),
     }));
   }, [productList]);
 
@@ -751,6 +690,7 @@ export default function OrderForm() {
             lineId: created.id,
             productId: created.productId ?? row.productId,
             lensId: created.lensId?.trim() ?? "",
+            ...detectorFieldsFromOrderLine(created),
             unitCode: String(created.unit ?? firstUnitValue ?? "").trim(),
             qty: Number(created.qty ?? 0),
             unitPrice: formatLineUnitPriceDisplay(created.unitPrice),
@@ -891,7 +831,24 @@ export default function OrderForm() {
       const next = [...prev];
       const row = next[index];
       if (!row) return prev;
-      next[index] = { ...row, productId };
+      const product = productById.get(productId.trim());
+      const hiddenDefaults = defaultHiddenDetectorCodesForProduct(product);
+      next[index] = {
+        ...row,
+        productId,
+        detectorElementCode:
+          row.detectorElementCode.trim() || hiddenDefaults.detectorElementCode,
+        wavelengthCode: ORDER_LINE_WAVELENGTH_CODE,
+      };
+      return next;
+    });
+  };
+  const setLineDetectorId = (index: number, detectorId: string) => {
+    setItems((prev) => {
+      const next = [...prev];
+      const row = next[index];
+      if (!row) return prev;
+      next[index] = { ...row, detectorId };
       return next;
     });
   };
@@ -932,6 +889,20 @@ export default function OrderForm() {
       notify.error("대표 제품을 선택하세요.");
       return;
     }
+    if (!row.detectorId.trim()) {
+      notify.error("검출기를 선택하세요.");
+      return;
+    }
+    const detectorPayload = resolveOrderLineDetectorPayload(
+      row,
+      productById.get(row.productId.trim())
+    );
+    if (!detectorPayload) {
+      notify.error(
+        "검출기·소자 정보를 확인할 수 없습니다. 제품 사업명을 확인하세요."
+      );
+      return;
+    }
     if (!row.unitCode.trim()) {
       notify.error("단위를 선택하세요.");
       return;
@@ -951,6 +922,7 @@ export default function OrderForm() {
       const createPayload: PurchaseOrderItemPayload = {
         productId: row.productId,
         lensId: row.lensId.trim() ? row.lensId.trim() : null,
+        ...detectorPayload,
         qty: row.qty,
         unitPrice,
         unit: row.unitCode.trim() || null,
@@ -972,6 +944,7 @@ export default function OrderForm() {
         payload: {
           productId: row.productId,
           lensId: row.lensId.trim() ? row.lensId.trim() : null,
+          ...detectorPayload,
           qty: row.qty,
           unit: row.unitCode.trim() || null,
           unitPrice,
@@ -1033,6 +1006,7 @@ export default function OrderForm() {
           ...cur,
           productId: String(source.productId ?? "").trim(),
           lensId: source.lensId?.trim() ?? "",
+          ...detectorFieldsFromOrderLine(source),
           unitCode: String(source.unit ?? firstUnitValue ?? "").trim(),
           qty: Number(source.qty ?? 0),
           unitPrice: formatLineUnitPriceDisplay(source.unitPrice),
@@ -1076,26 +1050,27 @@ export default function OrderForm() {
       return;
     }
 
-    if (!isOrderDateRangeValid(orderDate, dueDate)) {
+    if (!isYmdRangeValid(orderDate, dueDate)) {
       notify.error("고객요청납기일은 발주일자보다 빠를 수 없고, 발주일자는 고객요청납기일보다 클 수 없습니다.");
       return;
     }
 
     if (isNew) {
       if (items.some((row) => isPartialProductRow(row))) {
-        notify.error("제품 라인을 확인하세요. (대표 제품·단위·수량·단가)");
+        notify.error("제품 라인을 확인하세요. (대표 제품·검출기·단위·수량·단가)");
         return;
       }
       const validItems = items.filter(
         (row) =>
           row.productId.trim() !== "" &&
+          row.detectorId.trim() !== "" &&
           row.unitCode.trim() !== "" &&
           row.qty > 0 &&
           parseLineUnitPrice(row.unitPrice) >= 0
       );
       if (validItems.length === 0) {
         notify.error(
-          "대표 제품·단위·수량·단가를 모두 입력한 라인을 1건 이상 등록하세요."
+          "대표 제품·검출기·단위·수량·단가를 모두 입력한 라인을 1건 이상 등록하세요."
         );
         return;
       }
@@ -1112,41 +1087,50 @@ export default function OrderForm() {
         order?.currencyCode ||
         "KRW";
       const supplyAmount = computeHeaderSupplyAmount(validItems, headerCurrency);
-      const payload = buildCreatePayload({
-        title,
-        partnerId,
-        orderDate,
-        dueDate,
-        requestDeliveryDate,
-        requesterDepartment: "",
-        requesterName: parseRequesterNameFromSelect(
-          requesterUserSelectValue,
-          employeeDirectory
-        ),
-        requesterId: parseRequesterIdFromSelect(requesterUserSelectValue),
-        vendorOrderNo,
-        vendorRequest,
-        specialNote,
-        effectiveOrderTypeCode,
-        effectiveOrderStatusCode,
-        headerCurrency,
-        supplyAmount,
-        exchangeRate: parseOptionalExchangeRate(exchangeRateInput),
-        validItems,
-        parseLineUnitPrice,
-      });
+      let payload: PurchaseOrderCreatePayload;
+      try {
+        payload = buildCreatePayload({
+          title,
+          partnerId,
+          orderDate,
+          dueDate,
+          requestDeliveryDate,
+          requesterDepartment: requesterDepartmentForPayload,
+          requesterName: parseRequesterNameFromSelect(
+            requesterUserSelectValue,
+            employeeDirectory
+          ),
+          requesterEmployeeNo: parseRequesterEmployeeNoFromSelect(
+            requesterUserSelectValue
+          ),
+          vendorOrderNo,
+          vendorRequest,
+          specialNote,
+          effectiveOrderTypeCode,
+          effectiveOrderStatusCode,
+          headerCurrency,
+          supplyAmount,
+          exchangeRate: parseOptionalExchangeRate(exchangeRateInput),
+          validItems,
+          productById,
+        });
+      } catch (e) {
+        notify.error(e instanceof Error ? e.message : "발주 라인을 확인하세요.");
+        return;
+      }
       createMutation.mutate(payload);
       return;
     }
 
     if (items.some((row) => isPartialProductRow(row))) {
-      notify.error("제품 라인을 확인하세요. (대표 제품·단위·수량·단가)");
+      notify.error("제품 라인을 확인하세요. (대표 제품·검출기·단위·수량·단가)");
       return;
     }
 
     const validItems = items.filter(
       (row) =>
         row.productId.trim() !== "" &&
+        row.detectorId.trim() !== "" &&
         row.unitCode.trim() !== "" &&
         row.qty > 0 &&
         parseLineUnitPrice(row.unitPrice) >= 0
@@ -1164,29 +1148,37 @@ export default function OrderForm() {
       return;
     }
 
-    const payload = buildUpdatePayload({
-      title,
-      partnerId,
-      orderDate,
-      dueDate,
-      requestDeliveryDate,
-      requesterDepartment: "",
-      requesterName: parseRequesterNameFromSelect(
-        requesterUserSelectValue,
-        employeeDirectory
-      ),
-      requesterId: parseRequesterIdFromSelect(requesterUserSelectValue),
-      vendorOrderNo,
-      vendorRequest,
-      specialNote,
-      effectiveOrderTypeCode,
-      effectiveOrderStatusCode,
-      headerCurrency,
-      supplyAmount,
-      exchangeRate: parseOptionalExchangeRate(exchangeRateInput),
-      validItems,
-      parseLineUnitPrice,
-    });
+    let payload: PurchaseOrderUpdatePayload;
+    try {
+      payload = buildUpdatePayload({
+        title,
+        partnerId,
+        orderDate,
+        dueDate,
+        requestDeliveryDate,
+        requesterDepartment: requesterDepartmentForPayload,
+        requesterName: parseRequesterNameFromSelect(
+          requesterUserSelectValue,
+          employeeDirectory
+        ),
+        requesterEmployeeNo: parseRequesterEmployeeNoFromSelect(
+          requesterUserSelectValue
+        ),
+        vendorOrderNo,
+        vendorRequest,
+        specialNote,
+        effectiveOrderTypeCode,
+        effectiveOrderStatusCode,
+        headerCurrency,
+        supplyAmount,
+        exchangeRate: parseOptionalExchangeRate(exchangeRateInput),
+        validItems,
+        productById,
+      });
+    } catch (e) {
+      notify.error(e instanceof Error ? e.message : "발주 라인을 확인하세요.");
+      return;
+    }
     updateMutation.mutate(payload);
   };
 
@@ -1201,6 +1193,7 @@ export default function OrderForm() {
             lineId: Number(line.id ?? 0) || undefined,
             productId: line.productId ?? "",
             lensId: line.lensId?.trim() ?? "",
+            ...detectorFieldsFromOrderLine(line),
             unitCode: String(line.unit ?? firstUnitValue ?? "").trim(),
             qty: Number(line.qty ?? 0),
             unitPrice: formatLineUnitPriceDisplay(line.unitPrice),
@@ -1364,7 +1357,7 @@ export default function OrderForm() {
               <div className="min-w-0">
                 <SearchableSelectWithCreate
                   id="order-requesterUser"
-                  label="영업담당자"
+                  label="영업 담당자"
                   required
                   value={requesterUserSelectValue}
                   onChange={setRequesterUserSelectValue}
@@ -1475,6 +1468,8 @@ export default function OrderForm() {
           editingLineIds={editingLineIds}
           productSelectOptions={productSelectOptions}
           lensSelectOptions={lensSelectOptions}
+          detectorSelectOptions={detectorSelectOptions}
+          detectorLabelById={detectorLabelById}
           unitOptions={unitOptions}
           currencyOptions={currencyOptions}
           exchangeRateCurrencyCode={exchangeRateCurrencyCode}
@@ -1488,6 +1483,7 @@ export default function OrderForm() {
           onAddItemRow={addItemRow}
           onSetLineProductId={setLineProductId}
           onSetLineLensId={setLineLensId}
+          onSetLineDetectorId={setLineDetectorId}
           onUpdateItemRow={updateItemRow}
           onRemoveItemRow={removeItemRow}
           onSaveLine={saveLine}

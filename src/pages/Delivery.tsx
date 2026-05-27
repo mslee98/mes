@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import SegmentedControl from "../components/common/SegmentedControl";
 import { useCommonCodesByGroup } from "../hooks/useCommonCodesByGroup";
 import { usePartnerListFilter } from "../hooks/usePartnerListFilter";
 import { useServerListPagination } from "../hooks/useServerListPagination";
@@ -7,10 +8,10 @@ import { Link } from "react-router";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import PageMeta from "../components/common/PageMeta";
 import Input from "../components/form/input/InputField";
-import Select from "../components/form/Select";
 import SearchableSelectWithCreate from "../components/form/SearchableSelectWithCreate";
 import PartnerQuickCreateModal from "../components/form/PartnerQuickCreateModal";
 import {
+  SortableHeaderCell,
   Table,
   TableBody,
   TableCell,
@@ -27,17 +28,100 @@ import {
 } from "../components/list";
 import ListPageLoading from "../components/common/ListPageLoading";
 import { useAuth } from "../hooks/useAuth";
-import { getDeliveriesList, type Delivery, type Partner } from "../api/purchaseOrder";
+import {
+  getDeliveriesTabCounts,
+  getDeliveriesList,
+  type Delivery,
+  type DeliveryListParams,
+  type DeliveryListTab,
+  type Partner,
+} from "../api/purchaseOrder";
 import {
   COMMON_CODE_GROUP_DELIVERY_STATUS,
   COMMON_CODE_GROUP_COUNTRY,
-  commonCodesToSelectOptions,
   type CommonCodeItem,
 } from "../api/commonCode";
 import { partnerSelectLabel } from "../lib/partnerDisplay";
 import { badgeColorFromKoStatusLabel } from "../lib/badgeStatusColor";
 
 const DEFAULT_PAGE_SIZE = 20;
+type DeliverySortKey = NonNullable<DeliveryListParams["sortBy"]>;
+type DeliveryTab = DeliveryListTab;
+
+const DEFAULT_DELIVERY_SORT_KEY: DeliverySortKey = "deliveryDate";
+const DEFAULT_DELIVERY_TAB: DeliveryTab = "ALL";
+
+const DELIVERY_TABS: Array<{ value: DeliveryTab; label: string }> = [
+  { value: "ALL", label: "전체" },
+  { value: "PENDING", label: "대기" },
+  { value: "READY", label: "준비" },
+  { value: "COMPLETED", label: "완료" },
+  { value: "DELAYED", label: "지연" },
+];
+
+function getDefaultDeliverySortOrder(sortKey: DeliverySortKey): "asc" | "desc" {
+  switch (sortKey) {
+    case "createdAt":
+    case "deliveryDate":
+      return "desc";
+    default:
+      return "asc";
+  }
+}
+
+function deliveryTabCount(
+  tab: DeliveryTab,
+  counts?: {
+    all?: number;
+    pending?: number;
+    ready?: number;
+    completed?: number;
+    delayed?: number;
+  }
+): number {
+  if (!counts) return 0;
+  if (tab === "ALL") return Number(counts.all) || 0;
+  if (tab === "PENDING") return Number(counts.pending) || 0;
+  if (tab === "READY") return Number(counts.ready) || 0;
+  if (tab === "COMPLETED") return Number(counts.completed) || 0;
+  return Number(counts.delayed) || 0;
+}
+
+function deliveryTabCountBadge(tab: DeliveryTab, count: number) {
+  if (tab === "ALL") {
+    return (
+      <Badge size="sm" variant="solid" color="dark">
+        {count}
+      </Badge>
+    );
+  }
+  if (tab === "READY") {
+    return (
+      <Badge size="sm" color="primary">
+        {count}
+      </Badge>
+    );
+  }
+  if (tab === "COMPLETED") {
+    return (
+      <Badge size="sm" color="success">
+        {count}
+      </Badge>
+    );
+  }
+  if (tab === "DELAYED") {
+    return (
+      <Badge size="sm" color="warning">
+        {count}
+      </Badge>
+    );
+  }
+  return (
+    <Badge size="sm" color="info">
+      {count}
+    </Badge>
+  );
+}
 
 function deliveryOrderId(d: Delivery): number | undefined {
   const o = d.order;
@@ -70,10 +154,14 @@ export default function Delivery() {
   const [searchKeyword, setSearchKeyword] = useState("");
   const [searchOptionsOpen, setSearchOptionsOpen] = useState(false);
   const [orderIdFilter, setOrderIdFilter] = useState("");
-  const [deliveryStatus, setDeliveryStatus] = useState("");
   const [searchKey, setSearchKey] = useState(0);
+  const [tab, setTab] = useState<DeliveryTab>(DEFAULT_DELIVERY_TAB);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [sortBy, setSortBy] = useState<DeliverySortKey>(DEFAULT_DELIVERY_SORT_KEY);
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">(
+    getDefaultDeliverySortOrder(DEFAULT_DELIVERY_SORT_KEY)
+  );
 
   const { data: countryCodes = [] } = useCommonCodesByGroup(
     COMMON_CODE_GROUP_COUNTRY,
@@ -100,11 +188,23 @@ export default function Delivery() {
     return {
       page,
       pageSize,
+      q: searchKeyword.trim() || undefined,
       partnerId: partnerId || undefined,
       orderId: oid || undefined,
-      status: deliveryStatus || undefined,
+      tab,
+      sortBy,
+      sortOrder,
     };
-  }, [page, pageSize, partnerId, orderIdFilter, deliveryStatus]);
+  }, [
+    page,
+    pageSize,
+    searchKeyword,
+    partnerId,
+    orderIdFilter,
+    tab,
+    sortBy,
+    sortOrder,
+  ]);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["deliveriesList", listParams],
@@ -114,13 +214,35 @@ export default function Delivery() {
 
   const totalCount = data?.total ?? 0;
 
+  const tabCountParams = useMemo(
+    () => ({
+      q: searchKeyword.trim() || undefined,
+      partnerId: partnerId || undefined,
+      orderId: orderIdFilter.trim() || undefined,
+    }),
+    [searchKeyword, partnerId, orderIdFilter]
+  );
+
+  const { data: tabCounts } = useQuery({
+    queryKey: ["deliveriesTabCounts", tabCountParams],
+    queryFn: () => getDeliveriesTabCounts(accessToken!, tabCountParams),
+    enabled: !!accessToken && !isAuthLoading,
+  });
+
   const listPagination = useServerListPagination({
     totalCount,
     listPage: page,
     setListPage: setPage,
     listPageSize: pageSize,
     setListPageSize: setPageSize,
-    resetPageDeps: [partnerId, orderIdFilter, deliveryStatus],
+    resetPageDeps: [
+      searchKeyword,
+      partnerId,
+      orderIdFilter,
+      tab,
+      sortBy,
+      sortOrder,
+    ],
   });
 
   const { data: deliveryStatusCodes = [] } = useCommonCodesByGroup(
@@ -129,38 +251,28 @@ export default function Delivery() {
     { enabled: !!accessToken && !isAuthLoading }
   );
 
-  const deliveryStatusOptions = useMemo(() => {
-    const list: { value: string; label: string }[] = [{ value: "", label: "전체" }];
-    commonCodesToSelectOptions(deliveryStatusCodes).forEach((o) => list.push(o));
-    return list;
-  }, [deliveryStatusCodes]);
-
-  const displayRows = useMemo(() => {
-    const items = data?.items ?? [];
-    const kw = searchKeyword.trim().toLowerCase();
-    if (!kw) return items;
-    return items.filter((d) => {
-      const title = (d.title ?? "").toLowerCase();
-      const no = (d.deliveryNo ?? "").toLowerCase();
-      const orderNo = deliveryOrderNo(d).toLowerCase();
-      const orderTitle = deliveryOrderTitle(d).toLowerCase();
-      const partner = partnerLabel(d, countryCodes).toLowerCase();
-      return (
-        title.includes(kw) ||
-        no.includes(kw) ||
-        orderNo.includes(kw) ||
-        orderTitle.includes(kw) ||
-        partner.includes(kw) ||
-        String(d.id).includes(kw)
-      );
-    });
-  }, [data?.items, searchKeyword, countryCodes]);
+  const tabOptions = useMemo(
+    () =>
+      DELIVERY_TABS.map((tabOption) => {
+        const count = deliveryTabCount(tabOption.value, tabCounts);
+        return {
+          value: tabOption.value,
+          label: (
+            <span className="inline-flex items-center gap-2">
+              <span>{tabOption.label}</span>
+              {deliveryTabCountBadge(tabOption.value, count)}
+            </span>
+          ),
+        };
+      }),
+    [tabCounts]
+  );
 
   const handleSearchReset = () => {
     setSearchKeyword("");
     setPartnerId("");
     setOrderIdFilter("");
-    setDeliveryStatus("");
+    setTab(DEFAULT_DELIVERY_TAB);
     setPage(1);
     remountPartnerField();
     setSearchKey((k) => k + 1);
@@ -172,7 +284,18 @@ export default function Delivery() {
     return deliveryStatusCodes.find((x) => x.code === c)?.name ?? c;
   };
 
-  const keywordActive = searchKeyword.trim().length > 0;
+  const rows = data?.items ?? [];
+
+  const handleDeliverySortToggle = (nextSortKey: string) => {
+    const normalizedSortKey = nextSortKey as DeliverySortKey;
+    setPage(1);
+    if (sortBy === normalizedSortKey) {
+      setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setSortBy(normalizedSortKey);
+    setSortOrder(getDefaultDeliverySortOrder(normalizedSortKey));
+  };
 
   return (
     <>
@@ -189,7 +312,7 @@ export default function Delivery() {
               search={
                 <DataListSearchInput
                   id="delivery-simple-search"
-                  placeholder="납품번호·제목·발주·거래처 (현재 페이지만)"
+                  placeholder="납품번호, 제목, 발주번호, 거래처 검색"
                   value={searchKeyword}
                   onChange={setSearchKeyword}
                 />
@@ -225,32 +348,17 @@ export default function Delivery() {
               </div>
               <div key={`orderId-${searchKey}`} className="min-w-0 flex-1 sm:max-w-[10rem]">
                 <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  발주 ID
+                  발주 UUID
                 </label>
                 <Input
                   type="text"
-                  placeholder="전체"
+                  placeholder="UUID 입력"
                   value={orderIdFilter}
                   onChange={(e) => {
                     setOrderIdFilter(e.target.value);
                     setPage(1);
                   }}
                   className="h-9"
-                />
-              </div>
-              <div key={`deliveryStatus-${searchKey}`} className="min-w-0 flex-1 sm:max-w-[12rem]">
-                <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  납품 상태
-                </label>
-                <Select
-                  size="sm"
-                  options={deliveryStatusOptions}
-                  placeholder="전체"
-                  defaultValue={deliveryStatus}
-                  onChange={(v) => {
-                    setDeliveryStatus(v);
-                    setPage(1);
-                  }}
                 />
               </div>
               <div className="flex shrink-0 gap-2">
@@ -265,11 +373,21 @@ export default function Delivery() {
             </>
           }
           belowSearchOptions={
-            keywordActive ? (
-              <p className="pt-2 text-xs text-gray-500 dark:text-gray-400">
-                검색어는 서버 필터가 아닌 <strong className="font-medium">현재 페이지</strong> 결과에만 적용됩니다.
+            <div className="space-y-2 border-b border-gray-100 pt-2 pb-3 dark:border-white/[0.05]">
+              <SegmentedControl
+                ariaLabel="납품 상태 탭"
+                value={tab}
+                onChange={(nextTab) => {
+                  setTab(nextTab);
+                  setPage(1);
+                }}
+                options={tabOptions}
+              />
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                현재 탭: {DELIVERY_TABS.find((tabOption) => tabOption.value === tab)?.label ?? "전체"} / 총{" "}
+                {tabCounts?.total ?? totalCount}건
               </p>
-            ) : undefined
+            </div>
           }
           pagination={!isLoading && !error ? <TablePagination {...listPagination} /> : null}
         >
@@ -283,58 +401,67 @@ export default function Delivery() {
             <Table>
               <TableHeader className="border-b border-gray-100 dark:border-white/[0.05]">
                 <TableRow>
-                  <TableCell
-                    isHeader
+                  <SortableHeaderCell
+                    label="납품"
+                    sortKey="deliveryNo"
+                    activeSortBy={sortBy}
+                    activeSortOrder={sortOrder}
+                    onToggleSort={handleDeliverySortToggle}
                     className="px-3 py-1 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
-                  >
-                    납품
-                  </TableCell>
-                  <TableCell
-                    isHeader
+                  />
+                  <SortableHeaderCell
+                    label="발주번호"
+                    sortKey="orderNo"
+                    activeSortBy={sortBy}
+                    activeSortOrder={sortOrder}
+                    onToggleSort={handleDeliverySortToggle}
                     className="px-3 py-1 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
-                  >
-                    발주번호
-                  </TableCell>
+                  />
                   <TableCell
                     isHeader
                     className="px-3 py-1 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
                   >
                     발주 제목
                   </TableCell>
-                  <TableCell
-                    isHeader
+                  <SortableHeaderCell
+                    label="거래처"
+                    sortKey="partnerName"
+                    activeSortBy={sortBy}
+                    activeSortOrder={sortOrder}
+                    onToggleSort={handleDeliverySortToggle}
                     className="px-3 py-1 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
-                  >
-                    거래처
-                  </TableCell>
-                  <TableCell
-                    isHeader
+                  />
+                  <SortableHeaderCell
+                    label="납품일"
+                    sortKey="deliveryDate"
+                    activeSortBy={sortBy}
+                    activeSortOrder={sortOrder}
+                    onToggleSort={handleDeliverySortToggle}
                     className="px-3 py-1 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
-                  >
-                    납품일
-                  </TableCell>
-                  <TableCell
-                    isHeader
+                  />
+                  <SortableHeaderCell
+                    label="납품 상태"
+                    sortKey="status"
+                    activeSortBy={sortBy}
+                    activeSortOrder={sortOrder}
+                    onToggleSort={handleDeliverySortToggle}
+                    align="center"
                     className="px-3 py-1 font-medium text-gray-500 text-center text-theme-xs dark:text-gray-400"
-                  >
-                    납품 상태
-                  </TableCell>
+                  />
                 </TableRow>
               </TableHeader>
               <TableBody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
-                {displayRows.length === 0 ? (
+                {rows.length === 0 ? (
                   <TableRow>
                     <TableCell
                       colSpan={6}
                       className="px-3 py-4 text-center text-theme-sm text-gray-500 dark:text-gray-400"
                     >
-                      {(data?.items ?? []).length === 0
-                        ? "조건에 맞는 납품이 없습니다."
-                        : "현재 페이지에서 검색 결과가 없습니다."}
+                      조건에 맞는 납품이 없습니다.
                     </TableCell>
                   </TableRow>
                 ) : (
-                  displayRows.map((row) => {
+                  rows.map((row) => {
                     const oid = deliveryOrderId(row);
                     return (
                       <TableRow key={row.id}>

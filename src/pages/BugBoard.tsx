@@ -38,23 +38,13 @@ import {
   type BugBoardStatus,
   type BugPriority,
 } from "../api/devBoards";
-
-const STATUS_FILTER_OPTIONS = [
-  { value: "all", label: "전체" },
-  { value: "OPEN", label: "OPEN" },
-  { value: "IN_PROGRESS", label: "IN_PROGRESS" },
-  { value: "FIXED", label: "FIXED" },
-  { value: "VERIFIED", label: "VERIFIED" },
-  { value: "CLOSED", label: "CLOSED" },
-];
-
-const PRIORITY_FILTER_OPTIONS = [
-  { value: "all", label: "전체" },
-  { value: "LOW", label: "LOW" },
-  { value: "MEDIUM", label: "MEDIUM" },
-  { value: "HIGH", label: "HIGH" },
-  { value: "URGENT", label: "URGENT" },
-];
+import {
+  BUG_BOARD_PRIORITY_FILTER_OPTIONS,
+  BUG_BOARD_STATUS_FILTER_OPTIONS,
+  labelForBugBoardStatus,
+  labelForBugPriority,
+  statusBadgeColor,
+} from "../lib/bugBoardDisplay";
 
 type BugBoardFormState = {
   title: string;
@@ -69,14 +59,6 @@ const EMPTY_FORM: BugBoardFormState = {
   priority: "MEDIUM",
   status: "OPEN",
 };
-
-function statusBadgeColor(status: string): "success" | "warning" | "error" | "info" {
-  const normalized = status.trim().toUpperCase();
-  if (normalized === "CLOSED") return "error";
-  if (normalized === "FIXED" || normalized === "VERIFIED") return "success";
-  if (normalized === "IN_PROGRESS") return "warning";
-  return "info";
-}
 
 export default function BugBoard() {
   const queryClient = useQueryClient();
@@ -279,7 +261,7 @@ export default function BugBoard() {
               <div className="w-full sm:w-52">
                 <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">상태</p>
                 <Select
-                  options={STATUS_FILTER_OPTIONS}
+                  options={BUG_BOARD_STATUS_FILTER_OPTIONS}
                   value={statusFilter}
                   onChange={setStatusFilter}
                   size="md"
@@ -288,7 +270,7 @@ export default function BugBoard() {
               <div className="w-full sm:w-52">
                 <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">우선순위</p>
                 <Select
-                  options={PRIORITY_FILTER_OPTIONS}
+                  options={BUG_BOARD_PRIORITY_FILTER_OPTIONS}
                   value={priorityFilter}
                   onChange={setPriorityFilter}
                   size="md"
@@ -403,11 +385,11 @@ export default function BugBoard() {
                         {item.title}
                       </TableCell>
                       <TableCell className="px-5 py-4 text-sm text-gray-600 dark:text-gray-300">
-                        {item.priority}
+                        {labelForBugPriority(item.priority)}
                       </TableCell>
                       <TableCell className="px-5 py-4 text-sm">
                         <Badge size="sm" color={statusBadgeColor(item.status)}>
-                          {item.status}
+                          {labelForBugBoardStatus(item.status)}
                         </Badge>
                       </TableCell>
                       <TableCell className="px-5 py-4 text-sm text-gray-500 dark:text-gray-400">
@@ -428,11 +410,15 @@ export default function BugBoard() {
         isOpen={createModalOpen}
         onClose={() => setCreateModalOpen(false)}
         className="mx-4 w-full max-w-2xl p-6"
-      >
-        <div className="space-y-4">
+        header={
           <h3 className="pr-10 text-lg font-semibold text-gray-900 dark:text-white">
             버그 게시글 등록
+            <p className="mt-1 text-theme-sm text-gray-500 dark:text-gray-400">버그 게시글을 등록합니다.</p>
           </h3>
+        }
+
+      >
+        <div className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <label htmlFor="create-bug-title" className="text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -455,7 +441,7 @@ export default function BugBoard() {
                 </label>
                 <Select
                   id="create-bug-priority"
-                  options={PRIORITY_FILTER_OPTIONS.filter((x) => x.value !== "all")}
+                  options={BUG_BOARD_PRIORITY_FILTER_OPTIONS.filter((x) => x.value !== "all")}
                   value={String(createForm.priority)}
                   onChange={(value) =>
                     setCreateForm((prev) => ({ ...prev, priority: value }))
@@ -468,7 +454,7 @@ export default function BugBoard() {
                 </label>
                 <Select
                   id="create-bug-status"
-                  options={STATUS_FILTER_OPTIONS.filter((x) => x.value !== "all")}
+                  options={BUG_BOARD_STATUS_FILTER_OPTIONS.filter((x) => x.value !== "all")}
                   value={String(createForm.status)}
                   onChange={(value) =>
                     setCreateForm((prev) => ({ ...prev, status: value }))
@@ -555,7 +541,7 @@ export default function BugBoard() {
                   </label>
                   <Select
                     id="bug-priority"
-                    options={PRIORITY_FILTER_OPTIONS.filter((x) => x.value !== "all")}
+                    options={BUG_BOARD_PRIORITY_FILTER_OPTIONS.filter((x) => x.value !== "all")}
                     value={String(editForm.priority)}
                     onChange={(value) =>
                       setEditForm((prev) => ({ ...prev, priority: value }))
@@ -568,7 +554,7 @@ export default function BugBoard() {
                   </label>
                   <Select
                     id="bug-status"
-                    options={STATUS_FILTER_OPTIONS.filter((x) => x.value !== "all")}
+                    options={BUG_BOARD_STATUS_FILTER_OPTIONS.filter((x) => x.value !== "all")}
                     value={String(editForm.status)}
                     onChange={(value) =>
                       setEditForm((prev) => ({ ...prev, status: value }))

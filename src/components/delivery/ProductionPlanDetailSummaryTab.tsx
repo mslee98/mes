@@ -1,14 +1,14 @@
-import type { DeliveryPlan } from "../../api/purchaseOrder";
+import type { ProductionPlan } from "../../api/purchaseOrder";
 import { formatDateTimeKo } from "../../lib/dateFormat";
 import Badge from "../ui/badge/Badge";
 
-type DeliveryPlanDetailSummaryTabProps = {
-  plan: DeliveryPlan;
+type ProductionPlanDetailSummaryTabProps = {
+  plan: ProductionPlan;
 };
 
-export function DeliveryPlanDetailSummaryTab({
+export function ProductionPlanDetailSummaryTab({
   plan,
-}: DeliveryPlanDetailSummaryTabProps) {
+}: ProductionPlanDetailSummaryTabProps) {
   return (
     <div className="space-y-6">
       <dl className="grid gap-3 text-theme-sm sm:grid-cols-2">
@@ -45,9 +45,9 @@ export function DeliveryPlanDetailSummaryTab({
         <div>
           <dt className="text-gray-500 dark:text-gray-400">담당자</dt>
           <dd className="mt-0.5 text-gray-800 dark:text-white/90">
-            {plan.deliveryManager?.name?.trim() ||
-              (plan.deliveryManagerId != null
-                ? `#${plan.deliveryManagerId}`
+            {plan.productionManager?.name?.trim() ||
+              (plan.productionManagerId != null
+                ? `#${plan.productionManagerId}`
                 : "—")}
           </dd>
         </div>

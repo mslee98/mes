@@ -32,6 +32,11 @@ export function TablePagination({
   handlePageSizeChange,
   pageSizeOptions = PAGE_SIZE_OPTIONS,
 }: TablePaginationProps) {
+  const summaryLabel =
+    totalCount === 0
+      ? "총 0개"
+      : `전체 ${totalCount}개 중 ${startItem}-${endItem}개 표시`;
+
   return (
     <nav
       className="flex flex-col items-start justify-between gap-3 border-t border-gray-100 pt-4 dark:border-white/[0.05] md:flex-row md:items-center md:gap-0"
@@ -39,23 +44,15 @@ export function TablePagination({
     >
       <div className="flex flex-wrap items-center gap-3">
         <span className="text-sm font-normal text-gray-500 dark:text-gray-400">
-          Showing{" "}
-          <span className="font-semibold text-gray-900 dark:text-white">
-            {startItem}-{endItem}
-          </span>{" "}
-          of{" "}
-          <span className="font-semibold text-gray-900 dark:text-white">
-            {totalCount}
-          </span>
+          {summaryLabel}
         </span>
         <div className="flex items-center gap-2">
           <span className="text-sm text-gray-500 dark:text-gray-400">표시</span>
           <Select
-            key={`page-size-${pageSize}`}
             size="sm"
             options={[...pageSizeOptions]}
             placeholder="10개씩 보기"
-            defaultValue={String(pageSize)}
+            value={String(pageSize)}
             onChange={handlePageSizeChange}
             className="!w-auto min-w-[7rem]"
           />

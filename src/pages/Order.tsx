@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { usePartnerListFilter } from "../hooks/usePartnerListFilter";
+import { useServerListPagination } from "../hooks/useServerListPagination";
 import { useOrderCommonCodes } from "../hooks/useOrderCommonCodes";
 import { Link, useNavigate } from "react-router";
 import flatpickr from "flatpickr";
@@ -12,6 +13,7 @@ import Select from "../components/form/Select";
 import SearchableSelectWithCreate from "../components/form/SearchableSelectWithCreate";
 import { PartnerCountryCell } from "../components/partner/PartnerCountryCell";
 import {
+  SortableHeaderCell,
   Table,
   TableBody,
   TableCell,
@@ -20,7 +22,6 @@ import {
 } from "../components/ui/table";
 import Badge from "../components/ui/badge/Badge";
 import { Dropdown } from "../components/ui/dropdown/Dropdown";
-import { usePagination } from "../hooks/usePagination";
 import {
   DataListSearchInput,
   DataListSearchOptionsButton,
@@ -34,16 +35,28 @@ import ListPageLoading from "../components/common/ListPageLoading";
 import { useAuth } from "../hooks/useAuth";
 import {
   getPurchaseOrders,
-  type PurchaseOrderListItem,
   type Partner,
+  type PurchaseOrderListParams,
 } from "../api/purchaseOrder";
 import { commonCodesToSelectOptions } from "../api/commonCode";
-import { partnerSelectLabel } from "../lib/partnerDisplay";
 import { FileIcon } from "../icons";
 import { badgeColorFromKoStatusLabel } from "../lib/badgeStatusColor";
 // import { formatCurrency } from "../lib/formatCurrency";
 
-const PAGE_SIZE = 10;
+const DEFAULT_PAGE_SIZE = 10;
+type PurchaseOrderSortKey = NonNullable<PurchaseOrderListParams["sortBy"]>;
+
+const DEFAULT_ORDER_SORT_KEY: PurchaseOrderSortKey = "orderedAt";
+
+function getDefaultOrderSortOrder(sortKey: PurchaseOrderSortKey): "asc" | "desc" {
+  switch (sortKey) {
+    case "orderedAt":
+    case "dueDate":
+      return "desc";
+    default:
+      return "asc";
+  }
+}
 
 export default function Order() {
   const navigate = useNavigate();
@@ -55,6 +68,12 @@ export default function Order() {
   const [dateStart, setDateStart] = useState("");
   const [dateEnd, setDateEnd] = useState("");
   const [searchKey, setSearchKey] = useState(0);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [sortBy, setSortBy] = useState<PurchaseOrderSortKey>(DEFAULT_ORDER_SORT_KEY);
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">(
+    getDefaultOrderSortOrder(DEFAULT_ORDER_SORT_KEY)
+  );
   const dateRangeInputRef = useRef<HTMLInputElement>(null);
   const flatpickrAnchorRef = useRef<HTMLDivElement>(null);
 
@@ -77,16 +96,52 @@ export default function Order() {
 
   const listParams = useMemo(
     () => ({
+      page,
+      pageSize,
+      q: searchKeyword.trim() || undefined,
       partnerId: partnerId || undefined,
+      orderedFrom: dateStart || undefined,
+      orderedTo: dateEnd || undefined,
       status: orderStatus || undefined,
+      sortBy,
+      sortOrder,
     }),
-    [partnerId, orderStatus]
+    [
+      page,
+      pageSize,
+      searchKeyword,
+      partnerId,
+      dateStart,
+      dateEnd,
+      orderStatus,
+      sortBy,
+      sortOrder,
+    ]
   );
 
-  const { data: orders = [], isLoading, error } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ["purchaseOrders", listParams],
     queryFn: () => getPurchaseOrders(accessToken!, listParams),
     enabled: !!accessToken && !isAuthLoading,
+  });
+
+  const totalCount = data?.total ?? 0;
+
+  const pagination = useServerListPagination({
+    totalCount,
+    listPage: page,
+    setListPage: setPage,
+    listPageSize: pageSize,
+    setListPageSize: setPageSize,
+    resetPageDeps: [
+      searchKeyword,
+      partnerId,
+      orderStatus,
+      dateStart,
+      dateEnd,
+      sortBy,
+      sortOrder,
+    ],
   });
 
   useEffect(() => {
@@ -110,8 +165,8 @@ export default function Order() {
         }
       },
       onChange: (selectedDates: Date[]) => {
-        if (selectedDates[0]) setDateStart(selectedDates[0].toISOString().slice(0, 10));
-        if (selectedDates[1]) setDateEnd(selectedDates[1].toISOString().slice(0, 10));
+        setDateStart(selectedDates[0] ? selectedDates[0].toISOString().slice(0, 10) : "");
+        setDateEnd(selectedDates[1] ? selectedDates[1].toISOString().slice(0, 10) : "");
       },
     });
     return () => {
@@ -125,40 +180,7 @@ export default function Order() {
     return list;
   }, [orderStatusCodes]);
 
-  const filteredByKeywordAndDate = useMemo(() => {
-    let list = orders as PurchaseOrderListItem[];
-    const kw = searchKeyword.trim().toLowerCase();
-    if (kw) {
-      list = list.filter((o) => {
-        const partner = o.partner as Partner | undefined;
-        const partnerLine = partner
-          ? partnerSelectLabel(partner, countryCodes).toLowerCase()
-          : "";
-        return (
-          (o.orderNo && o.orderNo.toLowerCase().includes(kw)) ||
-          (o.title && o.title.toLowerCase().includes(kw)) ||
-          (partner?.name && partner.name.toLowerCase().includes(kw)) ||
-          (partner?.code && partner.code.toLowerCase().includes(kw)) ||
-          partnerLine.includes(kw)
-        );
-      });
-    }
-    if (dateStart) {
-      list = list.filter((o) => o.orderDate >= dateStart);
-    }
-    if (dateEnd) {
-      list = list.filter((o) => o.orderDate <= dateEnd);
-    }
-    return list;
-  }, [orders, searchKeyword, dateStart, dateEnd, countryCodes]);
-
-  const totalCount = filteredByKeywordAndDate.length;
-  const pagination = usePagination({ totalCount, initialPageSize: PAGE_SIZE });
-  const { startItem, endItem } = pagination;
-  const pageList = useMemo(
-    () => filteredByKeywordAndDate.slice(startItem - 1, endItem),
-    [filteredByKeywordAndDate, startItem, endItem]
-  );
+  const pageList = data?.items ?? [];
 
   const handleSearchReset = () => {
     setSearchKeyword("");
@@ -166,6 +188,7 @@ export default function Order() {
     setOrderStatus("");
     setDateStart("");
     setDateEnd("");
+    setPage(1);
     remountPartnerField();
     setSearchKey((k) => k + 1);
   };
@@ -174,6 +197,17 @@ export default function Order() {
     const c = code?.trim();
     if (!c) return "미지정";
     return orderStatusCodes.find((x) => x.code === c)?.name ?? c;
+  };
+
+  const handleOrderSortToggle = (nextSortKey: string) => {
+    const normalizedSortKey = nextSortKey as PurchaseOrderSortKey;
+    setPage(1);
+    if (sortBy === normalizedSortKey) {
+      setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setSortBy(normalizedSortKey);
+    setSortOrder(getDefaultOrderSortOrder(normalizedSortKey));
   };
   return (
     <>
@@ -288,7 +322,7 @@ export default function Order() {
                   size="sm"
                   options={orderStatusOptions}
                   placeholder="전체"
-                  defaultValue={orderStatus}
+                  value={orderStatus}
                   onChange={setOrderStatus}
                 />
               </div>
@@ -334,12 +368,48 @@ export default function Order() {
             <Table>
               <TableHeader className="border-b border-gray-100 dark:border-white/[0.05]">
                 <TableRow>
-                  <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">발주번호</TableCell>
+                  <SortableHeaderCell
+                    label="발주번호"
+                    sortKey="orderNo"
+                    activeSortBy={sortBy}
+                    activeSortOrder={sortOrder}
+                    onToggleSort={handleOrderSortToggle}
+                    className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
+                  />
                   <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">제목</TableCell>
-                  <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">고객</TableCell>
-                  <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">발주일자</TableCell>
-                  <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">요청납기</TableCell>
-                  <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-center text-theme-xs dark:text-gray-400">발주 상태</TableCell>
+                  <SortableHeaderCell
+                    label="고객"
+                    sortKey="partnerName"
+                    activeSortBy={sortBy}
+                    activeSortOrder={sortOrder}
+                    onToggleSort={handleOrderSortToggle}
+                    className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
+                  />
+                  <SortableHeaderCell
+                    label="발주일자"
+                    sortKey="orderedAt"
+                    activeSortBy={sortBy}
+                    activeSortOrder={sortOrder}
+                    onToggleSort={handleOrderSortToggle}
+                    className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
+                  />
+                  <SortableHeaderCell
+                    label="요청납기"
+                    sortKey="dueDate"
+                    activeSortBy={sortBy}
+                    activeSortOrder={sortOrder}
+                    onToggleSort={handleOrderSortToggle}
+                    className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
+                  />
+                  <SortableHeaderCell
+                    label="발주 상태"
+                    sortKey="status"
+                    activeSortBy={sortBy}
+                    activeSortOrder={sortOrder}
+                    onToggleSort={handleOrderSortToggle}
+                    align="center"
+                    className="px-5 py-3 font-medium text-gray-500 text-center text-theme-xs dark:text-gray-400"
+                  />
                   <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-center text-theme-xs dark:text-gray-400">
                     첨부
                     <span className="sr-only">첨부 파일 여부</span>

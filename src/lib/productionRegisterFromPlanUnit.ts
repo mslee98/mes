@@ -2,7 +2,7 @@ import type {
   Delivery,
   DeliveryCreatePayload,
   DeliveryCreateLineSerialPayload,
-  DeliveryPlanUnit,
+  ProductionPlanUnit,
   DeliveryRecordLine,
 } from "../api/purchaseOrder";
 
@@ -58,14 +58,14 @@ export function findProductDeliveryItemId(
 }
 
 /**
- * 납품 계획 유닛 1대 기준 최소 `DeliveryCreatePayload` (실제 납품 등록 API 본문).
+ * 생산 계획 유닛 1대 기준 최소 `DeliveryCreatePayload` (실제 납품 등록 API 본문).
  * 발주 상세 납품 모달과 동일하게 `lineType: PRODUCT`, `lineId` = 발주 품목 id.
  */
 export function buildMinimalDeliveryCreatePayloadFromPlanUnit(params: {
   deliveryDate: string;
   remark?: string | null;
   purchaseOrderItemId: number;
-  unit: DeliveryPlanUnit;
+  unit: ProductionPlanUnit;
 }): DeliveryCreatePayload {
   const { deliveryDate, remark, purchaseOrderItemId, unit } = params;
   const d = deliveryDate.trim();

@@ -66,6 +66,10 @@ import { ReactComponent as UserGroupIcon } from "./user-group.svg?react";
 import { ReactComponent as ArrowDownTrayIcon } from "./arrow-down-tray.svg?react";
 import { ReactComponent as ArrowTopRightOnSquareIcon } from "./arrow-top-right-on-square.svg?react";
 import { ReactComponent as BugAntIcon } from "./bug-ant.svg?react";
+import { ReactComponent as HomeModernIcon } from "./home-modern.svg?react";
+import { ReactComponent as ReceiptPercentIcon } from "./receipt-percent.svg?react";
+import { ReactComponent as PresentationChartBarIcon } from "./presentation-chart-bar.svg?react";
+import { ReactComponent as CogIcon } from "./cog.svg?react";
 
 export {
   ErrorHexaIcon,
@@ -136,4 +140,8 @@ export {
   ArrowDownTrayIcon,
   ArrowTopRightOnSquareIcon,
   BugAntIcon,
+  HomeModernIcon,
+  ReceiptPercentIcon,
+  PresentationChartBarIcon,
+  CogIcon,
 };
