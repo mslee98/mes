@@ -45,21 +45,29 @@ const SHARED_SUFFIX_PROCESS_CODES = [
   UNIT_PROCESS_STEP_CODE_READY_TO_DELIVER,
 ] as const;
 
-/** 발주 라인 스냅샷 — 제품 시리얼 채번용 */
-export type PlanUnitOrderLineSnapshot = Pick<
-  PurchaseOrderItem,
-  | "productId"
-  | "itemName"
-  | "productNameSnapshot"
-  | "businessNameSnapshot"
-  | "definitionNameSnapshot"
-  | "versionSnapshot"
-  | "businessName"
-  | "spec"
-  | "detectorElementCode"
-  | "wavelengthCode"
-  | "detectorId"
->;
+function completedProcessStepsForUnit(
+  currentProcessCode: string | null | undefined,
+  visibleSteps: CommonCodeItem[]
+): number {
+  const currentIndex = findProcessStepIndex(currentProcessCode, visibleSteps);
+  if (currentIndex <= 0) return 0;
+  return Math.min(currentIndex, visibleSteps.length);
+}
+
+/** 발주 라인 스냅샷 — 일부 정보가 비어 있어도 시리얼 보조 계산은 가능해야 함 */
+export type PlanUnitOrderLineSnapshot = {
+  productId?: string | null;
+  itemName?: string | null;
+  productNameSnapshot?: string | null;
+  businessNameSnapshot?: string | null;
+  definitionNameSnapshot?: string | null;
+  versionSnapshot?: string | null;
+  businessName?: string | null;
+  spec?: string | null;
+  detectorElementCode?: string | null;
+  wavelengthCode?: string | null;
+  detectorId?: number | null;
+};
 
 export type FlatPlanUnitRow = {
   unit: ProductionPlanUnit;
@@ -78,8 +86,8 @@ function orderLineFromPlanItem(
   poi?: PurchaseOrderItem | null
 ): PlanUnitOrderLineSnapshot {
   return {
-    productId: poi?.productId ?? null,
-    itemName: poi?.itemName ?? item.productNameSnapshot ?? null,
+    productId: poi?.productId,
+    itemName: poi?.itemName ?? item.productNameSnapshot ?? undefined,
     productNameSnapshot:
       poi?.productNameSnapshot ?? item.productNameSnapshot ?? null,
     businessNameSnapshot:
@@ -87,7 +95,7 @@ function orderLineFromPlanItem(
     definitionNameSnapshot: poi?.definitionNameSnapshot ?? null,
     versionSnapshot: poi?.versionSnapshot ?? null,
     businessName: poi?.businessName ?? null,
-    spec: poi?.spec ?? null,
+    spec: poi?.spec ?? undefined,
     detectorElementCode: poi?.detectorElementCode ?? null,
     wavelengthCode: poi?.wavelengthCode ?? null,
     detectorId: poi?.detectorId ?? null,
@@ -228,13 +236,10 @@ export function computeProductionPlanUnitStats(
       completedProcessStepCount += effectiveStepCount;
       continue;
     }
-    const currentIndex = findProcessStepIndex(
+    completedProcessStepCount += completedProcessStepsForUnit(
       unit.currentProcessCode,
       visibleSteps
     );
-    if (currentIndex >= 0) {
-      completedProcessStepCount += Math.min(currentIndex + 1, effectiveStepCount);
-    }
   }
   const totalProcessStepCount = rows.reduce((sum, row) => {
     return sum + buildProcessStepCodesForPlanUnitRow(stepCodes, row).length;

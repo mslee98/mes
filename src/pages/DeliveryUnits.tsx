@@ -60,6 +60,12 @@ const DELIVERY_UNIT_TABS: Array<{ value: ProductionPlanUnitTab; label: string }>
   { value: "DELAYED", label: "지연" },
 ];
 
+function deliveryUnitRowClassName(index: number): string {
+  return index % 2 === 0
+    ? "bg-white transition-colors hover:bg-gray-50 dark:bg-transparent dark:hover:bg-white/[0.03]"
+    : "bg-gray-50/70 transition-colors hover:bg-gray-100/70 dark:bg-white/[0.02] dark:hover:bg-white/[0.05]";
+}
+
 function normalizeMonthInput(v: string): string {
   if (!/^\d{4}-\d{2}$/.test(v)) return "";
   const [yearText, monthText] = v.split("-");
@@ -80,6 +86,11 @@ function listUnitLotDisplay(row: ProductionPlanUnitListRow): string {
 
 function listProductSerialDisplay(row: ProductionPlanUnitListRow): string {
   const sn = String(row.serialNo ?? "").trim();
+  return sn || "미할당";
+}
+
+function listDetectorSerialDisplay(row: ProductionPlanUnitListRow): string {
+  const sn = String(row.detectorSerialNo ?? "").trim();
   return sn || "미할당";
 }
 
@@ -542,55 +553,55 @@ export default function DeliveryUnits() {
                   <TableRow>
                     <TableCell
                       isHeader
-                      className="min-w-[11rem] max-w-[14rem] px-3 py-1 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
+                      className="min-w-[11rem] max-w-[14rem] px-3 py-2 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
                     >
                       LOT
                     </TableCell>
                     <TableCell
                       isHeader
-                      className="min-w-[12rem] max-w-[18rem] px-3 py-1 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
+                      className="min-w-[12rem] max-w-[18rem] px-3 py-2 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
                     >
-                      품목
+                      품목(사업명/제품명)
                     </TableCell>
                     <TableCell
                       isHeader
-                      className="min-w-[8rem] max-w-[12rem] px-3 py-1 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
+                      className="min-w-[8rem] max-w-[12rem] px-3 py-2 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
                     >
                       고객
                     </TableCell>
                     <TableCell
                       isHeader
-                      className="min-w-[8rem] max-w-[10rem] px-3 py-1 text-center font-medium text-gray-500 text-theme-xs dark:text-gray-400"
+                      className="min-w-[8rem] max-w-[10rem] px-3 py-2 text-center font-medium text-gray-500 text-theme-xs dark:text-gray-400"
                     >
                       생산 담당자
                     </TableCell>
                     <TableCell
                       isHeader
-                      className="min-w-[10rem] max-w-[16rem] px-3 py-1 text-center font-medium text-gray-500 text-theme-xs dark:text-gray-400"
+                      className="min-w-[10rem] max-w-[16rem] px-3 py-2 text-center font-medium text-gray-500 text-theme-xs dark:text-gray-400"
                     >
                       현재 공정
                     </TableCell>
                     <TableCell
                       isHeader
-                      className="min-w-[6rem] px-3 py-1 text-center font-medium text-gray-500 text-theme-xs dark:text-gray-400"
+                      className="min-w-[6rem] px-3 py-2 text-center font-medium text-gray-500 text-theme-xs dark:text-gray-400"
                     >
                       공정 상태
                     </TableCell>
                     <TableCell
                       isHeader
-                      className="min-w-[8rem] max-w-[11rem] px-3 py-1 text-center font-medium text-gray-500 text-theme-xs dark:text-gray-400"
+                      className="min-w-[8rem] max-w-[11rem] px-3 py-2 text-center font-medium text-gray-500 text-theme-xs dark:text-gray-400"
                     >
                       발주
                     </TableCell>
                     <TableCell
                       isHeader
-                      className="min-w-[8rem] max-w-[11rem] px-3 py-1 text-center font-medium text-gray-500 text-theme-xs dark:text-gray-400"
+                      className="min-w-[8rem] max-w-[11rem] px-3 py-2 text-center font-medium text-gray-500 text-theme-xs dark:text-gray-400"
                     >
                       생산 계획
                     </TableCell>
                     <TableCell
                       isHeader
-                      className="min-w-[7rem] px-3 py-1 text-center font-medium text-gray-500 text-theme-xs dark:text-gray-400"
+                      className="min-w-[7rem] px-3 py-2 text-center font-medium text-gray-500 text-theme-xs dark:text-gray-400"
                     >
                       발주 기준 최종 납기
                     </TableCell>
@@ -607,10 +618,10 @@ export default function DeliveryUnits() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    (listData?.items ?? []).map((row) => {
+                    (listData?.items ?? []).map((row, index) => {
                       const business = row.item?.businessNameSnapshot?.trim();
                       const product = row.item?.productNameSnapshot?.trim();
-                      const detectorSn = row.detectorSerialNo?.trim();
+                      const detectorSn = listDetectorSerialDisplay(row);
                       const partnerName =
                         row.partner?.name?.trim() ||
                         row.order?.partnerName?.trim() ||
@@ -628,42 +639,60 @@ export default function DeliveryUnits() {
                               todayYmd: todaySeoulYmd,
                             });
                       return (
-                        <TableRow key={row.unitId}>
-                          <TableCell className="min-w-[11rem] max-w-[14rem] align-middle px-3 py-1 text-start text-theme-sm">
-                            <div className="flex flex-col gap-0.5 leading-tight">
-                              <div className="break-words font-mono font-medium text-gray-800 dark:text-white/90">
+                        <TableRow
+                          key={row.unitId}
+                          className={deliveryUnitRowClassName(index)}
+                        >
+                          <TableCell className="min-w-[11rem] max-w-[14rem] align-middle px-3 py-2 text-start text-theme-sm">
+                            <div className="flex min-h-[5.25rem] flex-col justify-center gap-1.5 leading-tight">
+                              <div
+                                className="truncate font-mono text-sm font-semibold text-gray-900 dark:text-white"
+                                title={listUnitLotDisplay(row)}
+                              >
                                 {listUnitLotDisplay(row)}
                               </div>
-                              <div className="break-words font-mono text-theme-xs text-gray-800 dark:text-white/90">
-                                <span className="text-gray-500 dark:text-gray-400">
-                                  제품 S/N{" "}
+                              <div className="flex flex-col gap-1 text-[11px]">
+                                <span className="inline-flex w-full min-w-0 items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 font-medium text-gray-700 dark:bg-white/[0.08] dark:text-gray-200">
+                                  <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                    제품 S/N
+                                  </span>
+                                  <span
+                                    className="min-w-0 truncate font-mono text-[11px] text-gray-800 dark:text-white/90"
+                                    title={listProductSerialDisplay(row)}
+                                  >
+                                    {listProductSerialDisplay(row)}
+                                  </span>
                                 </span>
-                                {listProductSerialDisplay(row)}
-                              </div>
-                              <div className="break-words font-mono text-theme-xs text-gray-800 dark:text-white/90">
-                                <span className="text-gray-500 dark:text-gray-400">
-                                  검출기 S/N{" "}
+                                <span className="inline-flex w-full min-w-0 items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 font-medium text-gray-700 dark:bg-white/[0.08] dark:text-gray-200">
+                                  <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                    검출기 S/N
+                                  </span>
+                                  <span
+                                    className="min-w-0 truncate font-mono text-[11px] text-gray-800 dark:text-white/90"
+                                    title={detectorSn}
+                                  >
+                                    {detectorSn}
+                                  </span>
                                 </span>
-                                {detectorSn || "-"}
                               </div>
                             </div>
                           </TableCell>
-                          <TableCell className="min-w-[12rem] max-w-[18rem] align-middle px-3 py-1">
-                            <div className="flex flex-col gap-0.5 leading-tight">
-                              <div className="break-words text-theme-sm font-medium text-gray-800 dark:text-white/90">
+                          <TableCell className="min-w-[12rem] max-w-[18rem] align-middle px-3 py-2">
+                            <div className="flex flex-col gap-1 leading-tight">
+                              <div className="break-words text-theme-sm font-semibold text-gray-900 dark:text-white">
                                 {business || "-"}
                               </div>
-                              <div className="break-words text-theme-xs text-gray-600 dark:text-gray-400">
+                              <div className="break-words text-theme-xs text-gray-500 dark:text-gray-400">
                                 {product || "-"}
                               </div>
                             </div>
                           </TableCell>
-                          <TableCell className="min-w-[8rem] max-w-[12rem] align-middle px-3 py-1 text-start">
-                            <div className="break-words text-theme-sm font-medium text-gray-800 dark:text-white/90">
+                          <TableCell className="min-w-[8rem] max-w-[12rem] align-middle px-3 py-2 text-start">
+                            <div className="break-words text-theme-sm font-semibold text-gray-800 dark:text-white/90">
                               {partnerName}
                             </div>
                             {countryLine ? (
-                              <div className="mt-0.5 flex items-center gap-1.5 text-theme-xs text-gray-600 dark:text-gray-400">
+                              <div className="mt-1 flex items-center gap-1.5 text-theme-xs text-gray-500 dark:text-gray-400">
                                 {countryLine.flagUrl ? (
                                   <img
                                     src={countryLine.flagUrl}
@@ -678,10 +707,10 @@ export default function DeliveryUnits() {
                               </div>
                             ) : null}
                           </TableCell>
-                          <TableCell className="min-w-[8rem] max-w-[10rem] align-middle px-3 py-1 text-center text-theme-sm text-gray-700 dark:text-gray-300">
+                          <TableCell className="min-w-[8rem] max-w-[10rem] align-middle px-3 py-2 text-center text-theme-sm text-gray-600 dark:text-gray-300">
                             {listOperatorDisplay(row)}
                           </TableCell>
-                          <TableCell className="min-w-[10rem] max-w-[16rem] align-middle px-3 py-1 text-center">
+                          <TableCell className="min-w-[10rem] max-w-[16rem] align-middle px-3 py-2 text-center">
                             <div className="flex justify-center">
                               <Badge size="sm" color="light">
                                 <span className="break-words text-start normal-case">
@@ -690,7 +719,7 @@ export default function DeliveryUnits() {
                               </Badge>
                             </div>
                           </TableCell>
-                          <TableCell className="min-w-[6rem] align-middle px-3 py-1 text-center">
+                          <TableCell className="min-w-[6rem] align-middle px-3 py-2 text-center">
                             {tab === "COMPLETED" ? (
                               <div className="flex justify-center">
                                 {row.isDelivered ? (
@@ -711,7 +740,7 @@ export default function DeliveryUnits() {
                               </div>
                             )}
                           </TableCell>
-                          <TableCell className="min-w-[8rem] max-w-[11rem] align-middle px-3 py-1 text-center text-theme-sm">
+                          <TableCell className="min-w-[8rem] max-w-[11rem] align-middle px-3 py-2 text-center text-theme-sm">
                             {row.order?.orderId ? (
                               <Link
                                 to={`/order/${row.order.orderId}`}
@@ -720,12 +749,12 @@ export default function DeliveryUnits() {
                                 {row.order.orderNo?.trim() || row.order.orderId}
                               </Link>
                             ) : (
-                              <span className="break-words text-gray-700 dark:text-gray-300">
+                              <span className="break-words text-gray-600 dark:text-gray-300">
                                 {row.order?.orderNo?.trim() || "-"}
                               </span>
                             )}
                           </TableCell>
-                          <TableCell className="min-w-[8rem] max-w-[11rem] align-middle px-3 py-1 text-center text-theme-sm">
+                          <TableCell className="min-w-[8rem] max-w-[11rem] align-middle px-3 py-2 text-center text-theme-sm">
                             {row.plan?.planId && row.order?.orderId ? (
                               <Link
                                 to={`/order/${row.order.orderId}/plan/${row.plan.planId}`}
@@ -734,12 +763,12 @@ export default function DeliveryUnits() {
                                 {row.plan.planNo?.trim() || row.plan.planId}
                               </Link>
                             ) : (
-                              <span className="break-words text-gray-700 dark:text-gray-300">
+                              <span className="break-words text-gray-600 dark:text-gray-300">
                                 {row.plan?.planNo?.trim() || "-"}
                               </span>
                             )}
                           </TableCell>
-                          <TableCell className="min-w-[7rem] align-middle px-3 py-1 text-center text-theme-sm text-gray-700 dark:text-gray-300">
+                          <TableCell className="min-w-[7rem] align-middle px-3 py-2 text-center text-theme-sm text-gray-700 dark:text-gray-300">
                             <div
                               className={`flex min-h-[3.75rem] flex-col items-center justify-center ${
                                 dueRel ? "gap-1" : ""

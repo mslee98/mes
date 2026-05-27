@@ -274,7 +274,8 @@ export default function ProductionPlanDetail() {
   const planDeliveryDate =
     plan?.deliveryDate?.trim() ||
     plan?.plannedDeliveryDate?.trim() ||
-    plan?.purchaseOrder?.deliveryDate?.trim() ||
+    plan?.purchaseOrder?.requestDeliveryDate?.trim() ||
+    plan?.purchaseOrder?.dueDate?.trim() ||
     "";
 
   const gateNeedsProductSerial =
@@ -284,7 +285,10 @@ export default function ProductionPlanDetail() {
       UNIT_PROCESS_STEP_CODE_ENGINE_PACKAGING;
 
   const { productMetaById, detectorById, isLoading: gateMastersLoading } =
-    useProductSerialMasters(accessToken, gateNeedsProductSerial && !!oid);
+    useProductSerialMasters(
+      accessToken ?? undefined,
+      gateNeedsProductSerial && !!oid
+    );
 
   const handleGateGenerateProductSerial = async () => {
     if (!processEntryUnit || !oid || !accessToken) return;

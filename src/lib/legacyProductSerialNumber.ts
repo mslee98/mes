@@ -1,4 +1,3 @@
-import type { PurchaseOrderItem } from "../api/purchaseOrder";
 import { getPurchaseOrderSerialMaxSequence } from "../api/purchaseOrder";
 import type { RepresentativeProduct } from "../api/products";
 import type { DetectorListItem } from "../api/detectors";
@@ -72,10 +71,12 @@ export function detectorByIdMapFromList(
 }
 
 export function itemTypeCodeFromLine(
-  line: Pick<
-    PurchaseOrderItem,
-    "itemName" | "productNameSnapshot" | "definitionNameSnapshot" | "spec"
-  >
+  line: {
+    itemName?: string | null;
+    productNameSnapshot?: string | null;
+    definitionNameSnapshot?: string | null;
+    spec?: string | null;
+  }
 ): string {
   const joined = [
     line.itemName,
