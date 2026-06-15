@@ -95,13 +95,21 @@ export default function ProfilePasswordCard({
         </Button>
       </ComponentCard>
 
-      <Modal isOpen={isOpen} onClose={handleClose} className="max-w-md m-4 p-6">
-        <h3 className="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">
-          비밀번호 변경
-        </h3>
-        <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
-          새 비밀번호는 8자 이상 입력해주세요.
-        </p>
+      <Modal
+        isOpen={isOpen}
+        onClose={handleClose}
+        className="m-4 max-w-md p-6"
+        header={
+          <>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+              비밀번호 변경
+            </h3>
+            <p className="mt-1 text-theme-sm text-gray-500 dark:text-gray-400">
+              새 비밀번호는 8자 이상 입력해주세요.
+            </p>
+          </>
+        }
+      >
         <form onSubmit={handleSubmit} className="space-y-4">
           <div
             className="min-h-6 text-sm text-red-600 dark:text-red-400"

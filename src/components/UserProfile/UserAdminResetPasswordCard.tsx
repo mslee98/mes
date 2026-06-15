@@ -90,13 +90,23 @@ export default function UserAdminResetPasswordCard({
         </Button>
       </ComponentCard>
 
-      <Modal isOpen={isOpen} onClose={handleClose} className="max-w-md m-4 p-6">
-        <h3 className="mb-1 text-lg font-semibold text-gray-800 dark:text-white/90">
-          비밀번호 초기화
-        </h3>
-        <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">{userLabel}</p>
-        <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
-          임시 비밀번호로 설정하면 다음 로그인 시 변경을 요구합니다.
+      <Modal
+        isOpen={isOpen}
+        onClose={handleClose}
+        className="m-4 max-w-md p-6"
+        header={
+          <>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+              비밀번호 초기화
+            </h3>
+            <p className="mt-1 text-theme-sm text-gray-500 dark:text-gray-400">
+              임시 비밀번호로 설정하면 다음 로그인 시 변경을 요구합니다.
+            </p>
+          </>
+        }
+      >
+        <p className="mb-4 text-theme-sm font-medium text-gray-800 dark:text-white/90">
+          {userLabel}
         </p>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div

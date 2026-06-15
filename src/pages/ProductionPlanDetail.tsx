@@ -199,6 +199,8 @@ export default function ProductionPlanDetail() {
     queryKey: ["productionPlan", pid],
     queryFn: () => getProductionPlan(pid, accessToken!),
     enabled: !!accessToken && !isAuthLoading && pid !== "",
+    /** LOT 발급·공정 처리 직후 품목 목록 즉시 반영 — 전역 staleTime(60s) 무력화 */
+    staleTime: 0,
   });
 
   const { data: modalRecords = [], isLoading: modalRecordsLoading } = useQuery({

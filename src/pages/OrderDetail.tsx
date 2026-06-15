@@ -24,6 +24,7 @@ import { ProductionPlanOrderSummary } from "../components/order/ProductionPlanOr
 import { ProductionQuantityInputSection } from "../components/order/ProductionQuantityInputSection";
 import { OrderDetailLinkUnitsModal } from "../components/order/OrderDetailLinkUnitsModal";
 import { OrderReceiveConfirmModal } from "../components/order/OrderReceiveConfirmModal";
+import { invalidateProductionPlanUnitListQueries } from "../domains/production-plan/queries/invalidateUnitListQueries";
 import { buttonClassName } from "../lib/ui/buttonStyles";
 import LoadingLottie from "../components/common/LoadingLottie";
 import { Modal } from "../components/ui/modal";
@@ -708,16 +709,23 @@ export default function OrderDetail() {
     onSuccess: (data, vars) => {
       if (vars.purpose === "plan") {
         const plan = data as ProductionPlan;
+        const planId = String(plan.id ?? "").trim();
         toast.success("생산 계획이 등록되고 LOT가 발급되었습니다.");
         setDeliveryModalOpen(false);
         resetDeliveryModalForm();
         setDeliveryModalPurpose("actual");
-        queryClient.invalidateQueries({ queryKey: ["purchaseOrder", id] });
-        queryClient.invalidateQueries({
+        if (planId) {
+          queryClient.setQueryData(["productionPlan", planId], plan);
+        }
+        void queryClient.invalidateQueries({ queryKey: ["purchaseOrder", id] });
+        void queryClient.invalidateQueries({
           queryKey: ["purchaseOrderProductionPlans", id],
         });
-        queryClient.invalidateQueries({
-          queryKey: ["productionPlanUnits", id, "byOrderForQty"],
+        void invalidateProductionPlanUnitListQueries(queryClient);
+        void queryClient.invalidateQueries({ queryKey: ["productionPlans"] });
+        void queryClient.invalidateQueries({ queryKey: ["productionPlanTabCounts"] });
+        void queryClient.invalidateQueries({
+          queryKey: ["productionPlanUnitOverview"],
         });
         navigate(`/order/${id}/plan/${plan.id}`);
         return;
