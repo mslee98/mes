@@ -4,23 +4,25 @@ import type { DeliveryOrderWithDetail } from "../../api/purchaseOrder";
 import type { CommonCodeItem } from "../../api/commonCode";
 import { labelForCommonCode } from "../../api/commonCode";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHeader,
-  TableRow,
-} from "../ui/table";
+  DataTable,
+  DataTableBody,
+  DataTableCell,
+  DataTableHeader,
+  DataTableHeaderCell,
+  DataTableHeaderLabel,
+  DataTableRow,
+} from "../list";
 import ComponentCard from "../common/ComponentCard";
 import Badge from "../ui/badge/Badge";
-import { formatCurrency } from "../../lib/formatCurrency";
+import { formatCurrency } from "../../lib/format/formatCurrency";
 import {
   asDeliveryDetailRecord,
   orderLineQtyFromOrderItem,
   productCodeFromOrderItem,
   productNameFromOrderItem,
   unitCodeFromOrderItem,
-} from "../../lib/deliveryDetailHelpers";
-import { formatDeliveryDetailDate } from "../../lib/deliveryDetailFormat";
+} from "../../domains/delivery/helpers/deliveryDetailHelpers";
+import { formatDeliveryDetailDate } from "../../domains/delivery/helpers/deliveryDetailFormat";
 
 type DeliveryDetailOrderTabProps = {
   order: DeliveryOrderWithDetail | undefined;
@@ -163,80 +165,67 @@ export function DeliveryDetailOrderTab({
           <p className="mb-3 text-theme-xs text-gray-500 dark:text-gray-400">
             동일 발주의 모든 라인입니다. 이번 납품에 포함되지 않은 품목도 표시됩니다.
           </p>
-          <div className="max-w-full overflow-x-auto">
-            <Table>
-              <TableHeader className="border-b border-gray-100 dark:border-white/[0.05]">
-                <TableRow>
-                  <TableCell
-                    isHeader
-                    className="px-4 py-3 text-start text-theme-xs font-medium text-gray-500 dark:text-gray-400"
-                  >
-                    #
-                  </TableCell>
-                  <TableCell
-                    isHeader
-                    className="px-4 py-3 text-start text-theme-xs font-medium text-gray-500 dark:text-gray-400"
-                  >
-                    품목
-                  </TableCell>
-                  <TableCell
-                    isHeader
-                    className="px-4 py-3 text-end text-theme-xs font-medium text-gray-500 dark:text-gray-400"
-                  >
-                    발주 수량
-                  </TableCell>
-                </TableRow>
-              </TableHeader>
-              <TableBody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
-                {orderItemsAll.map((row, idx) => {
-                  const oi = asDeliveryDetailRecord(row);
-                  if (!oi) return null;
-                  const oid = oi.id;
-                  const idNum = typeof oid === "number" ? oid : Number(oid);
-                  const pcode = productCodeFromOrderItem(oi);
-                  const pname = productNameFromOrderItem(oi);
-                  const label =
-                    pcode && pname
-                      ? `${pcode} · ${pname}`
-                      : pname ||
-                        pcode ||
-                        (Number.isFinite(idNum) ? `#${idNum}` : `행 ${idx + 1}`);
-                  const oQty = orderLineQtyFromOrderItem(oi);
-                  const uCode = unitCodeFromOrderItem(oi);
-                  const uName = uCode ? unitLabel(uCode) : "";
-                  const inThisDelivery = deliveryLinesForMatch.some((ln) => {
-                    const r = asDeliveryDetailRecord(ln);
-                    const lid = r?.orderItemId ?? r?.purchaseOrderItemId;
-                    const n = typeof lid === "number" ? lid : Number(lid);
-                    return Number.isFinite(idNum) && n === idNum;
-                  });
+          <DataTable minWidth={480}>
+            <DataTableHeader>
+              <DataTableHeaderCell colSpan={1} compact sortable={false}>
+                <DataTableHeaderLabel>#</DataTableHeaderLabel>
+              </DataTableHeaderCell>
+              <DataTableHeaderCell colSpan={7} compact sortable={false}>
+                <DataTableHeaderLabel>품목</DataTableHeaderLabel>
+              </DataTableHeaderCell>
+              <DataTableHeaderCell colSpan={4} compact sortable={false} className="justify-end border-r-0">
+                <DataTableHeaderLabel className="w-full text-end">발주 수량</DataTableHeaderLabel>
+              </DataTableHeaderCell>
+            </DataTableHeader>
+            <DataTableBody>
+              {orderItemsAll.map((row, idx) => {
+                const oi = asDeliveryDetailRecord(row);
+                if (!oi) return null;
+                const oid = oi.id;
+                const idNum = typeof oid === "number" ? oid : Number(oid);
+                const pcode = productCodeFromOrderItem(oi);
+                const pname = productNameFromOrderItem(oi);
+                const label =
+                  pcode && pname
+                    ? `${pcode} · ${pname}`
+                    : pname ||
+                      pcode ||
+                      (Number.isFinite(idNum) ? `#${idNum}` : `행 ${idx + 1}`);
+                const oQty = orderLineQtyFromOrderItem(oi);
+                const uCode = unitCodeFromOrderItem(oi);
+                const uName = uCode ? unitLabel(uCode) : "";
+                const inThisDelivery = deliveryLinesForMatch.some((ln) => {
+                  const r = asDeliveryDetailRecord(ln);
+                  const lid = r?.orderItemId ?? r?.purchaseOrderItemId;
+                  const n = typeof lid === "number" ? lid : Number(lid);
+                  return Number.isFinite(idNum) && n === idNum;
+                });
 
-                  return (
-                    <TableRow key={Number.isFinite(idNum) ? idNum : idx}>
-                      <TableCell className="px-4 py-2 text-theme-xs text-gray-500 dark:text-gray-400">
-                        {idx + 1}
-                      </TableCell>
-                      <TableCell className="px-4 py-2 text-theme-sm text-gray-800 dark:text-gray-200">
-                        {label}
-                        {inThisDelivery ? (
-                          <span className="ml-2 inline-block align-middle">
-                            <Badge size="sm" color="primary">
-                              이번 납품
-                            </Badge>
-                          </span>
-                        ) : null}
-                      </TableCell>
-                      <TableCell className="px-4 py-2 text-end text-theme-sm text-gray-800 dark:text-gray-200">
-                        {oQty != null
-                          ? `${oQty}${uName ? ` ${uName}` : uCode ? ` (${uCode})` : ""}`
-                          : "—"}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </div>
+                return (
+                  <DataTableRow key={Number.isFinite(idNum) ? idNum : idx}>
+                    <DataTableCell colSpan={1} compact className="text-theme-xs text-gray-500 dark:text-gray-400">
+                      {idx + 1}
+                    </DataTableCell>
+                    <DataTableCell colSpan={7} compact className="min-w-0">
+                      {label}
+                      {inThisDelivery ? (
+                        <span className="ml-2 inline-block align-middle">
+                          <Badge size="sm" color="primary">
+                            이번 납품
+                          </Badge>
+                        </span>
+                      ) : null}
+                    </DataTableCell>
+                    <DataTableCell colSpan={4} compact className="justify-end border-r-0">
+                      {oQty != null
+                        ? `${oQty}${uName ? ` ${uName}` : uCode ? ` (${uCode})` : ""}`
+                        : "—"}
+                    </DataTableCell>
+                  </DataTableRow>
+                );
+              })}
+            </DataTableBody>
+          </DataTable>
         </ComponentCard>
       ) : null}
     </>

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { notify } from "../../lib/notify";
 import { useMutation } from "@tanstack/react-query";
-import { changePassword } from "../../api/user";
+import { changeMyPassword } from "../../api/user";
 import { useModal } from "../../hooks/useModal";
 import { Modal } from "../ui/modal";
 import ComponentCard from "../common/ComponentCard";
@@ -26,7 +26,7 @@ export default function ProfilePasswordCard({
 
   const mutation = useMutation({
     mutationFn: () =>
-      changePassword(
+      changeMyPassword(
         userId!,
         { currentPassword, newPassword },
         accessToken!

@@ -8,7 +8,7 @@ import SegmentedControl from "../components/common/SegmentedControl";
 import ApprovalDetailContent from "../components/approval/ApprovalDetailContent";
 import { DataListSearchInput } from "../components/list";
 import Badge from "../components/ui/badge/Badge";
-import { badgeColorFromApprovalInboxLabel } from "../lib/badgeStatusColor";
+import { badgeColorFromApprovalInboxLabel } from "../../../lib/ui/badgeStatusColor";
 import Button from "../components/ui/button/Button";
 import { Modal } from "../components/ui/modal";
 import {

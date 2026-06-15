@@ -36,7 +36,7 @@ import {
   commonCodesToSelectOptions,
   labelForCommonCode,
 } from "../api/commonCode";
-import { isForbiddenError } from "../lib/apiError";
+import { isForbiddenError } from "../../../lib/api/apiError";
 
 const ACTIVE_FILTER_OPTIONS = [
   { value: "all", label: "전체" },

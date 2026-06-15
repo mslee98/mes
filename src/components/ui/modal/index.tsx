@@ -50,14 +50,25 @@ export const Modal: React.FC<ModalProps> = ({
   }, [isOpen, onClose, strictClose]);
 
   useEffect(() => {
+    const mainScroll = document.querySelector<HTMLElement>("[data-app-main-scroll]");
+
     if (isOpen) {
       document.body.style.overflow = "hidden";
+      if (mainScroll) {
+        mainScroll.style.overflow = "hidden";
+      }
     } else {
       document.body.style.overflow = "unset";
+      if (mainScroll) {
+        mainScroll.style.overflow = "";
+      }
     }
 
     return () => {
       document.body.style.overflow = "unset";
+      if (mainScroll) {
+        mainScroll.style.overflow = "";
+      }
     };
   }, [isOpen]);
 
@@ -72,7 +83,7 @@ export const Modal: React.FC<ModalProps> = ({
   const showHeaderBar = showCloseButton || header != null;
 
   return (
-    <div className="fixed inset-0 z-99999 flex items-center justify-center overflow-y-auto modal">
+    <div className="fixed inset-0 z-99999 flex items-center justify-center overflow-hidden p-4 modal">
       {!isFullscreen && (
         <div
           className="fixed inset-0 h-full w-full bg-gray-900/20 backdrop-blur-[2px] dark:bg-black/60 dark:backdrop-blur-sm"

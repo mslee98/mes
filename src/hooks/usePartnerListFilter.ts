@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { usePartnersQuery } from "./usePartnersQuery";
 import type { CommonCodeItem } from "../api/commonCode";
-import { toPartnerSelectOptions } from "../lib/partnerSelectOptions";
+import { toPartnerSelectOptions } from "../domains/partner/helpers/partnerSelectOptions";
 
 export interface UsePartnerListFilterOptions {
   accessToken: string | null | undefined;

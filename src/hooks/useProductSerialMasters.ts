@@ -5,7 +5,7 @@ import { getProductList } from "../api/products";
 import {
   detectorByIdMapFromList,
   productSerialMetaMapFromProducts,
-} from "../lib/legacyProductSerialNumber";
+} from "../domains/production-plan/serial/legacyProductSerialNumber";
 
 const PRODUCT_LIST_SIZE = 500;
 

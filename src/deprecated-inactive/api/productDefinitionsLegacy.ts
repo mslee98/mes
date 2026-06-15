@@ -1,7 +1,7 @@
 /**
  * 레거시: 제품 정의·/product-definitions API — 백엔드에서 제거됨. deprecated 전용.
  */
-import { createApiError } from "../../lib/apiError";
+import { createApiError } from "../../lib/api/apiError";
 import { API_BASE } from "../../api/apiBase";
 import { fetchAuthorized } from "../../api/fetchAuthorized";
 import type { RepresentativeProduct } from "../../api/products";

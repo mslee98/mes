@@ -11,21 +11,20 @@ import Input from "../components/form/input/InputField";
 import SearchableSelectWithCreate from "../components/form/SearchableSelectWithCreate";
 import PartnerQuickCreateModal from "../components/form/PartnerQuickCreateModal";
 import {
-  SortableHeaderCell,
-  Table,
-  TableBody,
-  TableCell,
-  TableHeader,
-  TableRow,
-} from "../components/ui/table";
-import Badge from "../components/ui/badge/Badge";
-import {
+  DataTable,
+  DataTableBody,
+  DataTableCell,
+  DataTableHeader,
+  DataTableHeaderCell,
+  DataTableHeaderLabel,
+  DataTableRow,
   DataListSearchInput,
   DataListSearchOptionsButton,
   ListPageLayout,
   ListPageToolbarRow,
   TablePagination,
 } from "../components/list";
+import Badge from "../components/ui/badge/Badge";
 import ListPageLoading from "../components/common/ListPageLoading";
 import { useAuth } from "../hooks/useAuth";
 import {
@@ -41,8 +40,8 @@ import {
   COMMON_CODE_GROUP_COUNTRY,
   type CommonCodeItem,
 } from "../api/commonCode";
-import { partnerSelectLabel } from "../lib/partnerDisplay";
-import { badgeColorFromKoStatusLabel } from "../lib/badgeStatusColor";
+import { partnerSelectLabel } from "../domains/partner/display/partnerDisplay";
+import { badgeColorFromKoStatusLabel } from "../lib/ui/badgeStatusColor";
 
 const DEFAULT_PAGE_SIZE = 20;
 type DeliverySortKey = NonNullable<DeliveryListParams["sortBy"]>;
@@ -398,74 +397,78 @@ export default function Delivery() {
               목록을 불러오는 중 오류가 발생했습니다.
             </div>
           ) : (
-            <Table>
-              <TableHeader className="border-b border-gray-100 dark:border-white/[0.05]">
-                <TableRow>
-                  <SortableHeaderCell
-                    label="납품"
-                    sortKey="deliveryNo"
-                    activeSortBy={sortBy}
-                    activeSortOrder={sortOrder}
-                    onToggleSort={handleDeliverySortToggle}
-                    className="px-3 py-1 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
-                  />
-                  <SortableHeaderCell
-                    label="발주번호"
-                    sortKey="orderNo"
-                    activeSortBy={sortBy}
-                    activeSortOrder={sortOrder}
-                    onToggleSort={handleDeliverySortToggle}
-                    className="px-3 py-1 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
-                  />
-                  <TableCell
-                    isHeader
-                    className="px-3 py-1 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
-                  >
-                    발주 제목
-                  </TableCell>
-                  <SortableHeaderCell
-                    label="거래처"
-                    sortKey="partnerName"
-                    activeSortBy={sortBy}
-                    activeSortOrder={sortOrder}
-                    onToggleSort={handleDeliverySortToggle}
-                    className="px-3 py-1 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
-                  />
-                  <SortableHeaderCell
-                    label="납품일"
-                    sortKey="deliveryDate"
-                    activeSortBy={sortBy}
-                    activeSortOrder={sortOrder}
-                    onToggleSort={handleDeliverySortToggle}
-                    className="px-3 py-1 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
-                  />
-                  <SortableHeaderCell
-                    label="납품 상태"
-                    sortKey="status"
-                    activeSortBy={sortBy}
-                    activeSortOrder={sortOrder}
-                    onToggleSort={handleDeliverySortToggle}
-                    align="center"
-                    className="px-3 py-1 font-medium text-gray-500 text-center text-theme-xs dark:text-gray-400"
-                  />
-                </TableRow>
-              </TableHeader>
-              <TableBody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
+            <DataTable minWidth={880}>
+              <DataTableHeader>
+                <DataTableHeaderCell
+                  colSpan={2}
+                  compact
+                  sortKey="deliveryNo"
+                  activeSortBy={sortBy}
+                  activeSortOrder={sortOrder}
+                  onToggleSort={handleDeliverySortToggle}
+                >
+                  <DataTableHeaderLabel>납품</DataTableHeaderLabel>
+                </DataTableHeaderCell>
+                <DataTableHeaderCell
+                  colSpan={2}
+                  compact
+                  sortKey="orderNo"
+                  activeSortBy={sortBy}
+                  activeSortOrder={sortOrder}
+                  onToggleSort={handleDeliverySortToggle}
+                >
+                  <DataTableHeaderLabel>발주번호</DataTableHeaderLabel>
+                </DataTableHeaderCell>
+                <DataTableHeaderCell colSpan={3} compact sortable={false}>
+                  <DataTableHeaderLabel>발주 제목</DataTableHeaderLabel>
+                </DataTableHeaderCell>
+                <DataTableHeaderCell
+                  colSpan={2}
+                  compact
+                  sortKey="partnerName"
+                  activeSortBy={sortBy}
+                  activeSortOrder={sortOrder}
+                  onToggleSort={handleDeliverySortToggle}
+                >
+                  <DataTableHeaderLabel>거래처</DataTableHeaderLabel>
+                </DataTableHeaderCell>
+                <DataTableHeaderCell
+                  colSpan={1}
+                  compact
+                  sortKey="deliveryDate"
+                  activeSortBy={sortBy}
+                  activeSortOrder={sortOrder}
+                  onToggleSort={handleDeliverySortToggle}
+                >
+                  <DataTableHeaderLabel>납품일</DataTableHeaderLabel>
+                </DataTableHeaderCell>
+                <DataTableHeaderCell
+                  colSpan={2}
+                  compact
+                  sortKey="status"
+                  activeSortBy={sortBy}
+                  activeSortOrder={sortOrder}
+                  onToggleSort={handleDeliverySortToggle}
+                  className="justify-center border-r-0"
+                >
+                  <DataTableHeaderLabel className="w-full text-center">
+                    납품 상태
+                  </DataTableHeaderLabel>
+                </DataTableHeaderCell>
+              </DataTableHeader>
+              <DataTableBody>
                 {rows.length === 0 ? (
-                  <TableRow>
-                    <TableCell
-                      colSpan={6}
-                      className="px-3 py-4 text-center text-theme-sm text-gray-500 dark:text-gray-400"
-                    >
+                  <DataTableRow>
+                    <DataTableCell colSpan={12} compact className="justify-center border-r-0 py-4">
                       조건에 맞는 납품이 없습니다.
-                    </TableCell>
-                  </TableRow>
+                    </DataTableCell>
+                  </DataTableRow>
                 ) : (
                   rows.map((row) => {
                     const oid = deliveryOrderId(row);
                     return (
-                      <TableRow key={row.id}>
-                        <TableCell className="px-3 text-start align-middle text-theme-sm">
+                      <DataTableRow key={row.id}>
+                        <DataTableCell colSpan={2} compact>
                           <Link
                             to={`/delivery/${row.id}`}
                             className="flex flex-col gap-0.5 rounded-md leading-tight outline-offset-2 hover:text-brand-600 focus-visible:ring-2 focus-visible:ring-brand-400 dark:hover:text-brand-400"
@@ -477,8 +480,8 @@ export default function Delivery() {
                               {row.title?.trim() || "-"}
                             </span>
                           </Link>
-                        </TableCell>
-                        <TableCell className="px-3 text-start align-middle text-theme-sm">
+                        </DataTableCell>
+                        <DataTableCell colSpan={2} compact>
                           {oid != null ? (
                             <Link
                               to={`/order/${oid}`}
@@ -489,39 +492,41 @@ export default function Delivery() {
                           ) : (
                             <span className="text-gray-500">{deliveryOrderNo(row)}</span>
                           )}
-                        </TableCell>
-                        <TableCell className="px-3 text-gray-700 text-start align-middle text-theme-sm dark:text-gray-300">
+                        </DataTableCell>
+                        <DataTableCell colSpan={3} compact className="min-w-0">
                           {oid != null ? (
                             <Link
                               to={`/order/${oid}`}
-                              className="hover:text-brand-600 hover:underline dark:hover:text-brand-400"
+                              className="truncate text-theme-sm text-gray-700 hover:text-brand-600 hover:underline dark:text-gray-300 dark:hover:text-brand-400"
                             >
                               {deliveryOrderTitle(row)}
                             </Link>
                           ) : (
-                            deliveryOrderTitle(row)
+                            <p className="truncate text-theme-sm text-gray-700 dark:text-gray-300">
+                              {deliveryOrderTitle(row)}
+                            </p>
                           )}
-                        </TableCell>
-                        <TableCell className="px-3 text-gray-500 text-theme-sm align-middle dark:text-gray-400">
+                        </DataTableCell>
+                        <DataTableCell colSpan={2} compact>
                           {partnerLabel(row, countryCodes)}
-                        </TableCell>
-                        <TableCell className="px-3 text-gray-500 text-theme-sm align-middle dark:text-gray-400">
+                        </DataTableCell>
+                        <DataTableCell colSpan={1} compact>
                           {row.deliveryDate?.trim() ? row.deliveryDate : "-"}
-                        </TableCell>
-                        <TableCell className="px-3  text-center align-middle">
+                        </DataTableCell>
+                        <DataTableCell colSpan={2} compact className="justify-center border-r-0">
                           <Badge
                             size="sm"
                             color={badgeColorFromKoStatusLabel(getDeliveryStatusName(row.status))}
                           >
                             {getDeliveryStatusName(row.status)}
                           </Badge>
-                        </TableCell>
-                      </TableRow>
+                        </DataTableCell>
+                      </DataTableRow>
                     );
                   })
                 )}
-              </TableBody>
-            </Table>
+              </DataTableBody>
+            </DataTable>
           )}
         </ListPageLayout>
       </div>

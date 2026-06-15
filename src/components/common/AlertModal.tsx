@@ -13,6 +13,10 @@ interface AlertModalProps {
   isOpen: boolean;
   onClose: () => void;
   onCloseButtonClick?: () => void;
+  /** Modal 상단 헤더 바 제목(예: 주의). 본문 `title`과 역할을 분리합니다. */
+  headerLabel?: string;
+  /** 헤더 제목 아래 보조 문구 */
+  headerDescription?: string;
   title: string;
   message: string;
   description?: ReactNode;
@@ -25,6 +29,8 @@ export default function AlertModal({
   isOpen,
   onClose,
   onCloseButtonClick,
+  headerLabel,
+  headerDescription,
   title,
   message,
   description,
@@ -71,6 +77,20 @@ export default function AlertModal({
       onClose={onClose}
       onCloseButtonClick={onCloseButtonClick}
       className={className}
+      header={
+        headerLabel ? (
+          <>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+              {headerLabel}
+            </h3>
+            {headerDescription ? (
+              <p className="mt-1 text-theme-sm text-gray-500 dark:text-gray-400">
+                {headerDescription}
+              </p>
+            ) : null}
+          </>
+        ) : undefined
+      }
     >
       <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full">
         <div className={`flex h-14 w-14 items-center justify-center rounded-full ${iconWrapClass}`}>

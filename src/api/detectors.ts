@@ -1,7 +1,7 @@
 /**
  * 검출기 마스터 — `GET/POST/PATCH/DELETE /api/detectors` (product.read / product.manage)
  */
-import { createApiError } from "../lib/apiError";
+import { createApiError } from "../lib/api/apiError";
 import type { Partner } from "./purchaseOrder";
 import {
   mapDetectorSeriesFromApi,

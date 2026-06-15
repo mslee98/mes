@@ -22,8 +22,8 @@ import {
   COMMON_CODE_GROUP_COUNTRY,
   labelForCommonCode,
 } from "../api/commonCode";
-import { partnerSelectLabel } from "../lib/partnerDisplay";
-import { partnerCountryFlagUrl } from "../lib/partnerCountryOptions";
+import { partnerSelectLabel } from "../domains/partner/display/partnerDisplay";
+import { partnerCountryFlagUrl } from "../domains/partner/helpers/partnerCountryOptions";
 import {
   DELIVERY_DETAIL_TAB_OPTIONS,
   type DeliveryDetailTab,
@@ -36,11 +36,11 @@ import {
   asDeliveryDetailRecord,
   deliveryLinesFromDelivery,
   deliveryStatusSimStorageKey,
-} from "../lib/deliveryDetailHelpers";
+} from "../domains/delivery/helpers/deliveryDetailHelpers";
 import {
   formatDeliveryDetailDateYmd,
   labelForSortedDeliveryStatus,
-} from "../lib/deliveryDetailFormat";
+} from "../domains/delivery/helpers/deliveryDetailFormat";
 
 const COMMON_CODE_GROUP_UNIT = "UNIT";
 

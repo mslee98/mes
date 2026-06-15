@@ -1,5 +1,5 @@
 import type { SearchableSelectOption } from "./SearchableSelectWithCreate";
-import { partnerCountryFlagUrl } from "../../lib/partnerCountryOptions";
+import { partnerCountryFlagUrl } from "../../domains/partner/helpers/partnerCountryOptions";
 
 export function renderPartnerOptionLabel(
   option: SearchableSelectOption

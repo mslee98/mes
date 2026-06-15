@@ -31,12 +31,12 @@ import {
 import {
   PARTNER_SUPPLIER_SEGMENT_OTHER,
   PARTNER_TYPE_SUPPLIER,
-} from "../lib/partnerPredicates";
-import { toPartnerSearchableSelectOptions } from "../lib/partnerSelectOptions";
+} from "../domains/partner/helpers/partnerPredicates";
+import { toPartnerSearchableSelectOptions } from "../domains/partner/helpers/partnerSelectOptions";
 import { validateRequiredFields } from "../lib/formValidation";
-import { fileTypeIconSrc } from "../lib/fileTypeIcon";
-import { normalizeDecimalInput } from "../lib/numberInput";
-import { formatDateTimeKo } from "../lib/dateFormat";
+import { fileTypeIconSrc } from "../lib/ui/fileTypeIcon";
+import { normalizeDecimalInput } from "../lib/format/numberInput";
+import { formatDateTimeKo } from "../lib/format/dateFormat";
 
 const LENS_MANUFACTURER_SUPPLIER_SEGMENT_CODE = PARTNER_SUPPLIER_SEGMENT_OTHER;
 

@@ -13,16 +13,13 @@ import Select from "../components/form/Select";
 import SearchableSelectWithCreate from "../components/form/SearchableSelectWithCreate";
 import { PartnerCountryCell } from "../components/partner/PartnerCountryCell";
 import {
-  SortableHeaderCell,
-  Table,
-  TableBody,
-  TableCell,
-  TableHeader,
-  TableRow,
-} from "../components/ui/table";
-import Badge from "../components/ui/badge/Badge";
-import { Dropdown } from "../components/ui/dropdown/Dropdown";
-import {
+  DataTable,
+  DataTableBody,
+  DataTableCell,
+  DataTableHeader,
+  DataTableHeaderCell,
+  DataTableHeaderLabel,
+  DataTableRow,
   DataListSearchInput,
   DataListSearchOptionsButton,
   DataListPrimaryActionButton,
@@ -31,6 +28,8 @@ import {
   dataListOutlineButtonClassName,
   TablePagination,
 } from "../components/list";
+import Badge from "../components/ui/badge/Badge";
+import { Dropdown } from "../components/ui/dropdown/Dropdown";
 import ListPageLoading from "../components/common/ListPageLoading";
 import { useAuth } from "../hooks/useAuth";
 import {
@@ -40,8 +39,8 @@ import {
 } from "../api/purchaseOrder";
 import { commonCodesToSelectOptions } from "../api/commonCode";
 import { FileIcon } from "../icons";
-import { badgeColorFromKoStatusLabel } from "../lib/badgeStatusColor";
-// import { formatCurrency } from "../lib/formatCurrency";
+import { badgeColorFromKoStatusLabel } from "../lib/ui/badgeStatusColor";
+// import { formatCurrency } from "../lib/format/formatCurrency";
 
 const DEFAULT_PAGE_SIZE = 10;
 type PurchaseOrderSortKey = NonNullable<PurchaseOrderListParams["sortBy"]>;
@@ -365,109 +364,127 @@ export default function Order() {
               목록을 불러오는 중 오류가 발생했습니다.
             </div>
           ) : (
-            <Table>
-              <TableHeader className="border-b border-gray-100 dark:border-white/[0.05]">
-                <TableRow>
-                  <SortableHeaderCell
-                    label="발주번호"
-                    sortKey="orderNo"
-                    activeSortBy={sortBy}
-                    activeSortOrder={sortOrder}
-                    onToggleSort={handleOrderSortToggle}
-                    className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
-                  />
-                  <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">제목</TableCell>
-                  <SortableHeaderCell
-                    label="고객"
-                    sortKey="partnerName"
-                    activeSortBy={sortBy}
-                    activeSortOrder={sortOrder}
-                    onToggleSort={handleOrderSortToggle}
-                    className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
-                  />
-                  <SortableHeaderCell
-                    label="발주일자"
-                    sortKey="orderedAt"
-                    activeSortBy={sortBy}
-                    activeSortOrder={sortOrder}
-                    onToggleSort={handleOrderSortToggle}
-                    className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
-                  />
-                  <SortableHeaderCell
-                    label="요청납기"
-                    sortKey="dueDate"
-                    activeSortBy={sortBy}
-                    activeSortOrder={sortOrder}
-                    onToggleSort={handleOrderSortToggle}
-                    className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
-                  />
-                  <SortableHeaderCell
-                    label="발주 상태"
-                    sortKey="status"
-                    activeSortBy={sortBy}
-                    activeSortOrder={sortOrder}
-                    onToggleSort={handleOrderSortToggle}
-                    align="center"
-                    className="px-5 py-3 font-medium text-gray-500 text-center text-theme-xs dark:text-gray-400"
-                  />
-                  <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-center text-theme-xs dark:text-gray-400">
+            <DataTable minWidth={900}>
+              <DataTableHeader>
+                <DataTableHeaderCell
+                  colSpan={2}
+                  compact
+                  sortKey="orderNo"
+                  activeSortBy={sortBy}
+                  activeSortOrder={sortOrder}
+                  onToggleSort={handleOrderSortToggle}
+                >
+                  <DataTableHeaderLabel>발주번호</DataTableHeaderLabel>
+                </DataTableHeaderCell>
+                <DataTableHeaderCell colSpan={3} compact sortable={false}>
+                  <DataTableHeaderLabel>제목</DataTableHeaderLabel>
+                </DataTableHeaderCell>
+                <DataTableHeaderCell
+                  colSpan={2}
+                  compact
+                  sortKey="partnerName"
+                  activeSortBy={sortBy}
+                  activeSortOrder={sortOrder}
+                  onToggleSort={handleOrderSortToggle}
+                >
+                  <DataTableHeaderLabel>고객</DataTableHeaderLabel>
+                </DataTableHeaderCell>
+                <DataTableHeaderCell
+                  colSpan={1}
+                  compact
+                  sortKey="orderedAt"
+                  activeSortBy={sortBy}
+                  activeSortOrder={sortOrder}
+                  onToggleSort={handleOrderSortToggle}
+                >
+                  <DataTableHeaderLabel>발주일자</DataTableHeaderLabel>
+                </DataTableHeaderCell>
+                <DataTableHeaderCell
+                  colSpan={1}
+                  compact
+                  sortKey="dueDate"
+                  activeSortBy={sortBy}
+                  activeSortOrder={sortOrder}
+                  onToggleSort={handleOrderSortToggle}
+                >
+                  <DataTableHeaderLabel>요청납기</DataTableHeaderLabel>
+                </DataTableHeaderCell>
+                <DataTableHeaderCell
+                  colSpan={2}
+                  compact
+                  sortKey="status"
+                  activeSortBy={sortBy}
+                  activeSortOrder={sortOrder}
+                  onToggleSort={handleOrderSortToggle}
+                  className="justify-center"
+                >
+                  <DataTableHeaderLabel className="w-full text-center">
+                    발주 상태
+                  </DataTableHeaderLabel>
+                </DataTableHeaderCell>
+                <DataTableHeaderCell colSpan={1} compact sortable={false} className="justify-center border-r-0">
+                  <DataTableHeaderLabel className="w-full text-center">
                     첨부
                     <span className="sr-only">첨부 파일 여부</span>
-                  </TableCell>
-                </TableRow>
-              </TableHeader>
-              <TableBody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
+                  </DataTableHeaderLabel>
+                </DataTableHeaderCell>
+              </DataTableHeader>
+              <DataTableBody>
                 {pageList.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="px-5 py-8 text-center text-theme-sm text-gray-500 dark:text-gray-400">
+                  <DataTableRow>
+                    <DataTableCell colSpan={12} compact className="justify-center border-r-0 py-6">
                       검색 조건에 맞는 발주가 없습니다.
-                    </TableCell>
-                  </TableRow>
+                    </DataTableCell>
+                  </DataTableRow>
                 ) : (
                   pageList.map((row) => (
-                    <TableRow key={row.id}>
-                      <TableCell className="px-5 py-4 text-start text-theme-sm sm:px-6">
+                    <DataTableRow key={row.id}>
+                      <DataTableCell colSpan={2} compact>
                         <Link
                           to={`/order/${row.id}`}
                           className="font-medium text-brand-600 hover:underline dark:text-brand-400"
                         >
                           {row.orderNo}
                         </Link>
-                      </TableCell>
-                      <TableCell className="px-4 py-3 text-gray-700 text-start text-theme-sm truncate dark:text-gray-300 max-w-[15rem]" >{row.title ?? "-"}</TableCell>
-                      <TableCell className="px-4 py-3 text-gray-500 text-theme-sm dark:text-gray-400">
+                      </DataTableCell>
+                      <DataTableCell colSpan={3} compact className="min-w-0">
+                        <p className="truncate text-theme-sm text-gray-700 dark:text-gray-300">
+                          {row.title ?? "-"}
+                        </p>
+                      </DataTableCell>
+                      <DataTableCell colSpan={2} compact>
                         <PartnerCountryCell
                           partner={row.partner as Partner | undefined}
                           countryCodes={countryCodes}
                           variant="orderList"
                         />
-                      </TableCell>
-                      <TableCell className="px-4 py-3 text-gray-500 text-theme-sm dark:text-gray-400 ">
+                      </DataTableCell>
+                      <DataTableCell colSpan={1} compact>
                         {row.orderDate?.trim() ? row.orderDate : "-"}
-                      </TableCell>
-                      <TableCell className="px-4 py-3 text-gray-500 text-theme-sm dark:text-gray-400">
+                      </DataTableCell>
+                      <DataTableCell colSpan={1} compact>
                         {row.dueDate?.trim() ? row.dueDate : "-"}
-                      </TableCell>
-                      <TableCell className="px-4 py-3 text-center">
+                      </DataTableCell>
+                      <DataTableCell colSpan={2} compact className="justify-center">
                         <Badge size="sm" color={badgeColorFromKoStatusLabel(getOrderStatusName(row.orderStatus))}>
                           {getOrderStatusName(row.orderStatus)}
                         </Badge>
-                      </TableCell>
-                      <TableCell className="px-4 py-3 text-center align-middle text-gray-500 dark:text-gray-400">
+                      </DataTableCell>
+                      <DataTableCell colSpan={1} compact className="justify-center border-r-0">
                         {row.hasAttachments ? (
                           <span className="inline-flex justify-center" title="첨부 있음">
-                            <FileIcon className="h-5 w-5 text-gray-600 dark:text-gray-300" aria-hidden />
+                            <FileIcon className="h-4 w-4 text-gray-600 dark:text-gray-300" aria-hidden />
                             <span className="sr-only">첨부 있음</span>
                           </span>
                         ) : (
                           "—"
                         )}
-                      </TableCell>
-                    </TableRow>
+                      </DataTableCell>
+                    </DataTableRow>
                   ))
                 )}
-              </TableBody>
-            </Table>
+              </DataTableBody>
+            </DataTable>
           )}
         </ListPageLayout>
       </div>

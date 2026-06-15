@@ -1,7 +1,7 @@
 import type { CommonCodeItem } from "../../api/commonCode";
 import { labelForCommonCode } from "../../api/commonCode";
 import type { Partner, PartnerSummary } from "../../api/purchaseOrder";
-import { partnerCountryFlagUrl } from "../../lib/partnerCountryOptions";
+import { partnerCountryFlagUrl } from "../../domains/partner/helpers/partnerCountryOptions";
 
 export type PartnerCountryCellPartner =
   | Partner

@@ -1,5 +1,5 @@
 import { MutationCache, QueryCache, QueryClient } from "@tanstack/react-query";
-import { isApiError, isForbiddenError, type ApiError } from "./apiError";
+import { isApiError, isForbiddenError, type ApiError } from "./api/apiError";
 
 type ApiErrorHandler = (error: ApiError) => void;
 

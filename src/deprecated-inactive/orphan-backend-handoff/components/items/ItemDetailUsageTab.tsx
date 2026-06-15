@@ -7,7 +7,7 @@ import {
   TableHeader,
   TableRow,
 } from "../ui/table";
-import { isForbiddenError } from "../../lib/apiError";
+import { isForbiddenError } from "../../../../lib/api/apiError";
 import type { ItemUsageRow } from "../../api/itemMaster";
 
 type ItemDetailUsageTabProps = {

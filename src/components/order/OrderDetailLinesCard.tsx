@@ -2,20 +2,31 @@ import { Link } from "react-router";
 import ComponentCard from "../common/ComponentCard";
 import Badge from "../ui/badge/Badge";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHeader,
-  TableRow,
-} from "../ui/table";
-import { formatCurrency } from "../../lib/formatCurrency";
+  DataTable,
+  DataTableBody,
+  DataTableCell,
+  DataTableHeader,
+  DataTableHeaderCell,
+  DataTableHeaderLabel,
+  DataTableRow,
+} from "../list";
+import { formatCurrency } from "../../lib/format/formatCurrency";
 import {
   OrderLineAmountSummary,
   type LineAmountSummary,
-} from "../../lib/orderLineAmountSummary";
+} from "../../domains/order/helpers/orderLineAmountSummary";
 import type { PurchaseOrderItem } from "../../api/purchaseOrder";
-import { detectorLabelFromOrderLine } from "../../lib/orderLineItemRow";
+import { getOrderLineDisplayName } from "../../domains/order/display/orderLineDisplay";
+import { detectorLabelFromOrderLine } from "../../domains/order/helpers/orderLineItemRow";
 import { DetectorTypeGuidePopover } from "../common/DetectorTypeGuidePopover";
+import { ORDER_DETAIL_LINES_GRID_TEMPLATE } from "../../domains/order/layout/orderDetailLinesTableLayout";
+
+const ORDER_LINE_BODY_TEXT_CLASS =
+  "text-theme-sm text-gray-800 dark:text-gray-200";
+const ORDER_LINE_MUTED_TEXT_CLASS =
+  "text-theme-sm text-gray-500 dark:text-gray-400";
+const ORDER_LINE_NUMERIC_TEXT_CLASS =
+  "text-theme-sm tabular-nums text-gray-800 dark:text-gray-200";
 
 type OrderDetailLinesCardProps = {
   orderLines: PurchaseOrderItem[];
@@ -35,26 +46,6 @@ function lineRegisteredQty(
     return registeredQtyByOrderItemId.get(item.id) ?? 0;
   }
   return item.deliveredQty ?? 0;
-}
-
-function getOrderLineDisplayName(item: PurchaseOrderItem): string {
-  const baseName =
-    item.itemName?.trim() ||
-    item.productNameSnapshot?.trim() ||
-    item.definitionNameSnapshot?.trim() ||
-    (item.productId != null && String(item.productId).trim() !== ""
-      ? `제품 #${item.productId}`
-      : "-");
-
-  const lineCode =
-    item.businessName?.trim() ||
-    item.businessNameSnapshot?.trim() ||
-    item.versionSnapshot?.trim() ||
-    "";
-  if (!lineCode || baseName === "-" || baseName.includes(`(${lineCode})`)) {
-    return baseName;
-  }
-  return `${baseName} (${lineCode})`;
 }
 
 function getLineLensDisplayName(item: PurchaseOrderItem): string {
@@ -135,116 +126,53 @@ export function OrderDetailLinesCard({
           </h4>
         </div>
       ) : null}
-      <Table
-        className={
-          isDashboard
-            ? "w-full min-w-[44rem] table-auto text-center text-sm text-gray-900 dark:text-white"
-            : "w-full text-center text-sm text-gray-900 dark:text-white md:table-fixed"
-        }
-      >
-        <TableHeader className="border-b border-gray-100 dark:border-white/5">
-          <TableRow className="hover:bg-transparent">
-            <TableCell
-              isHeader
-              className={
-                isDashboard
-                  ? "min-w-[10rem] px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400"
-                  : "whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[18%]"
-              }
-            >
+      <DataTable fillWidth minWidth={0}>
+        <DataTableHeader gridTemplateColumns={ORDER_DETAIL_LINES_GRID_TEMPLATE}>
+          <DataTableHeaderCell compact sortable={false} className="justify-start">
+            <DataTableHeaderLabel className="w-full text-left">
               {isDashboard ? "품목 / 사업명" : "제품/사업 명"}
-            </TableCell>
-            <TableCell
-              isHeader
-              className={
-                isDashboard
-                  ? "min-w-[5rem] px-2 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400"
-                  : "whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[12%]"
-              }
-            >
-              렌즈
-            </TableCell>
-            <TableCell
-              isHeader
-              className={
-                isDashboard
-                  ? "min-w-[6rem] px-2 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400"
-                  : "whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[14%]"
-              }
-            >
-              <div
-                className={
-                  isDashboard
-                    ? "flex items-center justify-center gap-1 whitespace-nowrap"
-                    : "flex flex-wrap items-center justify-center gap-1"
-                }
-              >
+            </DataTableHeaderLabel>
+          </DataTableHeaderCell>
+          <DataTableHeaderCell compact sortable={false} className="justify-start">
+            <DataTableHeaderLabel className="w-full text-left">렌즈</DataTableHeaderLabel>
+          </DataTableHeaderCell>
+          <DataTableHeaderCell compact sortable={false} className="justify-center">
+            <DataTableHeaderLabel className="w-full text-center">
+              <span className="inline-flex items-center gap-1">
                 <span>검출기</span>
                 <DetectorTypeGuidePopover />
-              </div>
-            </TableCell>
-            <TableCell
-              isHeader
-              className={
-                isDashboard
-                  ? "w-px whitespace-nowrap px-2 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400"
-                  : "whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[12%]"
-              }
-            >
+              </span>
+            </DataTableHeaderLabel>
+          </DataTableHeaderCell>
+          <DataTableHeaderCell compact sortable={false} className="justify-center">
+            <DataTableHeaderLabel className="w-full text-center">
               {isDashboard ? "수량" : "단위 · 수량"}
-            </TableCell>
-            <TableCell
-              isHeader
-              className={
-                isDashboard
-                  ? "w-px whitespace-nowrap px-2 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400"
-                  : "whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[16%]"
-              }
-            >
+            </DataTableHeaderLabel>
+          </DataTableHeaderCell>
+          <DataTableHeaderCell compact sortable={false} className="justify-end">
+            <DataTableHeaderLabel className="w-full text-end">
               {isDashboard ? "단가" : "통화 · 단가"}
-            </TableCell>
-            <TableCell
-              isHeader
-              className={
-                isDashboard
-                  ? "w-px whitespace-nowrap px-2 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400"
-                  : "whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[14%]"
-              }
-            >
-              금액
-            </TableCell>
-            <TableCell
-              isHeader
-              className={
-                isDashboard
-                  ? "min-w-[4rem] px-2 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400"
-                  : "whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[22%]"
-              }
-            >
-              비고
-            </TableCell>
-            <TableCell
-              isHeader
-              className={
-                isDashboard
-                  ? "w-px whitespace-nowrap px-2 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400"
-                  : "whitespace-nowrap px-3 py-3 text-center align-middle font-medium text-gray-600 dark:text-gray-400 md:w-[6%]"
-              }
-            >
+            </DataTableHeaderLabel>
+          </DataTableHeaderCell>
+          <DataTableHeaderCell compact sortable={false} className="justify-end">
+            <DataTableHeaderLabel className="w-full text-end">금액</DataTableHeaderLabel>
+          </DataTableHeaderCell>
+          <DataTableHeaderCell compact sortable={false} className="justify-start">
+            <DataTableHeaderLabel className="w-full text-left">비고</DataTableHeaderLabel>
+          </DataTableHeaderCell>
+          <DataTableHeaderCell compact sortable={false} className="justify-center border-r-0">
+            <DataTableHeaderLabel className="w-full text-center">
               {isDashboard ? "생산현황" : "생산"}
-            </TableCell>
-          </TableRow>
-        </TableHeader>
-        <TableBody className="divide-y divide-gray-200 dark:divide-gray-800">
+            </DataTableHeaderLabel>
+          </DataTableHeaderCell>
+        </DataTableHeader>
+        <DataTableBody>
           {orderLines.length === 0 ? (
-            <TableRow>
-            <TableCell
-              colSpan={8}
-              className="px-3 py-6 text-center text-theme-sm text-gray-500 dark:text-gray-400"
-            >
+            <DataTableRow>
+              <DataTableCell colSpan={12} compact className="justify-center border-r-0 py-4">
                 등록된 발주 라인이 없습니다.
-              </TableCell>
-            </TableRow>
+              </DataTableCell>
+            </DataTableRow>
           ) : (
             orderLines.map((item) => {
               const lineCc = item.currencyCode ?? defaultCurrencyCode ?? "KRW";
@@ -255,77 +183,55 @@ export function OrderDetailLinesCard({
               const qty = Number(item.qty ?? 0);
               const isProductionComplete = qty > 0 && registered >= qty;
               return (
-                <TableRow
+                <DataTableRow
                   key={item.id}
-                  className="align-middle hover:bg-transparent"
+                  gridTemplateColumns={ORDER_DETAIL_LINES_GRID_TEMPLATE}
                 >
-                  <TableCell className="min-w-0 max-w-[18rem] whitespace-nowrap px-3 py-3 text-center align-middle">
+                  <DataTableCell compact className="min-w-0 items-start justify-start">
                     <ProductLineLink item={item} />
-                  </TableCell>
-                  <TableCell
-                    className={
-                      isDashboard
-                        ? "min-w-0 max-w-[10rem] px-2 py-3 text-center align-middle"
-                        : "min-w-0 max-w-[14rem] px-3 py-3 text-center align-middle"
-                    }
-                  >
+                  </DataTableCell>
+                  <DataTableCell compact className="min-w-0 items-start justify-start">
                     <LensLineLink item={item} />
-                  </TableCell>
-                  <TableCell
-                    className={
-                      isDashboard
-                        ? "min-w-0 max-w-[10rem] px-2 py-3 text-center align-middle text-theme-xs text-gray-800 dark:text-gray-200"
-                        : "min-w-0 max-w-[14rem] px-3 py-3 text-center align-middle text-theme-xs text-gray-800 dark:text-gray-200"
-                    }
-                  >
+                  </DataTableCell>
+                  <DataTableCell compact className="min-w-0 items-start justify-center text-theme-xs">
                     <span
                       className={
                         item.detectorId == null
-                          ? "text-gray-500 dark:text-gray-400"
-                          : ""
+                          ? ORDER_LINE_MUTED_TEXT_CLASS
+                          : ORDER_LINE_BODY_TEXT_CLASS
                       }
                       title={detectorLabelFromOrderLine(item)}
                     >
                       {detectorLabelFromOrderLine(item)}
                     </span>
-                  </TableCell>
-                  <TableCell
-                    className={
-                      isDashboard
-                        ? "w-px whitespace-nowrap px-2 py-3 text-center align-middle tabular-nums text-gray-800 dark:text-gray-200"
-                        : "px-3 py-3 text-center align-middle tabular-nums text-gray-800 dark:text-gray-200"
-                    }
-                  >
+                  </DataTableCell>
+                  <DataTableCell compact className="justify-center">
                     {isDashboard ? (
-                      <span className="whitespace-nowrap">
+                      <span className={`whitespace-nowrap ${ORDER_LINE_NUMERIC_TEXT_CLASS}`}>
                         <span className="text-gray-500 dark:text-gray-400">
                           {item.unit ?? "EA"}
                         </span>{" "}
                         <span className="font-medium">{item.qty}</span>
                       </span>
                     ) : (
-                      <>
-                        <span>{item.unit ?? "-"}</span>
+                      <span className={ORDER_LINE_NUMERIC_TEXT_CLASS}>
+                        <span className="text-gray-500 dark:text-gray-400">
+                          {item.unit ?? "-"}
+                        </span>
                         <span className="mx-1 text-gray-300 dark:text-gray-600">·</span>
                         <span>{item.qty}</span>
-                      </>
+                      </span>
                     )}
-                  </TableCell>
-                  <TableCell
-                    className={
-                      isDashboard
-                        ? "w-px whitespace-nowrap px-2 py-3 text-center align-middle tabular-nums text-gray-800 dark:text-gray-200"
-                        : "px-3 py-3 text-center align-middle tabular-nums text-gray-800 dark:text-gray-200"
-                    }
-                  >
+                  </DataTableCell>
+                  <DataTableCell compact className="justify-end">
                     {isDashboard ? (
-                      <span className="whitespace-nowrap">
+                      <span className={`whitespace-nowrap ${ORDER_LINE_NUMERIC_TEXT_CLASS}`}>
                         {item.unitPrice != null
                           ? formatCurrency(item.unitPrice, lineCc)
                           : "-"}
                       </span>
                     ) : (
-                      <>
+                      <span className={ORDER_LINE_NUMERIC_TEXT_CLASS}>
                         <span className="text-gray-500 dark:text-gray-400">{lineCc}</span>
                         <span className="mx-1 text-gray-300 dark:text-gray-600">·</span>
                         <span>
@@ -333,61 +239,39 @@ export function OrderDetailLinesCard({
                             ? formatCurrency(item.unitPrice, lineCc)
                             : "-"}
                         </span>
-                      </>
+                      </span>
                     )}
-                  </TableCell>
-                  <TableCell
-                    className={
-                      isDashboard
-                        ? "w-px whitespace-nowrap px-2 py-3 text-center align-middle font-medium tabular-nums text-gray-900 dark:text-white"
-                        : "px-3 py-3 text-center align-middle font-medium tabular-nums text-gray-900 dark:text-white"
-                    }
-                  >
-                    {item.amount != null
-                      ? formatCurrency(item.amount, lineCc)
-                      : "-"}
-                  </TableCell>
-                  <TableCell
-                    className={
-                      isDashboard
-                        ? "min-w-0 max-w-[12rem] px-2 py-3 text-center align-middle text-gray-600 dark:text-gray-400"
-                        : "px-3 py-3 text-center align-middle text-gray-600 dark:text-gray-400"
-                    }
-                  >
+                  </DataTableCell>
+                  <DataTableCell compact className="justify-end font-medium">
+                    <span className={ORDER_LINE_NUMERIC_TEXT_CLASS}>
+                      {item.amount != null
+                        ? formatCurrency(item.amount, lineCc)
+                        : "-"}
+                    </span>
+                  </DataTableCell>
+                  <DataTableCell compact className="min-w-0 items-start justify-start">
                     <span
-                      className={
-                        isDashboard
-                          ? "block truncate"
-                          : undefined
-                      }
+                      className={`${ORDER_LINE_BODY_TEXT_CLASS} ${isDashboard ? "block truncate" : ""}`}
                       title={item.remark?.trim() || undefined}
                     >
                       {item.remark ?? "-"}
                     </span>
-                  </TableCell>
-                  <TableCell
-                    className={
-                      isDashboard
-                        ? "w-px whitespace-nowrap px-2 py-3 text-center align-middle tabular-nums text-gray-800 dark:text-gray-200"
-                        : "px-3 py-3 text-center align-middle tabular-nums text-gray-800 dark:text-gray-200"
-                    }
-                  >
+                  </DataTableCell>
+                  <DataTableCell compact className="justify-center border-r-0">
                     {isDashboard ? (
-                      <span className="inline-flex shrink-0 justify-center whitespace-nowrap">
-                        <Badge
-                          size="sm"
-                          color={isProductionComplete ? "success" : "primary"}
-                          variant="light"
-                        >
-                          <span className="whitespace-nowrap tabular-nums">
-                            {registered}
-                            <span className="mx-0.5">/</span>
-                            {qty}
-                          </span>
-                        </Badge>
-                      </span>
+                      <Badge
+                        size="sm"
+                        color={isProductionComplete ? "success" : "primary"}
+                        variant="light"
+                      >
+                        <span className="whitespace-nowrap tabular-nums">
+                          {registered}
+                          <span className="mx-0.5">/</span>
+                          {qty}
+                        </span>
+                      </Badge>
                     ) : (
-                      <span>
+                      <span className={ORDER_LINE_NUMERIC_TEXT_CLASS}>
                         {registered}
                         {qty > 0 ? (
                           <span className="text-gray-400 dark:text-gray-500">
@@ -397,13 +281,13 @@ export function OrderDetailLinesCard({
                         ) : null}
                       </span>
                     )}
-                  </TableCell>
-                </TableRow>
+                  </DataTableCell>
+                </DataTableRow>
               );
             })
           )}
-        </TableBody>
-      </Table>
+        </DataTableBody>
+      </DataTable>
     </div>
   );
 

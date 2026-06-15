@@ -15,12 +15,12 @@ import {
   logout as apiLogout,
   type LoginResponse
 } from "../api/auth";
-import { setAuthAccessToken, subscribeAuthAccessToken } from "../lib/authAccessStore";
+import { setAuthAccessToken, subscribeAuthAccessToken } from "../lib/auth/authAccessStore";
 import {
   refreshAccessTokenSingle,
   onRefreshUserPayload,
   type RefreshedUser
-} from "../lib/authRefreshCoordinator";
+} from "../lib/auth/authRefreshCoordinator";
 import type { AuthUser } from "../types/authUser";
 
 type AuthState = {

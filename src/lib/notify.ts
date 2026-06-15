@@ -1,5 +1,5 @@
 import toast from "react-hot-toast";
-import { isForbiddenError } from "./apiError";
+import { isForbiddenError } from "./api/apiError";
 
 export const notify = {
   success(message: string) {

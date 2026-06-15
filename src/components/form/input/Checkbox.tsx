@@ -1,9 +1,15 @@
 import { useEffect, useRef, type FC } from "react";
+import {
+  CHECKBOX_INDETERMINATE_CLASS,
+  CHECKBOX_INPUT_CLASS,
+  CHECKBOX_LABEL_CLASS,
+} from "../../../lib/ui/checkboxInputStyles";
 
 interface CheckboxProps {
   label?: string;
   checked: boolean;
   className?: string;
+  labelClassName?: string;
   id?: string;
   onChange: (checked: boolean) => void;
   disabled?: boolean;
@@ -17,10 +23,13 @@ const Checkbox: FC<CheckboxProps> = ({
   id,
   onChange,
   className = "",
+  labelClassName = "",
   disabled = false,
   indeterminate = false,
 }) => {
   const inputRef = useRef<HTMLInputElement>(null);
+  const showCheck = checked && !indeterminate;
+  const showIndeterminate = indeterminate && !checked;
 
   useEffect(() => {
     const el = inputRef.current;
@@ -28,52 +37,48 @@ const Checkbox: FC<CheckboxProps> = ({
     el.indeterminate = indeterminate;
   }, [indeterminate]);
 
+  const inputClass = [
+    CHECKBOX_INPUT_CLASS,
+    indeterminate && !checked ? CHECKBOX_INDETERMINATE_CLASS : "",
+    className,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   return (
-    <label
-      className={`flex items-center space-x-3 group cursor-pointer ${
-        disabled ? "cursor-not-allowed opacity-60" : ""
-      }`}
-    >
-      <div className="relative w-5 h-5">
+    <div className={`flex items-center ${disabled ? "opacity-60" : ""}`.trim()}>
+      <div className="relative size-4 shrink-0">
         <input
           ref={inputRef}
           id={id}
           type="checkbox"
-          className={`w-5 h-5 appearance-none cursor-pointer rounded-md border border-gray-300 dark:border-gray-700 checked:border-transparent checked:bg-brand-500 disabled:opacity-60 ${
-            indeterminate && !checked
-              ? "border-brand-500 bg-brand-500"
-              : ""
-          } ${className}`}
+          className={inputClass}
           checked={checked}
           onChange={(e) => onChange(e.target.checked)}
           disabled={disabled}
         />
-        {checked && !disabled && (
+        {showCheck ? (
           <svg
-            className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 transform"
-            xmlns="http://www.w3.org/2000/svg"
-            width="14"
-            height="14"
+            className="pointer-events-none absolute left-1/2 top-1/2 size-2.5 -translate-x-1/2 -translate-y-1/2"
             viewBox="0 0 14 14"
             fill="none"
+            aria-hidden
           >
             <path
               d="M11.6666 3.5L5.24992 9.91667L2.33325 7"
-              stroke="white"
+              stroke={disabled ? "#E4E7EC" : "white"}
               strokeWidth="1.94437"
               strokeLinecap="round"
               strokeLinejoin="round"
             />
           </svg>
-        )}
-        {indeterminate && !checked && !disabled && (
+        ) : null}
+        {showIndeterminate ? (
           <svg
-            className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 transform"
-            xmlns="http://www.w3.org/2000/svg"
-            width="14"
-            height="14"
+            className="pointer-events-none absolute left-1/2 top-1/2 size-2.5 -translate-x-1/2 -translate-y-1/2"
             viewBox="0 0 14 14"
             fill="none"
+            aria-hidden
           >
             <path
               d="M3.5 7H10.5"
@@ -82,32 +87,19 @@ const Checkbox: FC<CheckboxProps> = ({
               strokeLinecap="round"
             />
           </svg>
-        )}
-        {disabled && checked && (
-          <svg
-            className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 transform"
-            xmlns="http://www.w3.org/2000/svg"
-            width="14"
-            height="14"
-            viewBox="0 0 14 14"
-            fill="none"
-          >
-            <path
-              d="M11.6666 3.5L5.24992 9.91667L2.33325 7"
-              stroke="#E4E7EC"
-              strokeWidth="2.33333"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        )}
+        ) : null}
       </div>
-      {label && (
-        <span className="text-sm font-medium text-gray-800 dark:text-gray-200">
+      {label ? (
+        <label
+          htmlFor={id}
+          className={`${CHECKBOX_LABEL_CLASS} ${labelClassName} ${
+            disabled ? "cursor-not-allowed" : "cursor-pointer"
+          }`.trim()}
+        >
           {label}
-        </span>
-      )}
-    </label>
+        </label>
+      ) : null}
+    </div>
   );
 };
 

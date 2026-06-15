@@ -38,7 +38,7 @@ import {
   COMMON_CODE_GROUP_ITEM_REVISION_STATUS,
   commonCodesToSelectOptions,
 } from "../api/commonCode";
-import { isApiError, isForbiddenError } from "../lib/apiError";
+import { isApiError, isForbiddenError } from "../../../lib/api/apiError";
 import { formatItemDetailDt } from "../lib/itemDetailDisplay";
 import { ReactComponent as ArrowDownOnSquareIcon } from "../icons/arrow-down-on-square.svg?react";
 import { TrashBinIcon } from "../icons";

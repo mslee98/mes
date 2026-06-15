@@ -17,9 +17,9 @@ import {
   type ProductFileLink,
   type RepresentativeProduct,
 } from "../api/products";
-import { safeReturnOrderPathFromSearchParams } from "../lib/orderReturnNavigation";
+import { safeReturnOrderPathFromSearchParams } from "../domains/order/helpers/orderReturnNavigation";
 import { buildAppApiFileUrl } from "../lib/fileDownload";
-import { fileTypeIconSrc } from "../lib/fileTypeIcon";
+import { fileTypeIconSrc } from "../lib/ui/fileTypeIcon";
 import { ReactComponent as ArrowDownTrayIcon } from "../icons/arrow-down-tray.svg?react";
 
 function formatIsoDate(iso?: string): string {
@@ -124,8 +124,8 @@ export default function ProductDetail() {
   if (!id) {
     return (
       <>
-        <PageMeta title="제품 상세" description="대표 제품 정보" />
-        <PageBreadcrumb pageTitle="제품 상세" />
+        <PageMeta title="대표 제품 상세" description="대표 제품 정보" />
+        <PageBreadcrumb pageTitle="대표 제품 상세" />
         <div className="flex min-h-[320px] items-center justify-center text-gray-500 dark:text-gray-400">
           <p className="text-sm">잘못된 제품 ID입니다.</p>
         </div>
@@ -136,8 +136,8 @@ export default function ProductDetail() {
   if (isAuthLoading || isProductLoading) {
     return (
       <>
-        <PageMeta title="제품 상세" description="대표 제품 정보" />
-        <PageBreadcrumb pageTitle="제품 상세" />
+        <PageMeta title="대표 제품 상세" description="대표 제품 정보" />
+        <PageBreadcrumb pageTitle="대표 제품 상세" />
         <div className="flex min-h-[320px] items-center justify-center">
           <LoadingLottie message="제품 정보를 불러오는 중..." />
         </div>
@@ -148,8 +148,8 @@ export default function ProductDetail() {
   if (productError || !product) {
     return (
       <>
-        <PageMeta title="제품 상세" description="대표 제품 정보" />
-        <PageBreadcrumb pageTitle="제품 상세" />
+        <PageMeta title="대표 제품 상세" description="대표 제품 정보" />
+        <PageBreadcrumb pageTitle="대표 제품 상세" />
         <div className="flex min-h-[320px] items-center justify-center">
           <p className="text-sm text-red-600 dark:text-red-400">
             {productError instanceof Error
@@ -189,7 +189,7 @@ export default function ProductDetail() {
         title={`제품: ${p.productName || p.businessName || String(p.id)}`}
         description="대표 제품 정보"
       />
-      <PageBreadcrumb pageTitle="제품 상세" />
+      <PageBreadcrumb pageTitle="대표 제품 상세" />
 
       {returnToOrderPath ? (
         <PageNotice variant="brand" className="mb-6">

@@ -11,7 +11,7 @@ import PageMeta from "../components/common/PageMeta";
 import { Dropdown } from "../components/ui/dropdown/Dropdown";
 import { DropdownItem } from "../components/ui/dropdown/DropdownItem";
 import { MoreDotIcon } from "../icons";
-import { formatCurrency } from "../lib/formatCurrency";
+import { formatCurrency } from "../lib/format/formatCurrency";
 
 const DELIVERY_WIDGET_CHART_HEIGHT = 400;
 

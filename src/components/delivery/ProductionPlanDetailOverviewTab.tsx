@@ -9,17 +9,17 @@ import type {
   ProductionPlanPurchaseOrderNested,
   ProductionPlanUnit,
 } from "../../api/purchaseOrder";
-import type { FlatPlanUnitRow } from "../../lib/productionPlanDetailHelpers";
-import { computeProductionPlanUnitStats } from "../../lib/productionPlanDetailHelpers";
-import { formatDateYmd, formatDateYmdKoLong } from "../../lib/dateFormat";
+import type { FlatPlanUnitRow } from "../../domains/production-plan/helpers/detailHelpers";
+import { computeProductionPlanUnitStats } from "../../domains/production-plan/helpers/detailHelpers";
+import { formatDateYmd, formatDateYmdKoLong } from "../../lib/format/dateFormat";
 import {
   dueDateDdayBadgeClassName,
   getDueDateRelative,
-} from "../../lib/dueDateDisplay";
+} from "../../lib/format/dueDateDisplay";
 import type { ProductionPlanDetailTab } from "./productionPlanDetailTabTypes";
 import {
   labelForProcessCode,
-} from "../../lib/productionPlanProcessLabels";
+} from "../../domains/production-plan/labels/processLabels";
 import Checkbox from "../form/input/Checkbox";
 import Badge from "../ui/badge/Badge";
 import Button from "../ui/button/Button";

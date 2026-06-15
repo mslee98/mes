@@ -1,7 +1,7 @@
 /**
  * 검출기 시리즈 — `GET/POST/PATCH/DELETE /api/detector-series` (product.read / product.manage)
  */
-import { createApiError } from "../lib/apiError";
+import { createApiError } from "../lib/api/apiError";
 import { API_BASE } from "./apiBase";
 import { fetchAuthorized } from "./fetchAuthorized";
 

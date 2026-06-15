@@ -1,6 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { Link } from "react-router";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import PageMeta from "../components/common/PageMeta";
 import SegmentedControl from "../components/common/SegmentedControl";
@@ -9,62 +8,74 @@ import Select from "../components/form/Select";
 import {
   DataListSearchInput,
   DataListSearchOptionsButton,
+  DataTable,
+  DataTableBody,
+  DataTableCell,
+  DataTableHeader,
+  DataTableHeaderCell,
+  DataTableHeaderLabel,
+  DataTableRow,
   ListPageLayout,
   ListPageToolbarRow,
   TablePagination,
 } from "../components/list";
 import ListPageLoading from "../components/common/ListPageLoading";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHeader,
-  TableRow,
-} from "../components/ui/table";
 import Badge from "../components/ui/badge/Badge";
-import { ProductionPlanProcessStageBadge } from "../components/delivery/ProductionPlanProcessStageBadge";
+import Button from "../components/ui/button/Button";
+import { DeliveryPlanCreateModal } from "../components/delivery/DeliveryPlanCreateModal";
+import { DeliveryUnitListRow } from "../components/production/DeliveryUnitListRow";
 import { useAuth } from "../hooks/useAuth";
 import { useCommonCodesByGroup } from "../hooks/useCommonCodesByGroup";
+import { useDeliveryPermissions } from "../hooks/useDeliveryPermissions";
+import { useDeliveryPlanUnitSelection } from "../hooks/useDeliveryPlanUnitSelection";
 import { useServerListPagination } from "../hooks/useServerListPagination";
 import {
   COMMON_CODE_GROUP_COUNTRY,
   COMMON_CODE_GROUP_UNIT_PROCESS_STEP,
-  labelForCommonCode,
-  type CommonCodeItem,
 } from "../api/commonCode";
-import { formatDateYmd, todayYmdInTimeZone } from "../lib/dateFormat";
+import { formatDateYmd, todayYmdInTimeZone } from "../lib/format/dateFormat";
+import { getDueDateRelative } from "../lib/format/dueDateDisplay";
 import {
-  dueDateDdayBadgeClassName,
-  getDueDateRelative,
-} from "../lib/dueDateDisplay";
-import { labelForProcessCode } from "../lib/productionPlanProcessLabels";
-import { partnerCountryFlagUrl } from "../lib/partnerCountryOptions";
+  tabLabel,
+  unitListBreadcrumbTitle,
+  unitListMetaDescription,
+  unitListPageTitle,
+} from "../domains/production-plan/helpers/unitListPerspective";
+import {
+  DELIVERY_UNIT_TABLE_MIN_WIDTH_PX,
+  deliveryUnitTableGridTemplate,
+  deliveryUnitTableLayout,
+  deliveryUnitTableTrackCount,
+} from "../domains/delivery/layout/deliveryUnitDataTableLayout";
 import {
   getProductionPlanUnitOverview,
   getProductionPlanUnits,
-  type ProductionPlanUnit,
+  type DeliveryPlanAssignmentFilter,
   type ProductionPlanUnitCounts,
   type ProductionPlanUnitDateBasis,
   type ProductionPlanUnitListParams,
   type ProductionPlanUnitListResponse,
+  type ProductionPlanUnitPerspective,
   type ProductionPlanUnitTab,
 } from "../api/purchaseOrder";
 
 const DEFAULT_PAGE_SIZE = 20;
 /** 지연 탭: 서버 `DELAYED` 외 대기·진행 중 달력 지연 유닛 포함 — 소스 탭별 상한(백엔드와 동일 범위·검색 조건) */
 const DELAYED_TAB_SOURCE_PAGE_SIZE = 500;
-const DELIVERY_UNIT_TABS: Array<{ value: ProductionPlanUnitTab; label: string }> = [
-  { value: "WAITING", label: "대기" },
-  { value: "IN_PROGRESS", label: "진행" },
-  { value: "COMPLETED", label: "완료" },
-  { value: "DELAYED", label: "지연" },
+const DELIVERY_UNIT_TAB_VALUES: ProductionPlanUnitTab[] = [
+  "WAITING",
+  "IN_PROGRESS",
+  "COMPLETED",
+  "DELAYED",
 ];
 
-function deliveryUnitRowClassName(index: number): string {
-  return index % 2 === 0
-    ? "bg-white transition-colors hover:bg-gray-50 dark:bg-transparent dark:hover:bg-white/[0.03]"
-    : "bg-gray-50/70 transition-colors hover:bg-gray-100/70 dark:bg-white/[0.02] dark:hover:bg-white/[0.05]";
-}
+const DELIVERY_PLAN_ASSIGNMENT_LABELS: Record<
+  DeliveryPlanAssignmentFilter,
+  string
+> = {
+  unassigned: "납품 계획 없음",
+  assigned: "납품 계획 있음",
+};
 
 function normalizeMonthInput(v: string): string {
   if (!/^\d{4}-\d{2}$/.test(v)) return "";
@@ -77,44 +88,6 @@ function normalizeMonthInput(v: string): string {
 }
 
 type ProductionPlanUnitListRow = ProductionPlanUnitListResponse["items"][number];
-
-function listUnitLotDisplay(row: ProductionPlanUnitListRow): string {
-  const lot = String(row.unitCode ?? "").trim();
-  if (lot) return lot;
-  return row.unitId;
-}
-
-function listProductSerialDisplay(row: ProductionPlanUnitListRow): string {
-  const sn = String(row.serialNo ?? "").trim();
-  return sn || "미할당";
-}
-
-function listDetectorSerialDisplay(row: ProductionPlanUnitListRow): string {
-  const sn = String(row.detectorSerialNo ?? "").trim();
-  return sn || "미할당";
-}
-
-function listOperatorDisplay(row: ProductionPlanUnitListRow): string {
-  const name = String(row.operatorNameSnapshot ?? "").trim();
-  if (name) return name;
-  const employeeNo = String(row.operatorEmployeeNoSnapshot ?? "").trim();
-  if (employeeNo) return `사번 ${employeeNo}`;
-  return "미지정";
-}
-
-function toProcessBadgeUnit(
-  row: ProductionPlanUnitListRow
-): Pick<
-  ProductionPlanUnit,
-  "processStatus" | "currentProcessCode" | "isDeliveryReady" | "isDelivered"
-> {
-  return {
-    processStatus: row.processStatus ?? null,
-    currentProcessCode: row.currentProcessCode ?? null,
-    isDeliveryReady: row.isDeliveryReady === true,
-    isDelivered: row.isDelivered === true,
-  };
-}
 
 function tabBadgeCount(
   tab: ProductionPlanUnitTab,
@@ -162,33 +135,6 @@ function toDateBasisLabel(v: ProductionPlanUnitDateBasis): string {
   return "계획일";
 }
 
-function currentProcessDisplay(
-  row: {
-    currentProcessName?: string | null;
-    currentProcessCode?: string | null;
-  },
-  stepCodes: CommonCodeItem[]
-): string {
-  const name = String(row.currentProcessName ?? "").trim();
-  if (name) return name;
-  const code = String(row.currentProcessCode ?? "").trim();
-  if (!code) return "-";
-  return labelForProcessCode(code, stepCodes);
-}
-
-/** 거래처 아래 국가 서브줄 — 국기(SVG URL) + COUNTRY 공통코드 표시명(`partner.countryCode` 등) */
-function partnerCountrySubline(
-  countryCode: string | null | undefined,
-  countryCodes: CommonCodeItem[]
-): { label: string; flagUrl?: string } | null {
-  const raw = String(countryCode ?? "").trim();
-  if (!raw) return null;
-  const upper = raw.toUpperCase();
-  const fromApi = labelForCommonCode(countryCodes, upper);
-  const label = fromApi !== "—" ? fromApi : upper;
-  return { label, flagUrl: partnerCountryFlagUrl(upper) };
-}
-
 /** 서울 달력 기준: 미납품이고 발주 최종 납기가 오늘보다 이전이면 지연 */
 function isRowCalendarDelayed(
   row: ProductionPlanUnitListRow,
@@ -218,8 +164,15 @@ function mergeDelayedTabItems(
   return merged;
 }
 
-export default function DeliveryUnits() {
+type DeliveryUnitsProps = {
+  perspective?: ProductionPlanUnitPerspective;
+};
+
+export default function DeliveryUnits({
+  perspective = "delivery",
+}: DeliveryUnitsProps) {
   const { accessToken, isLoading: isAuthLoading } = useAuth();
+  const { canCreateDelivery } = useDeliveryPermissions();
 
   const { data: unitProcessStepCodes = [] } = useCommonCodesByGroup(
     COMMON_CODE_GROUP_UNIT_PROCESS_STEP,
@@ -233,9 +186,22 @@ export default function DeliveryUnits() {
     { enabled: !!accessToken && !isAuthLoading }
   );
 
+  const {
+    selectedItems,
+    selectedCount,
+    toggle,
+    clear,
+    isSelected,
+    isRowCheckboxDisabled,
+    getRowCheckboxOrderMismatchHint,
+  } = useDeliveryPlanUnitSelection();
+
   const [searchOptionsOpen, setSearchOptionsOpen] = useState(false);
   const [searchKeyword, setSearchKeyword] = useState("");
   const [tab, setTab] = useState<ProductionPlanUnitTab>("WAITING");
+  const [assignmentView, setAssignmentView] =
+    useState<DeliveryPlanAssignmentFilter>("unassigned");
+  const [createPlanOpen, setCreatePlanOpen] = useState(false);
   const [fromMonth, setFromMonth] = useState("");
   const [toMonth, setToMonth] = useState("");
   const [dateBasis, setDateBasis] = useState<ProductionPlanUnitDateBasis>("planned");
@@ -246,8 +212,18 @@ export default function DeliveryUnits() {
   const safeToMonth = normalizeMonthInput(toMonth);
   const hasMonthRange = safeFromMonth !== "" && safeToMonth !== "";
 
+  const assignmentParams = useMemo(
+    () =>
+      perspective === "production"
+        ? { deliveryPlanAssignment: assignmentView }
+        : {},
+    [perspective, assignmentView]
+  );
+
   const overviewParams = useMemo(
     () => ({
+      perspective,
+      ...assignmentParams,
       ...(hasMonthRange
         ? {
             fromMonth: safeFromMonth,
@@ -257,7 +233,14 @@ export default function DeliveryUnits() {
       dateBasis,
       tz: "Asia/Seoul",
     }),
-    [hasMonthRange, safeFromMonth, safeToMonth, dateBasis]
+    [
+      perspective,
+      assignmentParams,
+      hasMonthRange,
+      safeFromMonth,
+      safeToMonth,
+      dateBasis,
+    ]
   );
 
   const listParams = useMemo(
@@ -317,14 +300,12 @@ export default function DeliveryUnits() {
           ...delayedMergeFetchParams,
           tab: sourceTab,
         }),
-      /** 다른 탭에 있어도 병합 건수(지연 뱃지)를 위해 항상 조회 — 전체 제품 기준과 탭 숫자 일치 */
       enabled: !!accessToken && !isAuthLoading,
       staleTime: 30_000,
     })),
   });
 
   const todaySeoulYmd = todayYmdInTimeZone();
-
   const delayedMergeReady = delayedSourceQueries.every((q) => q.isFetched);
 
   const calendarDelayedMerged = useMemo((): ProductionPlanUnitListRow[] | null => {
@@ -367,6 +348,29 @@ export default function DeliveryUnits() {
     (delayedSourceQueries.some((q) => q.isLoading) || calendarDelayedMerged === null);
   const delayedSourcesError = delayedSourceQueries.find((q) => q.error)?.error;
 
+  /** 생산 관점: 배정 탭 전환 시에도 그리드·컬럼 너비 유지 */
+  const reserveCheckboxColumn =
+    perspective === "production" && canCreateDelivery;
+
+  const showCheckboxColumn =
+    reserveCheckboxColumn && assignmentView === "unassigned";
+
+  const unitTableLayout = useMemo(
+    () => deliveryUnitTableLayout({ showCheckbox: reserveCheckboxColumn }),
+    [reserveCheckboxColumn]
+  );
+
+  const unitTableGridColumns = useMemo(
+    () => deliveryUnitTableGridTemplate({ showCheckbox: reserveCheckboxColumn }),
+    [reserveCheckboxColumn]
+  );
+
+  const tableTrackCount = deliveryUnitTableTrackCount();
+
+  useEffect(() => {
+    clear();
+  }, [assignmentView, tab, perspective, clear]);
+
   const totalCount = Number(listData?.meta?.total) || 0;
   const listPagination = useServerListPagination({
     totalCount,
@@ -380,29 +384,40 @@ export default function DeliveryUnits() {
       toMonth,
       dateBasis,
       searchKeyword,
+      assignmentView,
+      perspective,
     ],
   });
 
   const tabOptions = useMemo(
     () =>
-      DELIVERY_UNIT_TABS.map((tabOption) => {
+      DELIVERY_UNIT_TAB_VALUES.map((tabValue) => {
         const badgeCount =
-          tabOption.value === "DELAYED"
+          tabValue === "DELAYED"
             ? calendarDelayedMerged !== null
               ? calendarDelayedMerged.length
               : Number(overviewData?.summary?.delayed) || 0
-            : tabBadgeCount(tabOption.value, overviewData?.summary);
+            : tabBadgeCount(tabValue, overviewData?.summary);
         return {
-          value: tabOption.value,
+          value: tabValue,
           label: (
             <span className="inline-flex items-center gap-2">
-              <span>{tabOption.label}</span>
-              {tabCountBadge(tabOption.value, badgeCount)}
+              <span>{tabLabel(perspective, tabValue)}</span>
+              {tabCountBadge(tabValue, badgeCount)}
             </span>
           ),
         };
       }),
-    [overviewData?.summary, calendarDelayedMerged]
+    [overviewData?.summary, calendarDelayedMerged, perspective]
+  );
+
+  const assignmentOptions = useMemo(
+    () =>
+      (["unassigned", "assigned"] as const).map((value) => ({
+        value,
+        label: DELIVERY_PLAN_ASSIGNMENT_LABELS[value],
+      })),
+    []
   );
 
   const handleSearchReset = () => {
@@ -411,7 +426,9 @@ export default function DeliveryUnits() {
     setToMonth("");
     setDateBasis("planned");
     setTab("WAITING");
+    setAssignmentView("unassigned");
     setPage(1);
+    clear();
   };
 
   const isLoading =
@@ -420,16 +437,19 @@ export default function DeliveryUnits() {
     (tab === "DELAYED" ? isDelayedSourcesLoading : isServerListLoading);
   const error = overviewError ?? (tab === "DELAYED" ? delayedSourcesError : serverListError);
 
+  const statusSectionTitle =
+    perspective === "production" ? "생산 상태" : "납품 상태";
+
   return (
     <>
       <PageMeta
-        title="아이쓰리시스템(주) | 생산 목록"
-        description="아이쓰리시스템(주) | 생산 목록 페이지"
+        title={`아이쓰리시스템(주) | ${unitListPageTitle(perspective)}`}
+        description={unitListMetaDescription(perspective)}
       />
-      <PageBreadcrumb pageTitle="생산 목록" />
+      <PageBreadcrumb pageTitle={unitListBreadcrumbTitle(perspective)} />
       <div className="space-y-6">
         <ListPageLayout
-          title="생산 목록"
+          title={unitListPageTitle(perspective)}
           toolbar={
             <ListPageToolbarRow
               search={
@@ -444,7 +464,20 @@ export default function DeliveryUnits() {
                 />
               }
               actions={
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
+                  {showCheckboxColumn && selectedCount > 0 ? (
+                    <>
+                      <span className="text-sm text-gray-600 dark:text-gray-300">
+                        {selectedCount}건 선택
+                      </span>
+                      <Button
+                        size="sm"
+                        onClick={() => setCreatePlanOpen(true)}
+                      >
+                        납품 계획 만들기
+                      </Button>
+                    </>
+                  ) : null}
                   <DataListSearchOptionsButton
                     open={searchOptionsOpen}
                     onToggle={() => setSearchOptionsOpen((open) => !open)}
@@ -518,15 +551,33 @@ export default function DeliveryUnits() {
           }
           belowSearchOptions={
             <div className="space-y-2 border-b border-gray-100 pt-2 pb-3 dark:border-white/[0.05]">
-              <SegmentedControl
-                ariaLabel="유닛 납품 상태 탭"
-                value={tab}
-                onChange={(nextTab) => {
-                  setTab(nextTab);
-                  setPage(1);
-                }}
-                options={tabOptions}
-              />
+              <p className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                {statusSectionTitle}
+              </p>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch sm:gap-4">
+                <SegmentedControl
+                  ariaLabel="유닛 상태 탭"
+                  value={tab}
+                  onChange={(nextTab) => {
+                    setTab(nextTab);
+                    setPage(1);
+                  }}
+                  options={tabOptions}
+                  className="min-w-0 flex-1"
+                />
+                {perspective === "production" ? (
+                  <SegmentedControl
+                    ariaLabel="납품 계획 배정 필터"
+                    value={assignmentView}
+                    onChange={(next) => {
+                      setAssignmentView(next);
+                      setPage(1);
+                    }}
+                    options={assignmentOptions}
+                    className="w-full shrink-0 sm:w-auto sm:min-w-[16rem]"
+                  />
+                ) : null}
+              </div>
               <p className="text-xs text-gray-500 dark:text-gray-400">
                 조회 범위:{" "}
                 {hasMonthRange ? `${safeFromMonth} ~ ${safeToMonth}` : "전체 기간"} / 기준일:{" "}
@@ -547,260 +598,127 @@ export default function DeliveryUnits() {
               목록을 불러오는 중 오류가 발생했습니다.
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <Table className="min-w-[960px]">
-                <TableHeader className="border-b border-gray-100 dark:border-white/[0.05]">
-                  <TableRow>
-                    <TableCell
-                      isHeader
-                      className="min-w-[11rem] max-w-[14rem] px-3 py-2 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
+            <DataTable
+              fillWidth
+              minWidth={DELIVERY_UNIT_TABLE_MIN_WIDTH_PX}
+            >
+              <DataTableHeader
+                gridTemplateColumns={unitTableGridColumns}
+              >
+                {reserveCheckboxColumn ? (
+                  <DataTableHeaderCell
+                    colSpan={unitTableLayout.checkbox}
+                    compact
+                    sortable={false}
+                  >
+                    {showCheckboxColumn ? (
+                      <span className="sr-only">선택</span>
+                    ) : null}
+                  </DataTableHeaderCell>
+                ) : null}
+                <DataTableHeaderCell colSpan={unitTableLayout.no} compact sortable={false}>
+                  <DataTableHeaderLabel className="w-full text-center">
+                    No.
+                  </DataTableHeaderLabel>
+                </DataTableHeaderCell>
+                <DataTableHeaderCell colSpan={unitTableLayout.lot} compact sortable={false}>
+                  <DataTableHeaderLabel>LOT</DataTableHeaderLabel>
+                </DataTableHeaderCell>
+                <DataTableHeaderCell colSpan={unitTableLayout.item} compact sortable={false}>
+                  <DataTableHeaderLabel>품목</DataTableHeaderLabel>
+                </DataTableHeaderCell>
+                <DataTableHeaderCell colSpan={unitTableLayout.serial} compact sortable={false}>
+                  <DataTableHeaderLabel>S/N</DataTableHeaderLabel>
+                </DataTableHeaderCell>
+                <DataTableHeaderCell colSpan={unitTableLayout.partner} compact sortable={false}>
+                  <DataTableHeaderLabel>고객</DataTableHeaderLabel>
+                </DataTableHeaderCell>
+                <DataTableHeaderCell
+                  colSpan={unitTableLayout.operator}
+                  compact
+                  sortable={false}
+                >
+                  <DataTableHeaderLabel className="w-full text-center">
+                    생산 담당
+                  </DataTableHeaderLabel>
+                </DataTableHeaderCell>
+                <DataTableHeaderCell colSpan={unitTableLayout.process} compact sortable={false}>
+                  <DataTableHeaderLabel className="w-full text-center">
+                    공정
+                  </DataTableHeaderLabel>
+                </DataTableHeaderCell>
+                <DataTableHeaderCell colSpan={unitTableLayout.status} compact sortable={false}>
+                  <DataTableHeaderLabel className="w-full text-center">
+                    상태
+                  </DataTableHeaderLabel>
+                </DataTableHeaderCell>
+                <DataTableHeaderCell
+                  colSpan={unitTableLayout.orderPlan}
+                  compact
+                  sortable={false}
+                >
+                  <DataTableHeaderLabel>발주·계획</DataTableHeaderLabel>
+                </DataTableHeaderCell>
+                <DataTableHeaderCell colSpan={unitTableLayout.dates} compact sortable={false}>
+                  <DataTableHeaderLabel>일정</DataTableHeaderLabel>
+                </DataTableHeaderCell>
+                <DataTableHeaderCell colSpan={unitTableLayout.delay} compact sortable={false}>
+                  <DataTableHeaderLabel className="w-full text-center">
+                    지연
+                  </DataTableHeaderLabel>
+                </DataTableHeaderCell>
+              </DataTableHeader>
+              <DataTableBody>
+                {(listData?.items ?? []).length === 0 ? (
+                  <DataTableRow
+                    gridTemplateColumns={unitTableGridColumns}
+                  >
+                    <DataTableCell
+                      colSpan={tableTrackCount}
+                      compact
+                      className="justify-center py-4 text-theme-sm text-gray-500 dark:text-gray-400"
                     >
-                      LOT
-                    </TableCell>
-                    <TableCell
-                      isHeader
-                      className="min-w-[12rem] max-w-[18rem] px-3 py-2 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
-                    >
-                      품목(사업명/제품명)
-                    </TableCell>
-                    <TableCell
-                      isHeader
-                      className="min-w-[8rem] max-w-[12rem] px-3 py-2 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
-                    >
-                      고객
-                    </TableCell>
-                    <TableCell
-                      isHeader
-                      className="min-w-[8rem] max-w-[10rem] px-3 py-2 text-center font-medium text-gray-500 text-theme-xs dark:text-gray-400"
-                    >
-                      생산 담당자
-                    </TableCell>
-                    <TableCell
-                      isHeader
-                      className="min-w-[10rem] max-w-[16rem] px-3 py-2 text-center font-medium text-gray-500 text-theme-xs dark:text-gray-400"
-                    >
-                      현재 공정
-                    </TableCell>
-                    <TableCell
-                      isHeader
-                      className="min-w-[6rem] px-3 py-2 text-center font-medium text-gray-500 text-theme-xs dark:text-gray-400"
-                    >
-                      공정 상태
-                    </TableCell>
-                    <TableCell
-                      isHeader
-                      className="min-w-[8rem] max-w-[11rem] px-3 py-2 text-center font-medium text-gray-500 text-theme-xs dark:text-gray-400"
-                    >
-                      발주
-                    </TableCell>
-                    <TableCell
-                      isHeader
-                      className="min-w-[8rem] max-w-[11rem] px-3 py-2 text-center font-medium text-gray-500 text-theme-xs dark:text-gray-400"
-                    >
-                      생산 계획
-                    </TableCell>
-                    <TableCell
-                      isHeader
-                      className="min-w-[7rem] px-3 py-2 text-center font-medium text-gray-500 text-theme-xs dark:text-gray-400"
-                    >
-                      발주 기준 최종 납기
-                    </TableCell>
-                  </TableRow>
-                </TableHeader>
-                <TableBody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
-                  {(listData?.items ?? []).length === 0 ? (
-                    <TableRow>
-                      <TableCell
-                        colSpan={9}
-                        className="px-3 py-4 text-center text-theme-sm text-gray-500 dark:text-gray-400"
-                      >
-                        조건에 맞는 유닛이 없습니다.
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    (listData?.items ?? []).map((row, index) => {
-                      const business = row.item?.businessNameSnapshot?.trim();
-                      const product = row.item?.productNameSnapshot?.trim();
-                      const detectorSn = listDetectorSerialDisplay(row);
-                      const partnerName =
-                        row.partner?.name?.trim() ||
-                        row.order?.partnerName?.trim() ||
-                        "-";
-                      const countryCode =
-                        row.partner?.countryCode ?? row.order?.partnerCountryCode;
-                      const countryLine = partnerCountrySubline(
-                        countryCode,
-                        countryCodes
-                      );
-                      const dueRel =
-                        row.isDelivered === true
-                          ? null
-                          : getDueDateRelative(row.dueDate, {
-                              todayYmd: todaySeoulYmd,
-                            });
-                      return (
-                        <TableRow
-                          key={row.unitId}
-                          className={deliveryUnitRowClassName(index)}
-                        >
-                          <TableCell className="min-w-[11rem] max-w-[14rem] align-middle px-3 py-2 text-start text-theme-sm">
-                            <div className="flex min-h-[5.25rem] flex-col justify-center gap-1.5 leading-tight">
-                              <div
-                                className="truncate font-mono text-sm font-semibold text-gray-900 dark:text-white"
-                                title={listUnitLotDisplay(row)}
-                              >
-                                {listUnitLotDisplay(row)}
-                              </div>
-                              <div className="flex flex-col gap-1 text-[11px]">
-                                <span className="inline-flex w-full min-w-0 items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 font-medium text-gray-700 dark:bg-white/[0.08] dark:text-gray-200">
-                                  <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                                    제품 S/N
-                                  </span>
-                                  <span
-                                    className="min-w-0 truncate font-mono text-[11px] text-gray-800 dark:text-white/90"
-                                    title={listProductSerialDisplay(row)}
-                                  >
-                                    {listProductSerialDisplay(row)}
-                                  </span>
-                                </span>
-                                <span className="inline-flex w-full min-w-0 items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 font-medium text-gray-700 dark:bg-white/[0.08] dark:text-gray-200">
-                                  <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                                    검출기 S/N
-                                  </span>
-                                  <span
-                                    className="min-w-0 truncate font-mono text-[11px] text-gray-800 dark:text-white/90"
-                                    title={detectorSn}
-                                  >
-                                    {detectorSn}
-                                  </span>
-                                </span>
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell className="min-w-[12rem] max-w-[18rem] align-middle px-3 py-2">
-                            <div className="flex flex-col gap-1 leading-tight">
-                              <div className="break-words text-theme-sm font-semibold text-gray-900 dark:text-white">
-                                {business || "-"}
-                              </div>
-                              <div className="break-words text-theme-xs text-gray-500 dark:text-gray-400">
-                                {product || "-"}
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell className="min-w-[8rem] max-w-[12rem] align-middle px-3 py-2 text-start">
-                            <div className="break-words text-theme-sm font-semibold text-gray-800 dark:text-white/90">
-                              {partnerName}
-                            </div>
-                            {countryLine ? (
-                              <div className="mt-1 flex items-center gap-1.5 text-theme-xs text-gray-500 dark:text-gray-400">
-                                {countryLine.flagUrl ? (
-                                  <img
-                                    src={countryLine.flagUrl}
-                                    alt=""
-                                    className="h-3.5 w-[1.125rem] shrink-0 rounded-sm object-cover"
-                                    decoding="async"
-                                  />
-                                ) : null}
-                                <span className="min-w-0 break-words">
-                                  {countryLine.label}
-                                </span>
-                              </div>
-                            ) : null}
-                          </TableCell>
-                          <TableCell className="min-w-[8rem] max-w-[10rem] align-middle px-3 py-2 text-center text-theme-sm text-gray-600 dark:text-gray-300">
-                            {listOperatorDisplay(row)}
-                          </TableCell>
-                          <TableCell className="min-w-[10rem] max-w-[16rem] align-middle px-3 py-2 text-center">
-                            <div className="flex justify-center">
-                              <Badge size="sm" color="light">
-                                <span className="break-words text-start normal-case">
-                                  {currentProcessDisplay(row, unitProcessStepCodes)}
-                                </span>
-                              </Badge>
-                            </div>
-                          </TableCell>
-                          <TableCell className="min-w-[6rem] align-middle px-3 py-2 text-center">
-                            {tab === "COMPLETED" ? (
-                              <div className="flex justify-center">
-                                {row.isDelivered ? (
-                                  <Badge size="sm" color="success">
-                                    납품완료
-                                  </Badge>
-                                ) : (
-                                  <span className="text-theme-xs text-gray-400 dark:text-gray-500">
-                                    -
-                                  </span>
-                                )}
-                              </div>
-                            ) : (
-                              <div className="flex justify-center">
-                                <ProductionPlanProcessStageBadge
-                                  unit={toProcessBadgeUnit(row)}
-                                />
-                              </div>
-                            )}
-                          </TableCell>
-                          <TableCell className="min-w-[8rem] max-w-[11rem] align-middle px-3 py-2 text-center text-theme-sm">
-                            {row.order?.orderId ? (
-                              <Link
-                                to={`/order/${row.order.orderId}`}
-                                className="inline-block break-words font-medium text-brand-600 hover:underline dark:text-brand-400"
-                              >
-                                {row.order.orderNo?.trim() || row.order.orderId}
-                              </Link>
-                            ) : (
-                              <span className="break-words text-gray-600 dark:text-gray-300">
-                                {row.order?.orderNo?.trim() || "-"}
-                              </span>
-                            )}
-                          </TableCell>
-                          <TableCell className="min-w-[8rem] max-w-[11rem] align-middle px-3 py-2 text-center text-theme-sm">
-                            {row.plan?.planId && row.order?.orderId ? (
-                              <Link
-                                to={`/order/${row.order.orderId}/plan/${row.plan.planId}`}
-                                className="inline-block break-words font-medium text-brand-600 hover:underline dark:text-brand-400"
-                              >
-                                {row.plan.planNo?.trim() || row.plan.planId}
-                              </Link>
-                            ) : (
-                              <span className="break-words text-gray-600 dark:text-gray-300">
-                                {row.plan?.planNo?.trim() || "-"}
-                              </span>
-                            )}
-                          </TableCell>
-                          <TableCell className="min-w-[7rem] align-middle px-3 py-2 text-center text-theme-sm text-gray-700 dark:text-gray-300">
-                            <div
-                              className={`flex min-h-[3.75rem] flex-col items-center justify-center ${
-                                dueRel ? "gap-1" : ""
-                              }`}
-                            >
-                              <span className="leading-tight">
-                                {formatDateYmd(row.dueDate, { emptyFallback: "-" })}
-                              </span>
-                              {dueRel ? (
-                                <div className="flex min-h-[1.75rem] w-full items-center justify-center">
-                                  <span
-                                    className={dueDateDdayBadgeClassName(
-                                      dueRel.diff
-                                    )}
-                                    title={dueRel.koLabel}
-                                  >
-                                    {dueRel.ddayLabel}
-                                  </span>
-                                </div>
-                              ) : null}
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })
-                  )}
-                </TableBody>
-              </Table>
-            </div>
+                      조건에 맞는 유닛이 없습니다.
+                    </DataTableCell>
+                  </DataTableRow>
+                ) : (
+                  (listData?.items ?? []).map((row, index) => (
+                    <DeliveryUnitListRow
+                      key={row.unitId}
+                      row={row}
+                      index={index}
+                      page={page}
+                      pageSize={pageSize}
+                      tab={tab}
+                      perspective={perspective}
+                      unitProcessStepCodes={unitProcessStepCodes}
+                      countryCodes={countryCodes}
+                      layout={unitTableLayout}
+                      gridTemplateColumns={unitTableGridColumns}
+                      showCheckbox={showCheckboxColumn}
+                      reserveCheckboxColumn={reserveCheckboxColumn}
+                      checked={isSelected(row.unitId)}
+                      checkboxDisabled={isRowCheckboxDisabled(row)}
+                      checkboxOrderMismatchHint={getRowCheckboxOrderMismatchHint(row)}
+                      onToggle={toggle}
+                    />
+                  ))
+                )}
+              </DataTableBody>
+            </DataTable>
           )}
         </ListPageLayout>
       </div>
+
+      <DeliveryPlanCreateModal
+        isOpen={createPlanOpen}
+        onClose={() => setCreatePlanOpen(false)}
+        selectedUnits={selectedItems}
+        onSuccess={() => {
+          clear();
+          setCreatePlanOpen(false);
+        }}
+      />
     </>
   );
 }

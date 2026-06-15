@@ -1,6 +1,6 @@
 import Badge from "../ui/badge/Badge";
 import type { ProductionPlanUnit } from "../../api/purchaseOrder";
-import { processStageBadgeFromUnit } from "../../lib/productionPlanProcessLabels";
+import { processStageBadgeFromUnit } from "../../domains/production-plan/labels/processLabels";
 
 type ProductionPlanProcessStageBadgeProps = {
   unit: Pick<
@@ -9,7 +9,7 @@ type ProductionPlanProcessStageBadgeProps = {
   >;
 };
 
-/** 공정 진행 단계 — PASS는 ‘진행’, 출고·납품 완료만 종료(완료) 느낌으로 표시 */
+/** 공정 진행 단계 — PASS는 ‘진행’, 납품 대기·납품 완료만 종료(완료) 느낌으로 표시 */
 export function ProductionPlanProcessStageBadge({
   unit,
 }: ProductionPlanProcessStageBadgeProps) {
@@ -30,7 +30,7 @@ export function ProductionPlanProcessStageBadge({
 
   return (
     <Badge size="sm" color={color}>
-      {label}
+      <span className="whitespace-nowrap">{label}</span>
     </Badge>
   );
 }

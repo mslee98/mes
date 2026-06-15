@@ -37,8 +37,8 @@ import {
 } from "../api/detectors";
 import type { CreateDetectorPayload, UpdateDetectorPayload } from "../api/detectors";
 import type { SearchableSelectOption } from "../components/form/SearchableSelectWithCreate";
-import { toPartnerSearchableSelectOptions } from "../lib/partnerSelectOptions";
-import { normalizeDecimalInput } from "../lib/numberInput";
+import { toPartnerSearchableSelectOptions } from "../domains/partner/helpers/partnerSelectOptions";
+import { normalizeDecimalInput } from "../lib/format/numberInput";
 
 function emptyToNull(s: string): string | null {
   const t = s.trim();

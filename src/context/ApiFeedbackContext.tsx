@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import AlertModal from "../components/common/AlertModal";
 import { registerApiErrorHandler } from "../lib/queryClient";
-import type { ApiError } from "../lib/apiError";
+import type { ApiError } from "../lib/api/apiError";
 
 export default function ApiFeedbackProvider({
   children,

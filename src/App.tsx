@@ -35,11 +35,16 @@ import Partners from "./pages/Partners";
 import PartnerForm from "./pages/PartnerForm";
 import PartnerDetail from "./pages/PartnerDetail";
 import Rma from "./pages/Rma";
+import RmaRegisterForm from "./pages/RmaRegisterForm";
+import UnitDetail from "./pages/UnitDetail";
 import ApiFeedbackProvider from "./context/ApiFeedbackContext";
 import { useAuth } from "./hooks/useAuth";
 import { useKeycloakAuth } from "./context/KeycloakProvider";
 import NotFound from "./pages/NotFound";
 import DeliveryUnits from "./pages/DeliveryUnits";
+import DeliveryPlans from "./pages/DeliveryPlans";
+import DeliveryPlanDetail from "./pages/DeliveryPlanDetail";
+import ProductionPlans from "./pages/ProductionPlans";
 import DeliveryDetail from "./pages/DeliveryDetail";
 import UIPlayground from "./pages/UIPlayground";
 import IddcaTypeTable from "./pages/IddcaTypeTable";
@@ -169,10 +174,26 @@ function App() {
               />
               <Route path="order/:orderId/edit" element={<OrderForm />} />
 
-              <Route path="delivery" element={<DeliveryUnits />} />
+              <Route path="production/plans" element={<ProductionPlans />} />
+              <Route
+                path="production/units"
+                element={<DeliveryUnits perspective="production" />}
+              />
+              <Route
+                path="delivery/units"
+                element={<DeliveryUnits perspective="delivery" />}
+              />
+              <Route
+                path="delivery"
+                element={<Navigate to="/delivery/units" replace />}
+              />
+              <Route path="delivery/units/:unitId" element={<UnitDetail />} />
+              <Route path="delivery/plans" element={<DeliveryPlans />} />
+              <Route path="delivery/plans/:planId" element={<DeliveryPlanDetail />} />
               <Route path="delivery/:deliveryId" element={<DeliveryDetail />} />
               <Route path="bug-board" element={<BugBoard />} />
 
+              <Route path="rma/new" element={<RmaRegisterForm />} />
               <Route path="rma" element={<Rma />} />
 
               <Route path="organization" element={<Organization />} />

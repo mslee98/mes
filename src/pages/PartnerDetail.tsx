@@ -23,7 +23,7 @@ import {
   labelForCommonCode,
 } from "../api/commonCode";
 import { useCommonCodesByGroup } from "../hooks/useCommonCodesByGroup";
-import { partnerCountryFlagUrl } from "../lib/partnerCountryOptions";
+import { partnerCountryFlagUrl } from "../domains/partner/helpers/partnerCountryOptions";
 
 function DetailRow({
   label,

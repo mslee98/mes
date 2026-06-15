@@ -2,6 +2,15 @@ import { useMemo, useState } from "react";
 import type { ProductionPlanItem } from "../../api/purchaseOrder";
 import Checkbox from "../form/input/Checkbox";
 import Badge from "../ui/badge/Badge";
+import {
+  DataTable,
+  DataTableBody,
+  DataTableCell,
+  DataTableHeader,
+  DataTableHeaderCell,
+  DataTableHeaderLabel,
+  DataTableRow,
+} from "../list";
 
 type ProductionPlanDetailLinesTabProps = {
   items: ProductionPlanItem[];
@@ -34,37 +43,44 @@ export function ProductionPlanDetailLinesTab({
 
   return (
     <div className="overflow-x-auto rounded-xl border border-gray-100 dark:border-white/10">
-      <table className="min-w-full divide-y divide-gray-200 text-theme-sm dark:divide-white/10">
-        <thead className="bg-gray-50/80 dark:bg-white/[0.03]">
-          <tr className="text-left text-theme-xs text-gray-500 dark:text-gray-400">
-            <th className="w-10 px-2 py-2 font-medium">
-              <span className="sr-only">행 선택</span>
-              <Checkbox
-                checked={allSelected}
-                indeterminate={someSelected && !allSelected}
-                disabled={items.length === 0}
-                onChange={(checked) => {
-                  setSelectedIds((prev) => {
-                    const next = new Set(prev);
-                    if (checked) {
-                      keys.forEach((k) => next.add(k));
-                    } else {
-                      keys.forEach((k) => next.delete(k));
-                    }
-                    return next;
-                  });
-                }}
-                label=""
-              />
-            </th>
-            <th className="px-3 py-2 font-medium">발주 품목 ID</th>
-            <th className="px-3 py-2 font-medium">품목명</th>
-            <th className="px-3 py-2 font-medium">계획 수량</th>
-            <th className="px-3 py-2 font-medium">제품 수</th>
-            <th className="px-3 py-2 font-medium">일치</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100 dark:divide-white/5">
+      <DataTable minWidth={640}>
+        <DataTableHeader>
+          <DataTableHeaderCell colSpan={1} compact sortable={false} className="justify-center">
+            <Checkbox
+              checked={allSelected}
+              indeterminate={someSelected && !allSelected}
+              disabled={items.length === 0}
+              onChange={(checked) => {
+                setSelectedIds((prev) => {
+                  const next = new Set(prev);
+                  if (checked) {
+                    keys.forEach((k) => next.add(k));
+                  } else {
+                    keys.forEach((k) => next.delete(k));
+                  }
+                  return next;
+                });
+              }}
+              aria-label="전체 선택"
+            />
+          </DataTableHeaderCell>
+          <DataTableHeaderCell colSpan={2} compact sortable={false}>
+            <DataTableHeaderLabel>발주 품목 ID</DataTableHeaderLabel>
+          </DataTableHeaderCell>
+          <DataTableHeaderCell colSpan={3} compact sortable={false}>
+            <DataTableHeaderLabel>품목명</DataTableHeaderLabel>
+          </DataTableHeaderCell>
+          <DataTableHeaderCell colSpan={2} compact sortable={false} className="justify-center">
+            <DataTableHeaderLabel className="w-full text-center">계획 수량</DataTableHeaderLabel>
+          </DataTableHeaderCell>
+          <DataTableHeaderCell colSpan={2} compact sortable={false} className="justify-center">
+            <DataTableHeaderLabel className="w-full text-center">제품 수</DataTableHeaderLabel>
+          </DataTableHeaderCell>
+          <DataTableHeaderCell colSpan={2} compact sortable={false} className="justify-center border-r-0">
+            <DataTableHeaderLabel className="w-full text-center">일치</DataTableHeaderLabel>
+          </DataTableHeaderCell>
+        </DataTableHeader>
+        <DataTableBody>
           {items.map((item) => {
             const label =
               item.productNameSnapshot?.trim() ||
@@ -81,11 +97,11 @@ export function ProductionPlanDetailLinesTab({
               plannedNum != null && unitCount === plannedNum;
 
             return (
-              <tr
+              <DataTableRow
                 key={key || String(item.purchaseOrderItemId)}
-                className="hover:bg-gray-50 dark:hover:bg-white/[0.03]"
+                selected={key ? selectedIds.has(key) : false}
               >
-                <td className="px-2 py-2 align-middle">
+                <DataTableCell colSpan={1} compact className="justify-center">
                   {key ? (
                     <Checkbox
                       checked={selectedIds.has(key)}
@@ -97,27 +113,25 @@ export function ProductionPlanDetailLinesTab({
                           return next;
                         });
                       }}
-                      label=""
+                      aria-label={`${label} 선택`}
                     />
                   ) : null}
-                </td>
-                <td className="px-3 py-2 font-mono text-theme-xs text-gray-800 dark:text-white/90">
+                </DataTableCell>
+                <DataTableCell colSpan={2} compact className="font-mono text-theme-xs">
                   {item.purchaseOrderItemId ?? "—"}
-                </td>
-                <td className="max-w-md px-3 py-2 text-gray-800 dark:text-white/90">
+                </DataTableCell>
+                <DataTableCell colSpan={3} compact className="min-w-0 items-start">
                   {label}
-                </td>
-                <td className="whitespace-nowrap px-3 py-2 text-gray-800 dark:text-white/90">
+                </DataTableCell>
+                <DataTableCell colSpan={2} compact className="justify-center whitespace-nowrap">
                   {item.plannedQty ?? "—"}
-                </td>
-                <td className="whitespace-nowrap px-3 py-2 text-gray-800 dark:text-white/90">
+                </DataTableCell>
+                <DataTableCell colSpan={2} compact className="justify-center whitespace-nowrap">
                   {unitCount}
-                </td>
-                <td className="whitespace-nowrap px-3 py-2">
+                </DataTableCell>
+                <DataTableCell colSpan={2} compact className="justify-center border-r-0">
                   {plannedNum == null ? (
-                    <span className="text-theme-xs text-gray-400 dark:text-gray-500">
-                      —
-                    </span>
+                    <span className="text-theme-xs text-gray-400 dark:text-gray-500">—</span>
                   ) : qtyMatch ? (
                     <Badge size="sm" color="success">
                       일치
@@ -127,12 +141,12 @@ export function ProductionPlanDetailLinesTab({
                       불일치
                     </Badge>
                   )}
-                </td>
-              </tr>
+                </DataTableCell>
+              </DataTableRow>
             );
           })}
-        </tbody>
-      </table>
+        </DataTableBody>
+      </DataTable>
     </div>
   );
 }

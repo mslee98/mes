@@ -1,8 +1,8 @@
 import FileUploadDropzone from "../../../components/form/FileUploadDropzone";
 import { TrashBinIcon } from "../../../icons";
 import type { PurchaseOrderFile } from "../../../api/purchaseOrder";
-import { fileTypeIconSrc } from "../../../lib/fileTypeIcon";
-import { formatDateTimeKo } from "../../../lib/dateFormat";
+import { fileTypeIconSrc } from "../../../lib/ui/fileTypeIcon";
+import { formatDateTimeKo } from "../../../lib/format/dateFormat";
 
 type Props = {
   isNew: boolean;

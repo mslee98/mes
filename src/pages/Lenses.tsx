@@ -45,13 +45,13 @@ import { usePartnerCommonCodes } from "../hooks/usePartnerCommonCodes";
 import { usePartnersQuery } from "../hooks/usePartnersQuery";
 import SearchableSelectWithCreate from "../components/form/SearchableSelectWithCreate";
 import { renderPartnerOptionLabel } from "../components/form/PartnerOptionLabel";
-import { isOtherSupplierPartner } from "../lib/partnerPredicates";
+import { isOtherSupplierPartner } from "../domains/partner/helpers/partnerPredicates";
 import {
   toPartnerSearchableSelectOptions,
   toPartnerSelectOptions,
-} from "../lib/partnerSelectOptions";
+} from "../domains/partner/helpers/partnerSelectOptions";
 import { validateRequiredFields } from "../lib/formValidation";
-import { fileTypeIconSrc } from "../lib/fileTypeIcon";
+import { fileTypeIconSrc } from "../lib/ui/fileTypeIcon";
 
 const STATUS_FILTER_OPTIONS = [
   { value: "all", label: "전체" },

@@ -5,7 +5,7 @@ import { useTheme } from "../../context/ThemeContext";
 import {
   PARTNER_COUNTRY_OPTIONS,
   partnerCountryFlagUrl,
-} from "../../lib/partnerCountryOptions";
+} from "../../domains/partner/helpers/partnerCountryOptions";
 import { buildReactSelectStyles } from "./reactSelectStyles";
 
 export type CountrySelectOption = {

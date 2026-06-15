@@ -19,7 +19,8 @@ import {
   BugAntIcon,
   HomeModernIcon,
   ReceiptPercentIcon,
-  PresentationChartBarIcon
+  PresentationChartBarIcon,
+  CogIcon
 } from "../icons";
 import { getMenus, type MenuItem } from "../api/menu";
 import { useAuth } from "../hooks/useAuth";
@@ -55,7 +56,8 @@ const iconMap = {
   BugAntIcon,
   HomeModernIcon,
   ReceiptPercentIcon,
-  PresentationChartBarIcon
+  PresentationChartBarIcon,
+  CogIcon
 } as const;
 
 function resolveIcon(iconName?: string | null) {

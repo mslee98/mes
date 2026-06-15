@@ -24,7 +24,9 @@ import {
   updateUserRole,
   type UserRoleAssignment,
 } from "../api/userRole";
-import { formatDateYmd, localYmdToday } from "../lib/dateFormat";
+import { useUserPermissions } from "../hooks/useUserPermissions";
+import UserAdminResetPasswordCard from "../components/UserProfile/UserAdminResetPasswordCard";
+import { formatDateYmd, localYmdToday } from "../lib/format/dateFormat";
 
 const ACTIVE_OPTIONS = [
   { value: "active", label: "활성" },
@@ -49,6 +51,8 @@ export default function UserDetail() {
   const [editState, setEditState] = useState<
     Record<number, { isActive: boolean; endedAt: string }>
   >({});
+
+  const { canUpdateUser } = useUserPermissions();
 
   const {
     data: usersData,
@@ -267,6 +271,14 @@ export default function UserDetail() {
               </div>
             </div>
           </ComponentCard>
+
+          {canUpdateUser ? (
+            <UserAdminResetPasswordCard
+              userId={currentUser.id}
+              accessToken={accessToken}
+              userLabel={`${currentUser.name} (사번 ${currentUser.employeeNo})`}
+            />
+          ) : null}
 
           {currentUser.userOrganizations &&
           currentUser.userOrganizations.length > 0 ? (

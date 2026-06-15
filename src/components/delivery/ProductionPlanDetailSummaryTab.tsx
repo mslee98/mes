@@ -1,14 +1,24 @@
 import type { ProductionPlan } from "../../api/purchaseOrder";
-import { formatDateTimeKo } from "../../lib/dateFormat";
+import type { CommonCodeItem } from "../../api/commonCode";
+import { formatDateTimeKo } from "../../lib/format/dateFormat";
 import Badge from "../ui/badge/Badge";
+import { badgeColorFromKoStatusLabel } from "../../lib/ui/badgeStatusColor";
+import { labelForProductionPlanStatus } from "../../domains/production-plan/labels/statusLabels";
 
 type ProductionPlanDetailSummaryTabProps = {
   plan: ProductionPlan;
+  productionPlanStatusCodes: CommonCodeItem[];
 };
 
 export function ProductionPlanDetailSummaryTab({
   plan,
+  productionPlanStatusCodes,
 }: ProductionPlanDetailSummaryTabProps) {
+  const statusName = labelForProductionPlanStatus(
+    productionPlanStatusCodes,
+    plan.status
+  );
+
   return (
     <div className="space-y-6">
       <dl className="grid gap-3 text-theme-sm sm:grid-cols-2">
@@ -34,8 +44,8 @@ export function ProductionPlanDetailSummaryTab({
           <dt className="text-gray-500 dark:text-gray-400">상태</dt>
           <dd className="mt-0.5">
             {plan.status ? (
-              <Badge size="sm" color="primary">
-                {plan.status}
+              <Badge size="sm" color={badgeColorFromKoStatusLabel(statusName)}>
+                {statusName}
               </Badge>
             ) : (
               <span className="text-gray-800 dark:text-white/90">—</span>

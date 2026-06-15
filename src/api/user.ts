@@ -7,7 +7,7 @@
  *
  * @see docs/FRONTEND_API.md
  */
-import { createApiError } from "../lib/apiError";
+import { createApiError } from "../lib/api/apiError";
 
 import { API_BASE } from "./apiBase";
 import { fetchAuthorized } from "./fetchAuthorized";
@@ -392,15 +392,25 @@ export interface ChangePasswordRequest {
   newPassword: string;
 }
 
+export interface ResetPasswordRequest {
+  newPassword: string;
+  /** 생략 시 true — 다음 로그인 시 변경 강제 */
+  temporary?: boolean;
+}
+
+export type PasswordMutationResponse = {
+  success: true;
+};
+
 /**
- * 본인 비밀번호 변경
- * PATCH /users/:id/password (본인만 호출 가능, :id는 로그인 사용자 id)
+ * 본인 비밀번호 변경 (Keycloak Account API 위임)
+ * PATCH /users/:id/password — Bearer 토큰을 백엔드가 Keycloak에 전달
  */
-export async function changePassword(
+export async function changeMyPassword(
   userId: number,
   body: ChangePasswordRequest,
   accessToken: string
-): Promise<void> {
+): Promise<PasswordMutationResponse> {
   const res = await fetchAuthorized(
     `${API_BASE}/users/${userId}/password`,
     {
@@ -418,4 +428,39 @@ export async function changePassword(
   if (!res.ok) {
     throw await createApiError(res, "비밀번호 변경에 실패했습니다.");
   }
+
+  return (await res.json().catch(() => ({ success: true }))) as PasswordMutationResponse;
+}
+
+/** @deprecated `changeMyPassword` 사용 */
+export const changePassword = changeMyPassword;
+
+/**
+ * 관리자 비밀번호 초기화 (Keycloak Admin API 위임, `user.update` 필요)
+ * PATCH /users/:id/reset-password
+ */
+export async function resetUserPassword(
+  userId: number,
+  body: ResetPasswordRequest,
+  accessToken: string
+): Promise<PasswordMutationResponse> {
+  const res = await fetchAuthorized(
+    `${API_BASE}/users/${userId}/reset-password`,
+    {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      credentials: "include",
+      body: JSON.stringify(body),
+    },
+    accessToken
+  );
+
+  if (!res.ok) {
+    throw await createApiError(res, "비밀번호 초기화에 실패했습니다.");
+  }
+
+  return (await res.json().catch(() => ({ success: true }))) as PasswordMutationResponse;
 }

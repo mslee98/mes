@@ -4,6 +4,10 @@ interface ConfirmModalProps {
   isOpen: boolean;
   title: string;
   message: string;
+  /** Modal 헤더 바 제목. 미지정 시 `confirmVariant="danger"`이면 `주의` */
+  headerLabel?: string;
+  /** 헤더 제목 아래 보조 문구. 미지정 시 danger면 기본 안내 문구 */
+  headerDescription?: string;
   confirmText?: string;
   cancelText?: string;
   confirmVariant?: "danger" | "primary";
@@ -21,10 +25,13 @@ interface ConfirmModalProps {
   onCancel?: () => void;
 }
 
+const CONFIRM_MODAL_DANGER_HEADER_LABEL = "주의";
+
 export default function ConfirmModal({
   isOpen,
   title,
   message,
+  headerLabel,
   confirmText = "확인",
   cancelText = "취소",
   confirmVariant = "primary",
@@ -36,12 +43,16 @@ export default function ConfirmModal({
   onCancel,
 }: ConfirmModalProps) {
   const handleCancelClick = onCancel ?? onClose;
+  const resolvedHeaderLabel =
+    headerLabel ??
+    (confirmVariant === "danger" ? CONFIRM_MODAL_DANGER_HEADER_LABEL : undefined);
 
   return (
     <AlertModal
       isOpen={isOpen}
       onClose={onClose}
       onCloseButtonClick={onCloseButtonClick}
+      headerLabel={resolvedHeaderLabel}
       title={title}
       message={message}
       illustration={illustration}

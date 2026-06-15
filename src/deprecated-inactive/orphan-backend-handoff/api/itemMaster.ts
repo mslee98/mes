@@ -4,7 +4,7 @@
  *
  * 권한: item.read / item.manage — 모든 호출에 Bearer JWT 필요.
  */
-import { createApiError } from "../lib/apiError";
+import { createApiError } from "../../../lib/api/apiError";
 import { API_BASE } from "./apiBase";
 import { fetchAuthorized } from "./fetchAuthorized";
 

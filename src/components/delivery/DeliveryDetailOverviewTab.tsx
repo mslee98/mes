@@ -6,16 +6,16 @@ import Badge from "../ui/badge/Badge";
 import ComponentCard from "../common/ComponentCard";
 import LoadingLottie from "../common/LoadingLottie";
 import { DeliverySummaryStepper } from "./DeliverySummaryStepper";
-import { badgeColorFromKoStatusLabel } from "../../lib/badgeStatusColor";
+import { badgeColorFromKoStatusLabel } from "../../lib/ui/badgeStatusColor";
 import {
   deliveryDetailUserDisplayName,
   deliveryLinesFromDelivery,
-} from "../../lib/deliveryDetailHelpers";
+} from "../../domains/delivery/helpers/deliveryDetailHelpers";
 import {
   formatDeliveryDetailDate,
   formatDeliveryDetailDateTimeKo,
   labelForSortedDeliveryStatus,
-} from "../../lib/deliveryDetailFormat";
+} from "../../domains/delivery/helpers/deliveryDetailFormat";
 import type { DeliveryDetailTab } from "./deliveryDetailTabTypes";
 
 type NextDeliveryStatusHint =

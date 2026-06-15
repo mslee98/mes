@@ -8,7 +8,7 @@ import {
   TableHeader,
   TableRow,
 } from "../ui/table";
-import { isForbiddenError } from "../../lib/apiError";
+import { isForbiddenError } from "../../../../lib/api/apiError";
 import { revisionStatusLabel, formatItemDetailDt } from "../../lib/itemDetailDisplay";
 import type { ItemRevision } from "../../api/itemMaster";
 

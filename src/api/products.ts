@@ -2,7 +2,7 @@
  * 대표 제품(Product) API — `GET/POST/PATCH/DELETE /api/products`.
  * 제품 정의 등 레거시 API는 `src/deprecated-inactive/api/productDefinitionsLegacy.ts`.
  */
-import { createApiError } from "../lib/apiError";
+import { createApiError } from "../lib/api/apiError";
 import { API_BASE } from "./apiBase";
 import { fetchAuthorized } from "./fetchAuthorized";
 

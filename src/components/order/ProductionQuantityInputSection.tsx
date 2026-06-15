@@ -13,7 +13,7 @@ type ProductionQuantityInputSectionProps = {
   purpose: "plan" | "actual";
 };
 
-function QtyStatCell({
+export function QtyStatCell({
   label,
   value,
   tone = "default",

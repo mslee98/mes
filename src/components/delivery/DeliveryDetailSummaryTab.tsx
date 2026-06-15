@@ -5,8 +5,8 @@ import ComponentCard from "../common/ComponentCard";
 import {
   asDeliveryDetailRecord,
   deliveryLinesFromDelivery,
-} from "../../lib/deliveryDetailHelpers";
-import { formatDeliveryDetailDate } from "../../lib/deliveryDetailFormat";
+} from "../../domains/delivery/helpers/deliveryDetailHelpers";
+import { formatDeliveryDetailDate } from "../../domains/delivery/helpers/deliveryDetailFormat";
 
 type DeliveryDetailSummaryTabProps = {
   delivery: Delivery;

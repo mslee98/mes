@@ -35,6 +35,7 @@ import {
 } from "../api/purchaseOrder";
 import {
   COMMON_CODE_GROUP_COUNTRY,
+  COMMON_CODE_GROUP_PRODUCTION_PLAN_STATUS,
   COMMON_CODE_GROUP_UNIT_PROCESS_STEP,
   UNIT_PROCESS_STEP_CODE_ENGINE_PACKAGING,
   UNIT_PROCESS_STEP_CODE_READY_TO_DELIVER,
@@ -44,18 +45,18 @@ import {
   partnerFromSummary,
   partnerSelectLabel,
   partnerSummaryHasDisplayableFields,
-} from "../lib/partnerDisplay";
-import { partnerCountryFlagUrl } from "../lib/partnerCountryOptions";
+} from "../domains/partner/display/partnerDisplay";
+import { partnerCountryFlagUrl } from "../domains/partner/helpers/partnerCountryOptions";
 import {
   flattenPlanUnits,
   type FlatPlanUnitRow,
-} from "../lib/productionPlanDetailHelpers";
-import { labelForProcessCode } from "../lib/productionPlanProcessLabels";
-import { formatDateYmd } from "../lib/dateFormat";
+} from "../domains/production-plan/helpers/detailHelpers";
+import { labelForProcessCode } from "../domains/production-plan/labels/processLabels";
+import { formatDateYmd } from "../lib/format/dateFormat";
 import {
   buildMinimalDeliveryCreatePayloadFromPlanUnit,
   findProductDeliveryItemId,
-} from "../lib/productionRegisterFromPlanUnit";
+} from "../domains/production-plan/helpers/registerFromPlanUnit";
 import type { ProcessGateSubmitting } from "../components/delivery/ProcessPipelineStepper";
 import {
   PRODUCTION_PLAN_DETAIL_TAB_OPTIONS,
@@ -77,7 +78,7 @@ import {
   generateProductSerialDraftRows,
   lineCodeFromOrderLine,
   validateLegacyProductSerialNo,
-} from "../lib/legacyProductSerialNumber";
+} from "../domains/production-plan/serial/legacyProductSerialNumber";
 import { useProductSerialMasters } from "../hooks/useProductSerialMasters";
 
 function ymdForSplitInput(raw: unknown): string {
@@ -233,6 +234,12 @@ export default function ProductionPlanDetail() {
 
   const { data: unitProcessStepCodes = [] } = useCommonCodesByGroup(
     COMMON_CODE_GROUP_UNIT_PROCESS_STEP,
+    accessToken,
+    { enabled: !!accessToken && !isAuthLoading }
+  );
+
+  const { data: productionPlanStatusCodes = [] } = useCommonCodesByGroup(
+    COMMON_CODE_GROUP_PRODUCTION_PLAN_STATUS,
     accessToken,
     { enabled: !!accessToken && !isAuthLoading }
   );
@@ -981,7 +988,10 @@ export default function ProductionPlanDetail() {
               <ProductionPlanDetailLinesTab items={plan.items ?? []} />
             ) : null}
             {activeTab === "summary" ? (
-              <ProductionPlanDetailSummaryTab plan={plan} />
+              <ProductionPlanDetailSummaryTab
+                plan={plan}
+                productionPlanStatusCodes={productionPlanStatusCodes}
+              />
             ) : null}
           </div>
         </div>

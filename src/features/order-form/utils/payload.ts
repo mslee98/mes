@@ -4,9 +4,9 @@ import type {
   PurchaseOrderUpdatePayload,
 } from "../../../api/purchaseOrder";
 import type { RepresentativeProduct } from "../../../api/products";
-import { normalizeCurrencyCode } from "../../../lib/formatCurrency";
-import { resolveOrderLineDetectorPayload } from "../../../lib/orderLineDetectorFields";
-import { parseLineUnitPrice } from "../../../lib/priceInput";
+import { normalizeCurrencyCode } from "../../../lib/format/formatCurrency";
+import { resolveOrderLineDetectorPayload } from "../../../domains/order/helpers/orderLineDetectorFields";
+import { parseLineUnitPrice } from "../../../lib/format/priceInput";
 import type { ItemRow } from "../types";
 
 type BuildCreatePayloadParams = {

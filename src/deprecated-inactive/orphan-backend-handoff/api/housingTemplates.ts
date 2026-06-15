@@ -2,7 +2,7 @@
  * 하우징 템플릿 API (`/api/housing-templates`).
  * 권한: product.read / product.manage
  */
-import { createApiError } from "../lib/apiError";
+import { createApiError } from "../../../lib/api/apiError";
 import { API_BASE } from "./apiBase";
 import { fetchAuthorized } from "./fetchAuthorized";
 

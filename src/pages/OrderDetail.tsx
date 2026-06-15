@@ -24,7 +24,7 @@ import { ProductionPlanOrderSummary } from "../components/order/ProductionPlanOr
 import { ProductionQuantityInputSection } from "../components/order/ProductionQuantityInputSection";
 import { OrderDetailLinkUnitsModal } from "../components/order/OrderDetailLinkUnitsModal";
 import { OrderReceiveConfirmModal } from "../components/order/OrderReceiveConfirmModal";
-import { buttonClassName } from "../lib/buttonStyles";
+import { buttonClassName } from "../lib/ui/buttonStyles";
 import LoadingLottie from "../components/common/LoadingLottie";
 import { Modal } from "../components/ui/modal";
 import { useAuth } from "../hooks/useAuth";
@@ -61,20 +61,20 @@ import {
   COMMON_CODE_GROUP_COUNTRY,
   COMMON_CODE_GROUP_LOT_YEAR_CODE,
 } from "../api/commonCode";
-import { partnerSelectLabel } from "../lib/partnerDisplay";
-import { partnerCountryFlagUrl } from "../lib/partnerCountryOptions";
+import { partnerSelectLabel } from "../domains/partner/display/partnerDisplay";
+import { partnerCountryFlagUrl } from "../domains/partner/helpers/partnerCountryOptions";
 import Label from "../components/form/Label";
 import DatePicker from "../components/form/date-picker";
 import SearchableSelectWithCreate from "../components/form/SearchableSelectWithCreate";
 import TextArea from "../components/form/input/TextArea";
-import { formatCurrency } from "../lib/formatCurrency";
-import { lineItemsToAmountSummaries } from "../lib/orderLineAmountSummary";
-import { fileTypeIconSrc } from "../lib/fileTypeIcon";
-import { compactYmd, formatDateYmd } from "../lib/dateFormat";
+import { formatCurrency } from "../lib/format/formatCurrency";
+import { lineItemsToAmountSummaries } from "../domains/order/helpers/orderLineAmountSummary";
+import { fileTypeIconSrc } from "../lib/ui/fileTypeIcon";
+import { compactYmd, formatDateYmd } from "../lib/format/dateFormat";
 import {
   dueDateDdayBadgeClassName,
   getDueDateRelative,
-} from "../lib/dueDateDisplay";
+} from "../lib/format/dueDateDisplay";
 import { buildApiFileUrl, downloadFileWithAuth } from "../lib/fileDownload";
 import { ReactComponent as ArrowDownTrayIcon } from "../icons/arrow-down-tray.svg?react";
 import {
@@ -99,31 +99,30 @@ import {
   tryDecodeLegacyDept,
   tryDecodeLegacyUser,
 } from "../lib/legacySelectValue";
-import { detectorLabelFromOrderLine } from "../lib/orderLineItemRow";
 import {
   buildLtSerialNo,
   ltSerialExample,
   ltSerialSequenceKey,
   LT_SERIAL_PATTERN_DESCRIPTION,
-} from "../lib/ltSerialFormat";
+} from "../lib/format/ltSerialFormat";
 import {
   LOT_UNIT_CODE_PATTERN_DESCRIPTION,
   yearCodeFromOrderDate,
-} from "../lib/lotUnitCodeFormat";
+} from "../lib/format/lotUnitCodeFormat";
 import {
   distributeProductionPlanItems,
   type ProductionPlanItemInput,
-} from "../lib/distributeProductionPlanItems";
+} from "../domains/production-plan/helpers/distributeItems";
 import {
   aggregateProductionPlanQtyByOrderItemId,
   aggregateProductionUnitQtyByOrderItemId,
   mergeProductionRegisteredQtyByOrderItemId,
-} from "../lib/aggregateProductionRegisteredQty";
+} from "../domains/production-plan/helpers/aggregateRegisteredQty";
 import {
   resolveOrderLineDetectorElementInitial,
   resolveOrderLineDetectorId,
   resolveOrderLineWavelengthCode,
-} from "../lib/productionPlanSerialFromOrderLine";
+} from "../domains/production-plan/helpers/serialFromOrderLine";
 
 function OrderDetailInfoRow({
   label,
@@ -302,23 +301,6 @@ function buildProductionPlanAutoTitle(opts: {
     0
   );
   return `${compact}-${productSeg}-${totalQty} ${opts.nextPlanSeq}차 생산계획`;
-}
-
-function multiLineSummarySuffix(extraLineCount: number): string {
-  return extraLineCount > 0 ? ` 외 ${extraLineCount}건` : "";
-}
-
-function orderLineQtyLabel(line: PurchaseOrderItem | undefined): string {
-  if (!line) return "-";
-  const raw = line.qty;
-  const qty =
-    Number.isFinite(Number(raw))
-      ? Number(raw) % 1 === 0
-        ? String(Math.trunc(Number(raw)))
-        : String(raw)
-      : "-";
-  const unit = line.unit?.trim() || "EA";
-  return `${qty} ${unit}`;
 }
 
 /**
@@ -1104,25 +1086,6 @@ export default function OrderDetail() {
   /** 생산 모달 초기값 등에 쓰는 요청 부서 문자열(API 별칭 통합) */
   const requestDeptLabel = getPurchaseOrderRequestDepartmentLabel(po);
   const hasDeliveryTargets = orderLines.length > 0;
-  const firstOrderLine = orderLines[0];
-  const extraOrderLineCount = Math.max(0, orderLines.length - 1);
-  const extraLineSummarySuffix = multiLineSummarySuffix(extraOrderLineCount);
-  const deliveryHeaderProductName =
-    firstOrderLine?.itemName?.trim() ||
-    firstOrderLine?.productNameSnapshot?.trim() ||
-    firstOrderLine?.definitionNameSnapshot?.trim() ||
-    "-";
-  const deliveryHeaderBusinessName =
-    firstOrderLine?.businessName?.trim() ||
-    firstOrderLine?.businessNameSnapshot?.trim() ||
-    "";
-  const deliveryHeaderDetectorLabel =
-    detectorLabelFromOrderLine(firstOrderLine) + extraLineSummarySuffix;
-  const deliveryHeaderLensName =
-    firstOrderLine?.lens?.lensName?.trim() ||
-    firstOrderLine?.lensNameSnapshot?.trim() ||
-    "-";
-  const deliveryHeaderQtyLabel = orderLineQtyLabel(firstOrderLine);
   const orderTotalQty = orderLines.reduce(
     (sum, line) => sum + (Number(line.qty) || 0),
     0
@@ -1498,12 +1461,7 @@ export default function OrderDetail() {
           <ProductionPlanOrderSummary
             orderNo={po.orderNo ?? "-"}
             partnerLabel={partnerNameWithFlag}
-            productName={deliveryHeaderProductName}
-            businessName={deliveryHeaderBusinessName}
-            extraLinesSuffix={extraLineSummarySuffix}
-            detectorLabel={deliveryHeaderDetectorLabel}
-            lensLabel={deliveryHeaderLensName}
-            qtyLabel={deliveryHeaderQtyLabel}
+            orderLines={orderLines}
             dueDate={po.dueDate}
             requesterName={po.requesterName}
           />

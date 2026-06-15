@@ -80,6 +80,8 @@ function buildStyles(
     control: (base, state) => ({
       ...base,
       minHeight,
+      minWidth: compact ? "12rem" : base.minWidth,
+      width: "100%",
       fontSize,
       borderRadius: 8,
       backgroundColor: bg,
@@ -114,7 +116,11 @@ function buildStyles(
           : "transparent",
       color: text,
     }),
-    singleValue: (base) => ({ ...base, color: text }),
+    singleValue: (base) => ({
+      ...base,
+      color: text,
+      maxWidth: "100%",
+    }),
     input: (base) => ({ ...base, color: text }),
     placeholder: (base) => ({ ...base, color: muted }),
     indicatorSeparator: (base) => ({ ...base, backgroundColor: border }),

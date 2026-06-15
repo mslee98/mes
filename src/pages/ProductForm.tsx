@@ -28,9 +28,9 @@ import {
   uploadProductFiles,
 } from "../api/products";
 import { validateRequiredFields } from "../lib/formValidation";
-import { fileTypeIconSrc } from "../lib/fileTypeIcon";
-import { normalizeDecimalInput } from "../lib/numberInput";
-import { formatDateTimeKo } from "../lib/dateFormat";
+import { fileTypeIconSrc } from "../lib/ui/fileTypeIcon";
+import { normalizeDecimalInput } from "../lib/format/numberInput";
+import { formatDateTimeKo } from "../lib/format/dateFormat";
 
 const ARRAY_TYPE_PRESET: Record<"QVGA" | "VGA" | "SXGA", { width: string; height: string }> = {
   QVGA: { width: "320", height: "256" },

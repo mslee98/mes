@@ -10,8 +10,8 @@ import toast from "react-hot-toast";
 import type { ProductionPlanUnit, UnitProcessRecord } from "../../api/purchaseOrder";
 import { UNIT_PROCESS_STEP_CODE_WAIT_DETECTOR_INCOMING } from "../../api/commonCode";
 import Badge from "../ui/badge/Badge";
-import { formatDateTimeKo } from "../../lib/dateFormat";
-import { normalizeUnitProcessRecordAttachments } from "../../lib/unitProcessRecordAttachments";
+import { formatDateTimeKo } from "../../lib/format/dateFormat";
+import { normalizeUnitProcessRecordAttachments } from "../../domains/production-plan/helpers/unitProcessRecordAttachments";
 import { ProcessHistoryAttachmentRow } from "./ProcessHistoryAttachmentRow";
 import FileUploadDropzone from "../form/FileUploadDropzone";
 

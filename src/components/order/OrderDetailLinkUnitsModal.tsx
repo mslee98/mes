@@ -12,7 +12,7 @@ import {
   type ProductionPlanUnit,
   type DeliveryRecordLine,
 } from "../../api/purchaseOrder";
-import { purchaseOrderItemIdFromDeliveryItemRow } from "../../lib/productionRegisterFromPlanUnit";
+import { purchaseOrderItemIdFromDeliveryItemRow } from "../../domains/production-plan/helpers/registerFromPlanUnit";
 
 type DeliveryLinkLine = {
   deliveryItemId: number;

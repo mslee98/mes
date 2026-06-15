@@ -11,7 +11,7 @@ import Badge from "../components/ui/badge/Badge";
 import { useAuth } from "../hooks/useAuth";
 import { deleteLens, getLens, getLensFiles, type LensItem, type FileLink } from "../api/lenses";
 import { buildAppApiFileUrl } from "../lib/fileDownload";
-import { fileTypeIconSrc } from "../lib/fileTypeIcon";
+import { fileTypeIconSrc } from "../lib/ui/fileTypeIcon";
 import { ReactComponent as ArrowDownTrayIcon } from "../icons/arrow-down-tray.svg?react";
 
 function formatIsoDate(iso?: string): string {

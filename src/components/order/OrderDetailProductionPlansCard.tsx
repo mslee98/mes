@@ -1,13 +1,19 @@
+import { useState } from "react";
 import { Link } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import ComponentCard from "../common/ComponentCard";
 import LoadingLottie from "../common/LoadingLottie";
-import { CalenderIcon, AngleRightIcon } from "../../icons";
+import { CalenderIcon, AngleRightIcon, ChevronDownIcon } from "../../icons";
+import {
+  COMMON_CODE_GROUP_UNIT_PROCESS_STEP,
+} from "../../api/commonCode";
+import { useCommonCodesByGroup } from "../../hooks/useCommonCodesByGroup";
 import {
   getPurchaseOrderProductionPlans,
   type ProductionPlan,
 } from "../../api/purchaseOrder";
-import { formatDateYmd } from "../../lib/dateFormat";
+import { formatDateYmd, todayYmdInTimeZone } from "../../lib/format/dateFormat";
+import { ProductionPlanUnitsPanel } from "../production/ProductionPlanUnitsPanel";
 
 type OrderDetailProductionPlansCardProps = {
   purchaseOrderId: string;
@@ -43,6 +49,9 @@ export function OrderDetailProductionPlansCard({
   visualVariant = "default",
 }: OrderDetailProductionPlansCardProps) {
   const isDashboard = visualVariant === "dashboard";
+  const [expandedPlanIds, setExpandedPlanIds] = useState<Set<string>>(
+    () => new Set()
+  );
   const {
     data: plans = [],
     isLoading,
@@ -53,7 +62,14 @@ export function OrderDetailProductionPlansCard({
     queryFn: () => getPurchaseOrderProductionPlans(purchaseOrderId, accessToken),
     enabled:
       !!accessToken && !isAuthLoading && String(purchaseOrderId).trim() !== "",
+    staleTime: 0,
   });
+  const { data: unitProcessStepCodes = [] } = useCommonCodesByGroup(
+    COMMON_CODE_GROUP_UNIT_PROCESS_STEP,
+    accessToken,
+    { enabled: !!accessToken && !isAuthLoading }
+  );
+  const todayYmd = todayYmdInTimeZone();
 
   const formatPlanDate = (plan: ProductionPlan) => {
     const raw =
@@ -62,6 +78,14 @@ export function OrderDetailProductionPlansCard({
       plan.plannedDate ??
       null;
     return formatDateYmd(raw, { emptyFallback: "-" });
+  };
+  const toggleExpandPlan = (planId: string) => {
+    setExpandedPlanIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(planId)) next.delete(planId);
+      else next.add(planId);
+      return next;
+    });
   };
 
   return (
@@ -135,30 +159,56 @@ export function OrderDetailProductionPlansCard({
               isDashboard ? (
                 <li
                   key={plan.id}
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-100 bg-gray-50/40 px-3 py-2.5 dark:border-white/10 dark:bg-white/[0.02]"
+                  className="overflow-hidden rounded-lg border border-gray-100 bg-gray-50/40 dark:border-white/10 dark:bg-white/[0.02]"
                 >
-                  <div className="flex min-w-0 flex-1 items-start gap-2.5">
-                    <CalenderIcon
-                      className="mt-0.5 size-[1.125rem] shrink-0 text-gray-400 dark:text-gray-500"
-                      aria-hidden
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p className="font-medium text-gray-900 dark:text-white">
-                        {planListTitle(plan)}
-                      </p>
-                      <p className="mt-1 text-theme-xs text-gray-500 dark:text-gray-400">
-                        생성일{" "}
-                        {formatDateYmd(plan.createdAt, { emptyFallback: "-" })}
-                      </p>
-                    </div>
-                  </div>
-                  <Link
-                    to={`/order/${purchaseOrderId}/plan/${plan.id}`}
-                    className="inline-flex shrink-0 items-center gap-0.5 text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300"
+                  <button
+                    type="button"
+                    className="flex w-full flex-wrap items-center justify-between gap-3 px-3 py-2.5 text-left transition-colors hover:bg-gray-100/70 dark:hover:bg-white/[0.04]"
+                    onClick={() => toggleExpandPlan(plan.id)}
+                    aria-expanded={expandedPlanIds.has(plan.id)}
+                    aria-label={`${planListTitle(plan)} 펼치기`}
                   >
-                    상세보기
-                    <AngleRightIcon className="size-4" aria-hidden />
-                  </Link>
+                    <div className="flex min-w-0 flex-1 items-start gap-2.5">
+                      <CalenderIcon
+                        className="mt-0.5 size-[1.125rem] shrink-0 text-gray-400 dark:text-gray-500"
+                        aria-hidden
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-gray-900 dark:text-white">
+                          {planListTitle(plan)}
+                        </p>
+                        <p className="mt-1 text-theme-xs text-gray-500 dark:text-gray-400">
+                          생성일{" "}
+                          {formatDateYmd(plan.createdAt, { emptyFallback: "-" })}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="inline-flex shrink-0 items-center gap-2">
+                      <Link
+                        to={`/order/${purchaseOrderId}/plan/${plan.id}`}
+                        className="inline-flex items-center gap-0.5 text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        상세보기
+                        <AngleRightIcon className="size-4" aria-hidden />
+                      </Link>
+                      <ChevronDownIcon
+                        className={`size-4 text-gray-500 transition-transform dark:text-gray-400 ${
+                          expandedPlanIds.has(plan.id) ? "rotate-0" : "-rotate-90"
+                        }`}
+                        aria-hidden
+                      />
+                    </div>
+                  </button>
+                  {expandedPlanIds.has(plan.id) ? (
+                    <ProductionPlanUnitsPanel
+                      planId={plan.id}
+                      accessToken={accessToken}
+                      enabled
+                      unitProcessStepCodes={unitProcessStepCodes}
+                      todayYmd={todayYmd}
+                    />
+                  ) : null}
                 </li>
               ) : (
                 <li

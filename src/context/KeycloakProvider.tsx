@@ -2,8 +2,8 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import type { ReactNode } from "react";
 import { ReactKeycloakProvider, useKeycloak } from "@react-keycloak/web";
 import { getAuthMe } from "../api/auth";
-import { setAuthAccessToken } from "../lib/authAccessStore";
-import { mapKeycloakTokenToAuthUser } from "../lib/mapKeycloakTokenToAuthUser";
+import { setAuthAccessToken } from "../lib/auth/authAccessStore";
+import { mapKeycloakTokenToAuthUser } from "../lib/auth/mapKeycloakTokenToAuthUser";
 import type { AuthUser } from "../types/authUser";
 import {
   isKeycloakAuthEnabled,
@@ -11,7 +11,7 @@ import {
   postLogoutRedirectUri,
   readKeycloakEnv,
 } from "../config/keycloakEnv";
-import { buildKeycloakInitOptions, getOrCreateKeycloakClient } from "../lib/keycloakClient";
+import { buildKeycloakInitOptions, getOrCreateKeycloakClient } from "../lib/auth/keycloakClient";
 
 type KeycloakAuthContextValue = {
   enabled: boolean;

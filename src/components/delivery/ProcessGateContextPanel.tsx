@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import type { CommonCodeItem } from "../../api/commonCode";
 import { TrashBinIcon } from "../../icons";
-import { fileTypeIconSrc } from "../../lib/fileTypeIcon";
+import { fileTypeIconSrc } from "../../lib/ui/fileTypeIcon";
 import Label from "../form/Label";
 import FileUploadDropzone from "../form/FileUploadDropzone";
 import TextArea from "../form/input/TextArea";
@@ -13,8 +13,8 @@ import {
   UNIT_PROCESS_STEP_CODE_WAIT_DETECTOR_INCOMING,
 } from "../../api/commonCode";
 import type { ProductionPlanUnit } from "../../api/purchaseOrder";
-import type { FlatPlanUnitRow } from "../../lib/productionPlanDetailHelpers";
-import { buildProcessStepCodesForPlanUnitRow } from "../../lib/productionPlanDetailHelpers";
+import type { FlatPlanUnitRow } from "../../domains/production-plan/helpers/detailHelpers";
+import { buildProcessStepCodesForPlanUnitRow } from "../../domains/production-plan/helpers/detailHelpers";
 import {
   ProcessPipelineStepper,
   type ProcessGateSubmitting,

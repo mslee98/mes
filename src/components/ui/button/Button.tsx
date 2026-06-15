@@ -6,7 +6,7 @@ import {
   type ButtonSize,
   type ButtonVariant,
   type LegacyButtonVariant,
-} from "../../../lib/buttonStyles";
+} from "../../../lib/ui/buttonStyles";
 
 interface ButtonProps {
   children: ReactNode;

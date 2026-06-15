@@ -37,7 +37,7 @@ import {
   isPartnerCountryCode,
   PARTNER_COUNTRY_OPTIONS,
   type PartnerCountryCode,
-} from "../lib/partnerCountryOptions";
+} from "../domains/partner/helpers/partnerCountryOptions";
 import { validateRequiredFields } from "../lib/formValidation";
 
 /** 업체 폼 「국가」 선택과 동기화할 기본 국가번호 */

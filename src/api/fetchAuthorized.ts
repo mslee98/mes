@@ -2,8 +2,8 @@
  * Bearer API 호출: 401 시 한 번 `POST /auth/refresh` (credentials include) 후 재시도.
  * 리프레시는 HttpOnly 쿠키 — JS에서는 읽지 않고 자동 전송만 신뢰.
  */
-import { getAuthAccessToken, setAuthAccessToken } from "../lib/authAccessStore";
-import { refreshAccessTokenSingle } from "../lib/authRefreshCoordinator";
+import { getAuthAccessToken, setAuthAccessToken } from "../lib/auth/authAccessStore";
+import { refreshAccessTokenSingle } from "../lib/auth/authRefreshCoordinator";
 
 const AUTH_PATH_SKIP_RETRY = ["/auth/login", "/auth/refresh", "/auth/logout"];
 

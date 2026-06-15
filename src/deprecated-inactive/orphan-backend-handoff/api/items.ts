@@ -5,7 +5,7 @@
  * @see docs/ITEMS.md
  * @see docs/FRONTEND_API.md
  */
-import { createApiError } from "../lib/apiError";
+import { createApiError } from "../../../lib/api/apiError";
 import { API_BASE } from "./apiBase";
 import { fetchAuthorized } from "./fetchAuthorized";
 

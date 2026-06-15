@@ -25,5 +25,5 @@
     "noUncheckedSideEffectImports": true
   },
   "include": ["src"],
-  "exclude": ["src/deprecated-inactive"]
+  "exclude": ["src/deprecated-inactive", "src/**/*.test.ts"]
 }

@@ -30,9 +30,9 @@ import { useAuth } from "../hooks/useAuth";
 import { useDetectorSelectOptions } from "../hooks/useDetectorSelectOptions";
 import { useOrderCommonCodes } from "../hooks/useOrderCommonCodes";
 import { usePartnersQuery } from "../hooks/usePartnersQuery";
-import { getCurrencySymbol, normalizeCurrencyCode } from "../lib/formatCurrency";
+import { getCurrencySymbol, normalizeCurrencyCode } from "../lib/format/formatCurrency";
 import { itemFormStrings as S } from "./itemFormStrings";
-import { toPartnerSearchableSelectOptions } from "../lib/partnerSelectOptions";
+import { toPartnerSearchableSelectOptions } from "../domains/partner/helpers/partnerSelectOptions";
 import {
   getProductList,
   representativeProductLabel,
@@ -77,7 +77,7 @@ import {
 } from "../features/order-form/utils/itemRow";
 import { computeHeaderSupplyAmount } from "../features/order-form/utils/supplyAmount";
 import { validateRequiredFields } from "../lib/formValidation";
-import { compactYmd, isYmdRangeValid, localYmdToday } from "../lib/dateFormat";
+import { compactYmd, isYmdRangeValid, localYmdToday } from "../lib/format/dateFormat";
 import { parsePositiveIntId } from "../lib/parseId";
 import {
   legacyUserValue,
@@ -87,17 +87,17 @@ import {
   parseLineUnitPrice,
   formatLineUnitPriceDisplay,
   parseOptionalExchangeRate,
-} from "../lib/priceInput";
+} from "../lib/format/priceInput";
 import {
   parseRequesterEmployeeNoFromSelect,
   parseRequesterNameFromSelect,
-} from "../lib/orderRequesterSelect";
+} from "../domains/order/helpers/orderRequesterSelect";
 import {
   defaultHiddenDetectorCodesForProduct,
   ORDER_LINE_WAVELENGTH_CODE,
   resolveOrderLineDetectorPayload,
-} from "../lib/orderLineDetectorFields";
-import { detectorFieldsFromOrderLine } from "../lib/orderLineItemRow";
+} from "../domains/order/helpers/orderLineDetectorFields";
+import { detectorFieldsFromOrderLine } from "../domains/order/helpers/orderLineItemRow";
 
 const PARTNER_TYPE_CUSTOMER = "CUSTOMER";
 

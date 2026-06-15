@@ -14,7 +14,7 @@
  * @see docs/COMMON_CODE.md
  * @see docs/FRONTEND_API.md
  */
-import { createApiError } from "../lib/apiError";
+import { createApiError } from "../lib/api/apiError";
 
 import { API_BASE } from "./apiBase";
 import { fetchAuthorized } from "./fetchAuthorized";
@@ -45,6 +45,30 @@ export const COMMON_CODE_GROUP_PURCHASE_ORDER_TYPE = "PURCHASE_ORDER_TYPE";
 export const COMMON_CODE_GROUP_PURCHASE_ORDER_STATUS = "PURCHASE_ORDER_STATUS";
 /** 납품 상태 — `GET /api/common-codes/groups/DELIVERY_STATUS/codes` */
 export const COMMON_CODE_GROUP_DELIVERY_STATUS = "DELIVERY_STATUS";
+/** 납품 계획 상태 — `GET /api/common-codes/groups/DELIVERY_PLAN_STATUS/codes` */
+export const COMMON_CODE_GROUP_DELIVERY_PLAN_STATUS = "DELIVERY_PLAN_STATUS";
+/** 생산 계획 상태 — `GET /api/common-codes/groups/PRODUCTION_PLAN_STATUS/codes` */
+export const COMMON_CODE_GROUP_PRODUCTION_PLAN_STATUS = "PRODUCTION_PLAN_STATUS";
+/** RMA 상태 — `GET /api/common-codes/groups/RMA_STATUS/codes` → `rma_requests.status` */
+export const COMMON_CODE_GROUP_RMA_STATUS = "RMA_STATUS";
+/** RMA 구분 — `GET /api/common-codes/groups/RMA_CATEGORY/codes` → `rma_category_code` */
+export const COMMON_CODE_GROUP_RMA_CATEGORY = "RMA_CATEGORY";
+/** RMA 증상 — `GET /api/common-codes/groups/RMA_SYMPTOM/codes` → `symptom_code` */
+export const COMMON_CODE_GROUP_RMA_SYMPTOM = "RMA_SYMPTOM";
+/** RMA A/S 분류 — `GET /api/common-codes/groups/RMA_AS_TYPE/codes` → `as_type_code` */
+export const COMMON_CODE_GROUP_RMA_AS_TYPE = "RMA_AS_TYPE";
+/** RMA 조치 유형 — `GET /api/common-codes/groups/RMA_ACTION_TYPE/codes` → `action_type_code` */
+export const COMMON_CODE_GROUP_RMA_ACTION_TYPE = "RMA_ACTION_TYPE";
+/** RMA 구성품 유형 — `GET /api/common-codes/groups/RMA_COMPONENT_TYPE/codes` → `component_type_code` */
+export const COMMON_CODE_GROUP_RMA_COMPONENT_TYPE = "RMA_COMPONENT_TYPE";
+/** RMA 반송 상태 — `GET /api/common-codes/groups/RMA_RETURN_STATUS/codes` → `return_status` */
+export const COMMON_CODE_GROUP_RMA_RETURN_STATUS = "RMA_RETURN_STATUS";
+/** RMA 반송 유형 — `GET /api/common-codes/groups/RMA_RETURN_TYPE/codes` → `return_type` */
+export const COMMON_CODE_GROUP_RMA_RETURN_TYPE = "RMA_RETURN_TYPE";
+/** RMA 조치 결과 — `GET /api/common-codes/groups/RMA_ACTION_RESULT/codes` → `result_status` */
+export const COMMON_CODE_GROUP_RMA_ACTION_RESULT = "RMA_ACTION_RESULT";
+/** @deprecated `RMA_RETURN_TYPE` 사용 */
+export const COMMON_CODE_GROUP_RETURN_TYPE = COMMON_CODE_GROUP_RMA_RETURN_TYPE;
 /** 제품 분류 — `GET /api/common-codes/groups/PRODUCT_CATEGORY/codes` */
 export const COMMON_CODE_GROUP_PRODUCT_CATEGORY = "PRODUCT_CATEGORY";
 /**
@@ -102,7 +126,7 @@ export const UNIT_PROCESS_STEP_CODE_WAIT_DETECTOR_INCOMING =
   "WAIT_DETECTOR_INCOMING";
 /** 포장 — PASS 시 제품 시리얼(끝 4자리) + `assign-product-serials` */
 export const UNIT_PROCESS_STEP_CODE_ENGINE_PACKAGING = "ENGINE_PACKAGING";
-/** 출고 준비 완료 — PASS 후 납품 등록으로 이어지는 최종 준비 단계 */
+/** 납품 대기 — 포장 PASS 등 공정 완료, 납품 등록 전 단계 */
 export const UNIT_PROCESS_STEP_CODE_READY_TO_DELIVER = "READY_TO_DELIVER";
 /** 활성 항목만, value=code·label=name (목록은 API에서 sortOrder·id 순 정렬됨) */
 export function commonCodesToSelectOptions(

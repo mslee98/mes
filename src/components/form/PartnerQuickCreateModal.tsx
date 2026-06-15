@@ -19,7 +19,7 @@ import CountrySelect from "./CountrySelect";
 import {
   DEFAULT_PARTNER_COUNTRY_CODE,
   isPartnerCountryCode,
-} from "../../lib/partnerCountryOptions";
+} from "../../domains/partner/helpers/partnerCountryOptions";
 
 const DEFAULT_DEFENSE_MARKET = "CIVILIAN";
 const PARTNER_CODE_REGEX = /^[A-Z]{1,2}$/;

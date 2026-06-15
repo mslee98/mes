@@ -7,11 +7,11 @@ import {
 } from "react";
 import type { CommonCodeItem } from "../../api/commonCode";
 import type { ProductionPlanUnit } from "../../api/purchaseOrder";
-import { labelForProcessCode } from "../../lib/productionPlanProcessLabels";
+import { labelForProcessCode } from "../../domains/production-plan/labels/processLabels";
 import {
   findProcessStepIndex,
   orderedUnitProcessSteps,
-} from "../../lib/productionPlanProcessSequence";
+} from "../../domains/production-plan/helpers/processSequence";
 
 type ProcessPipelineRowState = "done" | "current" | "pending";
 

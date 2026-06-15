@@ -14,7 +14,7 @@ import {
   formatKoreanTimeLabel,
   twelveToTwentyFour,
   twentyFourToParts,
-} from "../../lib/time12h24h";
+} from "../../lib/format/time12h24h";
 
 type TimePickerInputProps = {
   id: string;

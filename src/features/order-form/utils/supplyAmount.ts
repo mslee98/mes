@@ -1,5 +1,5 @@
-import { normalizeCurrencyCode } from "../../../lib/formatCurrency";
-import { parseLineUnitPrice } from "../../../lib/priceInput";
+import { normalizeCurrencyCode } from "../../../lib/format/formatCurrency";
+import { parseLineUnitPrice } from "../../../lib/format/priceInput";
 import type { ItemRow } from "../types";
 
 /** 헤더 통화 기준 라인 공급가액 (백엔드 `supplyAmount`) */

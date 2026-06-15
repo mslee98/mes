@@ -2,7 +2,7 @@
  * 결재 요청(approval_requests) API.
  * 이전 approval-documents 경로 대신 사용합니다.
  */
-import { createApiError } from "../lib/apiError";
+import { createApiError } from "../lib/api/apiError";
 import { API_BASE } from "./apiBase";
 import { fetchAuthorized } from "./fetchAuthorized";
 

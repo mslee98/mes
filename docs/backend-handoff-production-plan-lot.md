@@ -31,7 +31,7 @@ GET /api/purchase-orders/:purchaseOrderId/lot/preview
   &issuedDate={YYYY-MM-DD}
 ```
 
-- `quantity`: 이번 생산 수량(프론트는 **잔여 수량으로 클램프** 후 전달)
+- `quantity`: 이번 생산 수량 합(프론트는 **선택 품목별 `plannedQty` 합** — 다품목 발주 시 [`order-detail-production-plan-line-selection.md`](./order-detail-production-plan-line-selection.md) 참고)
 - `issuedDate`: **IDCCA 인수일** (모달 `deliveryDate`) → LOT의 `yyyyMMdd` 조각
 
 **응답 (프론트 파싱)**
@@ -183,12 +183,26 @@ LT - 20260522 - P - K - 0004
 |------|------|
 | `src/pages/OrderDetail.tsx` | 미리보기·저장·`issue-lot-units` 연쇄 |
 | `src/api/purchaseOrder.ts` | `getPurchaseOrderLotPreview`, `issueProductionPlanLotUnits`, … |
-| `src/lib/lotUnitCodeFormat.ts` | 패턴 설명·`LOT_YEAR_CODE` 기반 UI 예시 |
+| `src/lib/format/lotUnitCodeFormat.ts` | 패턴 설명·`LOT_YEAR_CODE` 기반 UI 예시 |
 | `docs/frontend-production-plan-lot-serial.md` | 프론트 내부 흐름 |
 
 ---
 
-## 7. 백엔드 확인 체크리스트
+## 7. 생산 계획 `items[]` 서버 검증 (방안 A, 프론트 2026-06)
+
+프론트: [`order-detail-production-plan-line-selection.md`](./order-detail-production-plan-line-selection.md)
+
+백엔드 `POST .../production-plans` 권장:
+
+- [ ] `items.length >= 1`
+- [ ] 각 `purchaseOrderItemId` 가 해당 `purchaseOrderId` 소속
+- [ ] 각 `plannedQty >= 1` 정수
+- [ ] 각 `plannedQty` ≤ 해당 품목 미계획(발주 qty − 기등록 계획/유닛)
+- [ ] `plannedDeliveryDate >= deliveryDate` (당일 허용)
+
+---
+
+## 8. 백엔드 확인 체크리스트
 
 - [ ] `GET lot/preview` — `quantity`, `issuedDate` 필수·검증, `previews` 길이 = quantity
 - [ ] `POST production-plans` — `items`만으로 units 없이 생성 가능

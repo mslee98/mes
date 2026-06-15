@@ -38,7 +38,7 @@ import {
   labelForCommonCode,
   buildUseStatusSelectOptions,
 } from "../api/commonCode";
-import { badgeColorFromUseStatusCode } from "../lib/badgeStatusColor";
+import { badgeColorFromUseStatusCode } from "../../../lib/ui/badgeStatusColor";
 
 const PAGE_SIZE = 10;
 

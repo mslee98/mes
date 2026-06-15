@@ -1,7 +1,7 @@
 import type { CommonCodeItem } from "../../api/commonCode";
 import type { ProductionPlanUnit } from "../../api/purchaseOrder";
-import type { FlatPlanUnitRow } from "../../lib/productionPlanDetailHelpers";
-import { labelForProcessCode } from "../../lib/productionPlanProcessLabels";
+import type { FlatPlanUnitRow } from "../../domains/production-plan/helpers/detailHelpers";
+import { labelForProcessCode } from "../../domains/production-plan/labels/processLabels";
 
 export interface ProcessModalProductSummaryProps {
   /** 평탄화 행이 있으면 품목 라벨·제품 정보를 우선 사용 */

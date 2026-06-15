@@ -1,8 +1,8 @@
 import toast from "react-hot-toast";
-import { formatDateTimeKo } from "../../lib/dateFormat";
+import { formatDateTimeKo } from "../../lib/format/dateFormat";
 import { downloadFileWithAuth } from "../../lib/fileDownload";
-import { fileTypeIconSrc } from "../../lib/fileTypeIcon";
-import type { NormalizedProcessAttachment } from "../../lib/unitProcessRecordAttachments";
+import { fileTypeIconSrc } from "../../lib/ui/fileTypeIcon";
+import type { NormalizedProcessAttachment } from "../../domains/production-plan/helpers/unitProcessRecordAttachments";
 import { ReactComponent as ArrowDownTrayIcon } from "../../icons/arrow-down-tray.svg?react";
 
 export function ProcessHistoryAttachmentRow({
@@ -30,11 +30,11 @@ export function ProcessHistoryAttachmentRow({
         <button
           type="button"
           className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-brand-50 hover:text-brand-600 dark:hover:bg-brand-500/10 dark:hover:text-brand-400"
-          title="첨부파일 다운로드"
-          aria-label="첨부파일 다운로드"
+          title="첨�??�일 ?�운로드"
+          aria-label="첨�??�일 ?�운로드"
           onClick={async () => {
             if (!accessToken) {
-              toast.error("로그인이 필요합니다.");
+              toast.error("로그?�이 ?�요?�니??");
               return;
             }
             try {
@@ -47,7 +47,7 @@ export function ProcessHistoryAttachmentRow({
               const message =
                 error instanceof Error
                   ? error.message
-                  : "첨부파일 다운로드에 실패했습니다.";
+                  : "첨�??�일 ?�운로드???�패?�습?�다.";
               toast.error(message);
             }
           }}

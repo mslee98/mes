@@ -1,6 +1,6 @@
-import { ORDER_LINE_WAVELENGTH_CODE } from "../../../lib/orderLineDetectorFields";
-import { normalizeCurrencyCode } from "../../../lib/formatCurrency";
-import { parseLineUnitPrice } from "../../../lib/priceInput";
+import { ORDER_LINE_WAVELENGTH_CODE } from "../../../domains/order/helpers/orderLineDetectorFields";
+import { normalizeCurrencyCode } from "../../../lib/format/formatCurrency";
+import { parseLineUnitPrice } from "../../../lib/format/priceInput";
 import type { ItemRow } from "../types";
 
 export function emptyItemRow(): ItemRow {
