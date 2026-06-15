@@ -9,9 +9,7 @@
     "build:staging": "node scripts/print-build-env.mjs staging && tsc -b && vite build --mode staging",
     "lint": "eslint .",
     "preview": "vite preview",
-    "preview:staging": "vite preview --mode staging",
-    "dist:add-txt": "node scripts/toggle-txt-extension.js add",
-    "dist:remove-txt": "node scripts/toggle-txt-extension.js remove"
+    "preview:staging": "vite preview --mode staging"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
