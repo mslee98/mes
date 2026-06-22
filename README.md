@@ -4,18 +4,15 @@
 
 ## 문서 진입점
 
-- 인증/로그인 흐름: [`docs/AUTH.md`](docs/AUTH.md)
-- 메뉴/권한/메뉴관리 흐름: [`docs/MENU.md`](docs/MENU.md)
-- 공통 코드 관리 기준: [`docs/COMMON_CODE.md`](docs/COMMON_CODE.md)
-- **발주 모듈(타 업체 → 우리 회사 요청)**: [`docs/PURCHASE_ORDER.md`](docs/PURCHASE_ORDER.md)
+전체 목차: [`docs/README.md`](docs/README.md)
 
-처음 확인할 때는 보통 아래 순서로 보면 됩니다.
-
-1. `README.md`
-2. `docs/AUTH.md`
-3. `docs/MENU.md`
-4. `docs/COMMON_CODE.md`
-5. 발주 관련: `docs/PURCHASE_ORDER.md`
+- 인증: [`docs/AUTH.md`](docs/AUTH.md)
+- 메뉴·권한: [`docs/MENU.md`](docs/MENU.md)
+- 공통 코드: [`docs/COMMON_CODE.md`](docs/COMMON_CODE.md)
+- 발주·결재: [`docs/domains/ORDER.md`](docs/domains/ORDER.md)
+- 제품·제품 정의: [`docs/domains/PRODUCT.md`](docs/domains/PRODUCT.md)
+- 생산·LOT·공정: [`docs/domains/PRODUCTION.md`](docs/domains/PRODUCTION.md)
+- 납품: [`docs/domains/DELIVERY.md`](docs/domains/DELIVERY.md)
 
 ## 주요 기능
 

@@ -8,9 +8,10 @@ import Badge from "../../ui/badge/Badge";
 import {
   DataTableCell,
   DataTableRow,
-  DATA_TABLE_BODY_TEXT_CLASS,
+  DATA_TABLE_COMPACT_BODY_TEXT_CLASS,
+  DATA_TABLE_COMPACT_LINK_CLASS,
+  DATA_TABLE_COMPACT_MUTED_TEXT_CLASS,
 } from "../../list";
-import { unitDetailLinkClassName } from "../../../domains/delivery/display/deliveryUnitListDisplay";
 import { ProductionPlanProcessStageBadge } from "../ProductionPlanProcessStageBadge";
 import {
   DELIVERY_PLAN_DETAIL_TABLE_GRID,
@@ -66,58 +67,44 @@ export function DeliveryPlanUnitRow({
       <DataTableCell compact className="min-w-0 font-mono">
         <Link
           to={`/delivery/units/${encodeURIComponent(unitId)}`}
-          className={`truncate text-theme-xs ${unitDetailLinkClassName}`}
+          className={`truncate ${DATA_TABLE_COMPACT_LINK_CLASS}`}
           title={unit.unitCode?.trim() || unitId}
         >
           {unit.unitCode?.trim() || unitId}
         </Link>
       </DataTableCell>
-      <DataTableCell
-        compact
-        textClassName={`text-theme-xs ${DATA_TABLE_BODY_TEXT_CLASS}`}
-      >
+      <DataTableCell compact>
         {resolveUnitProductionPlanNo(unit, group)}
       </DataTableCell>
       <DataTableCell compact className="min-w-0 items-start">
         <span
-          className="truncate text-theme-xs text-gray-800 dark:text-white/90"
+          className={`truncate ${DATA_TABLE_COMPACT_BODY_TEXT_CLASS} text-gray-800 dark:text-white/90`}
           title={resolveUnitItemLabel(unit, group)}
         >
           {resolveUnitItemLabel(unit, group)}
         </span>
       </DataTableCell>
-      <DataTableCell
-        compact
-        className="font-mono"
-        textClassName="text-theme-xs font-mono text-gray-800 dark:text-white/90"
-      >
+      <DataTableCell compact className="font-mono">
         {deliveryPlanUnitProductSerialDisplay(unit)}
       </DataTableCell>
-      <DataTableCell
-        compact
-        textClassName={`text-theme-xs ${DATA_TABLE_BODY_TEXT_CLASS}`}
-      >
+      <DataTableCell compact>
         {processName}
       </DataTableCell>
-      <DataTableCell compact className="justify-center gap-1">
-        <span className="text-theme-xs text-gray-600 dark:text-gray-400">
+      <DataTableCell compact align="center" className="gap-1">
+        <span className={DATA_TABLE_COMPACT_MUTED_TEXT_CLASS}>
           {processStatusName}
         </span>
         <ProductionPlanProcessStageBadge unit={unit} />
       </DataTableCell>
-      <DataTableCell compact className="justify-center">
+      <DataTableCell compact align="center">
         <Badge size="sm" color={readyColor}>
           {readyLabel}
         </Badge>
       </DataTableCell>
-      <DataTableCell
-        compact
-        className="justify-center"
-        textClassName={`text-theme-xs ${DATA_TABLE_BODY_TEXT_CLASS}`}
-      >
+      <DataTableCell compact align="center">
         {deliveryStatusLabel(unit)}
       </DataTableCell>
-      <DataTableCell compact className="justify-center gap-1 border-r-0">
+      <DataTableCell compact align="center" className="gap-1 border-r-0">
         <Link
           to={`/delivery/units/${encodeURIComponent(unitId)}`}
           className="inline-flex size-7 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-white/[0.08]"

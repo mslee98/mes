@@ -45,7 +45,7 @@ export function ProductionPlanDetailLinesTab({
     <div className="overflow-x-auto rounded-xl border border-gray-100 dark:border-white/10">
       <DataTable minWidth={640}>
         <DataTableHeader>
-          <DataTableHeaderCell colSpan={1} compact sortable={false} className="justify-center">
+          <DataTableHeaderCell colSpan={1} compact sortable={false} align="center">
             <Checkbox
               checked={allSelected}
               indeterminate={someSelected && !allSelected}
@@ -70,14 +70,14 @@ export function ProductionPlanDetailLinesTab({
           <DataTableHeaderCell colSpan={3} compact sortable={false}>
             <DataTableHeaderLabel>품목명</DataTableHeaderLabel>
           </DataTableHeaderCell>
-          <DataTableHeaderCell colSpan={2} compact sortable={false} className="justify-center">
-            <DataTableHeaderLabel className="w-full text-center">계획 수량</DataTableHeaderLabel>
+          <DataTableHeaderCell colSpan={2} compact sortable={false} align="center">
+            <DataTableHeaderLabel align="center">계획 수량</DataTableHeaderLabel>
           </DataTableHeaderCell>
-          <DataTableHeaderCell colSpan={2} compact sortable={false} className="justify-center">
-            <DataTableHeaderLabel className="w-full text-center">제품 수</DataTableHeaderLabel>
+          <DataTableHeaderCell colSpan={2} compact sortable={false} align="center">
+            <DataTableHeaderLabel align="center">제품 수</DataTableHeaderLabel>
           </DataTableHeaderCell>
-          <DataTableHeaderCell colSpan={2} compact sortable={false} className="justify-center border-r-0">
-            <DataTableHeaderLabel className="w-full text-center">일치</DataTableHeaderLabel>
+          <DataTableHeaderCell colSpan={2} compact sortable={false} align="center" className="border-r-0">
+            <DataTableHeaderLabel align="center">일치</DataTableHeaderLabel>
           </DataTableHeaderCell>
         </DataTableHeader>
         <DataTableBody>
@@ -101,7 +101,7 @@ export function ProductionPlanDetailLinesTab({
                 key={key || String(item.purchaseOrderItemId)}
                 selected={key ? selectedIds.has(key) : false}
               >
-                <DataTableCell colSpan={1} compact className="justify-center">
+                <DataTableCell colSpan={1} compact align="center">
                   {key ? (
                     <Checkbox
                       checked={selectedIds.has(key)}
@@ -123,13 +123,13 @@ export function ProductionPlanDetailLinesTab({
                 <DataTableCell colSpan={3} compact className="min-w-0 items-start">
                   {label}
                 </DataTableCell>
-                <DataTableCell colSpan={2} compact className="justify-center whitespace-nowrap">
+                <DataTableCell colSpan={2} compact align="center" className="whitespace-nowrap">
                   {item.plannedQty ?? "—"}
                 </DataTableCell>
-                <DataTableCell colSpan={2} compact className="justify-center whitespace-nowrap">
+                <DataTableCell colSpan={2} compact align="center" className="whitespace-nowrap">
                   {unitCount}
                 </DataTableCell>
-                <DataTableCell colSpan={2} compact className="justify-center border-r-0">
+                <DataTableCell colSpan={2} compact align="center" className="border-r-0">
                   {plannedNum == null ? (
                     <span className="text-theme-xs text-gray-400 dark:text-gray-500">—</span>
                   ) : qtyMatch ? (

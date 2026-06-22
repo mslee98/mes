@@ -7,6 +7,7 @@ import {
   DATA_TABLE_BODY_CELL_COMPACT_CLASS,
   DATA_TABLE_BODY_ROW_CLASS,
   DATA_TABLE_BODY_TEXT_CLASS,
+  DATA_TABLE_COMPACT_BODY_TEXT_CLASS,
   DATA_TABLE_COL_SPAN_CLASS,
   DATA_TABLE_GRID_CLASS,
   DATA_TABLE_HEADER_CELL_CLASS,
@@ -14,6 +15,11 @@ import {
   DATA_TABLE_HEADER_LABEL_CLASS,
   DATA_TABLE_HEADER_ROW_CLASS,
   DATA_TABLE_SELECTED_ROW_CLASS,
+  dataTableFlexAlignClass,
+  dataTableHeaderInnerAlignClass,
+  dataTableHeaderLabelAlignClass,
+  dataTableTextAlignClass,
+  type DataTableAlign,
   type DataTableColSpan,
 } from "./dataTableStyles";
 import { DataTableSortIndicator } from "./DataTableSortIndicator";
@@ -104,6 +110,8 @@ export type DataTableHeaderCellProps = {
   onToggleSort?: (sortKey: string) => void;
   sortable?: boolean;
   compact?: boolean;
+  /** 셀·헤더 라벨 가로 정렬 (기본 start) */
+  align?: DataTableAlign;
   className?: string;
 };
 
@@ -116,6 +124,7 @@ export function DataTableHeaderCell({
   onToggleSort,
   sortable = Boolean(sortKey && onToggleSort),
   compact = false,
+  align = "start",
   className = "",
 }: DataTableHeaderCellProps) {
   const cellClass = compact
@@ -127,6 +136,8 @@ export function DataTableHeaderCell({
       ? "descending"
       : "ascending"
     : "none";
+  const alignClass = dataTableFlexAlignClass(align);
+  const innerAlignClass = dataTableHeaderInnerAlignClass(align, sortable);
 
   const content = (
     <>
@@ -139,19 +150,19 @@ export function DataTableHeaderCell({
 
   return (
     <div
-      className={`${DATA_TABLE_COL_SPAN_CLASS[colSpan]} ${cellClass} ${className}`.trim()}
+      className={`${DATA_TABLE_COL_SPAN_CLASS[colSpan]} ${cellClass} ${alignClass} ${className}`.trim()}
       aria-sort={sortable ? ariaSort : undefined}
     >
       {sortable && sortKey && onToggleSort ? (
         <button
           type="button"
           onClick={() => onToggleSort(sortKey)}
-          className="flex w-full cursor-pointer items-center justify-between rounded outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+          className={`${innerAlignClass} cursor-pointer rounded outline-none focus-visible:ring-2 focus-visible:ring-brand-400`}
         >
           {content}
         </button>
       ) : (
-        <div className="flex w-full items-center justify-between">{content}</div>
+        <div className={innerAlignClass}>{content}</div>
       )}
     </div>
   );
@@ -161,15 +172,18 @@ export function DataTableHeaderLabel({
   children,
   className = "",
   title,
+  align,
 }: {
   children: ReactNode;
   className?: string;
   title?: string;
+  align?: DataTableAlign;
 }) {
+  const alignClass = align ? dataTableHeaderLabelAlignClass(align) : "";
   return (
     <p
       title={title}
-      className={`${DATA_TABLE_HEADER_LABEL_CLASS} ${className}`.trim()}
+      className={`${DATA_TABLE_HEADER_LABEL_CLASS} ${alignClass} ${className}`.trim()}
     >
       {children}
     </p>
@@ -234,6 +248,8 @@ export type DataTableCellProps = {
   children: ReactNode;
   colSpan?: DataTableColSpan;
   compact?: boolean;
+  /** flex 셀 가로 정렬 (기본 start) */
+  align?: DataTableAlign;
   className?: string;
   textClassName?: string;
 };
@@ -242,19 +258,28 @@ export function DataTableCell({
   children,
   colSpan = 1,
   compact = false,
+  align = "start",
   className = "",
-  textClassName = DATA_TABLE_BODY_TEXT_CLASS,
+  textClassName,
 }: DataTableCellProps) {
   const cellClass = compact
     ? DATA_TABLE_BODY_CELL_COMPACT_CLASS
     : DATA_TABLE_BODY_CELL_CLASS;
+  const alignClass = dataTableFlexAlignClass(align);
+  const defaultTextClassName = compact
+    ? DATA_TABLE_COMPACT_BODY_TEXT_CLASS
+    : DATA_TABLE_BODY_TEXT_CLASS;
+  const resolvedTextClassName =
+    typeof children === "string" || typeof children === "number"
+      ? `${textClassName ?? defaultTextClassName} ${dataTableTextAlignClass(align)}`.trim()
+      : (textClassName ?? defaultTextClassName);
 
   return (
     <div
-      className={`${DATA_TABLE_COL_SPAN_CLASS[colSpan]} ${cellClass} ${className}`.trim()}
+      className={`${DATA_TABLE_COL_SPAN_CLASS[colSpan]} ${cellClass} ${alignClass} ${className}`.trim()}
     >
       {typeof children === "string" || typeof children === "number" ? (
-        <p className={textClassName}>{children}</p>
+        <p className={resolvedTextClassName}>{children}</p>
       ) : (
         children
       )}

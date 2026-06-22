@@ -8,10 +8,12 @@ export const MSG_INDIVIDUAL_DELIVERY_AT_UNIT_DETAIL_SENTENCE =
   `${MSG_INDIVIDUAL_DELIVERY_AT_UNIT_DETAIL}하세요.`;
 
 const DELIVERY_PLAN_STATUS_FALLBACK: Record<string, string> = {
+  REGISTERED: "등록",
   COMPLETE: "완료",
   COMPLETED: "완료",
   OPEN: "진행",
   IN_PROGRESS: "진행",
+  DELAYED: "지연",
   CANCELLED: "취소",
   CANCELED: "취소",
   CLOSED: "종료",

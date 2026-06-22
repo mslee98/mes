@@ -23,6 +23,7 @@ import {
   unitListDelayDays,
   unitListDelayLabel,
 } from "../../../domains/production-plan/helpers/unitListDates";
+import { isUnitDeliveryOrProductionFinished } from "../../../domains/production-plan/helpers/planCompletion";
 import {
   dueDateDdayBadgeClassName,
   getDueDateRelative,
@@ -112,7 +113,10 @@ export function UnitDetailHeaderCard({
   const dueYmd = formatDateYmd(unit.plan?.plannedDate ?? unit.dueDate, {
     emptyFallback: "—",
   });
-  const dueRel = getDueDateRelative(unit.plan?.plannedDate ?? unit.dueDate);
+  const showScheduleTracking = !isUnitDeliveryOrProductionFinished(unit);
+  const dueRel = showScheduleTracking
+    ? getDueDateRelative(unit.plan?.plannedDate ?? unit.dueDate)
+    : null;
   const productionDelayDays = unitListDelayDays(unit);
 
   const partnerNameWithFlag = (

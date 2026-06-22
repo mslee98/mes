@@ -4,6 +4,8 @@
  */
 const MENU_PATH_EXTRA_ACTIVE: Record<string, readonly string[]> = {
   "/detectors": ["/iddca-type", "/iddca-type-table"],
+  "/production/plans": ["/production/overview"],
+  "/production/units": ["/production/overview"],
 };
 
 export function pathnameMatchesMenuPath(pathname: string, menuPath: string): boolean {

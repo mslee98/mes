@@ -89,7 +89,7 @@
 | `products.ts`, `lenses.ts` | `deleteProduct`, `deleteLens` |
 | `purchaseOrder.ts` (partner) | `deletePartner` |
 
-문서: `docs/api-purchase-orders.md` (발주·납품 API 요약 보강).
+문서: `docs/domains/ORDER.md`, `docs/domains/DELIVERY.md`.
 
 ### 주요 신규 컴포넌트
 

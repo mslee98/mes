@@ -4,6 +4,7 @@ import type {
 } from "../../../api/purchaseOrder";
 
 export const PRODUCTION_PLAN_UNIT_TABS: ProductionPlanUnitTab[] = [
+  "ALL",
   "WAITING",
   "IN_PROGRESS",
   "COMPLETED",
@@ -15,14 +16,16 @@ const TAB_LABELS: Record<
   Record<ProductionPlanUnitTab, string>
 > = {
   production: {
+    ALL: "전체",
     WAITING: "생산 대기",
     IN_PROGRESS: "생산 진행",
     COMPLETED: "생산 완료",
     DELAYED: "생산 지연",
   },
   delivery: {
+    ALL: "전체",
     WAITING: "납품 대기",
-    IN_PROGRESS: "계획·공정중",
+    IN_PROGRESS: "납품 진행",
     COMPLETED: "납품 완료",
     DELAYED: "지연",
   },
@@ -41,24 +44,42 @@ export function completedTabLabel(
   return tabLabel(perspective, "COMPLETED");
 }
 
-export function unitListPageTitle(
+export type UnitListMode = "overview-units" | "delivery";
+
+export function unitListModeFromPerspective(
   perspective: ProductionPlanUnitPerspective
+): UnitListMode {
+  return perspective === "delivery" ? "delivery" : "overview-units";
+}
+
+export function perspectiveForUnitListMode(
+  mode: UnitListMode
+): ProductionPlanUnitPerspective {
+  return mode === "delivery" ? "delivery" : "production";
+}
+
+export function unitListPageTitle(
+  perspectiveOrMode: ProductionPlanUnitPerspective | UnitListMode
 ): string {
-  return perspective === "delivery"
-    ? "납품 품목 목록"
-    : "생산 품목 목록";
+  if (perspectiveOrMode === "overview-units") return "생산 품목 현황";
+  if (perspectiveOrMode === "delivery") return "납품 품목 목록";
+  return "생산 품목 목록";
 }
 
 export function unitListBreadcrumbTitle(
-  perspective: ProductionPlanUnitPerspective
+  perspectiveOrMode: ProductionPlanUnitPerspective | UnitListMode
 ): string {
-  return unitListPageTitle(perspective);
+  return unitListPageTitle(perspectiveOrMode);
 }
 
 export function unitListMetaDescription(
-  perspective: ProductionPlanUnitPerspective
+  perspectiveOrMode: ProductionPlanUnitPerspective | UnitListMode
 ): string {
-  return perspective === "delivery"
-    ? "납품 관점 품목 목록"
-    : "생산 관점 품목 목록";
+  if (perspectiveOrMode === "overview-units") {
+    return "생산 진행과 납품 등록 상태를 확인하고, 유닛을 선택해 납품 계획을 등록합니다.";
+  }
+  if (perspectiveOrMode === "delivery") {
+    return "납품 관점 품목 목록";
+  }
+  return "생산 관점 품목 목록";
 }

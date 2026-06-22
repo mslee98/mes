@@ -7,6 +7,8 @@ import monthSelectPlugin from "flatpickr/dist/plugins/monthSelect";
 import Label from "./Label";
 import { CalenderIcon } from "../../icons";
 import type { Instance } from "flatpickr/dist/types/instance";
+import type { Options } from "flatpickr/dist/types/options";
+import { createFlatpickrOverlayHooks } from "../../lib/ui/flatpickrOverlay";
 
 /** `YYYY-MM`이면 월의 1일로 보정해 flatpickr에 넘김 */
 function coercePickerValue(value: string | undefined, monthOnly: boolean): string {
@@ -35,6 +37,10 @@ type PropsType = {
    * `onValueChange`에는 `dateFormat` `Y-m` 문자열이 전달됩니다.
    */
   monthOnly?: boolean;
+  /**
+   * 달력 팝업 위치. 기본 `auto` — 뷰포트 여유에 따라 위/아래 자동 전환.
+   */
+  position?: Options["position"];
 };
 
 export default function DatePicker({
@@ -51,6 +57,7 @@ export default function DatePicker({
   disabled = false,
   compact = false,
   monthOnly = false,
+  position = "auto",
 }: PropsType) {
   const inputRef = useRef<HTMLInputElement>(null);
   const flatPickrRef = useRef<Instance | null>(null);
@@ -65,6 +72,8 @@ export default function DatePicker({
     const dark =
       typeof document !== "undefined" &&
       document.documentElement.classList.contains("dark");
+
+    const overlayHooks = createFlatpickrOverlayHooks();
 
     const flatPickr = flatpickr(inputRef.current, {
       locale: Korean,
@@ -92,26 +101,9 @@ export default function DatePicker({
         defaultDate ||
         undefined,
       appendTo: document.body,
-      position: "below",
+      position,
       clickOpens: !disabled,
-      onReady: (_selectedDates, _dateStr, instance) => {
-        if (instance.calendarContainer) {
-          instance.calendarContainer.style.setProperty(
-            "z-index",
-            "99999",
-            "important"
-          );
-        }
-      },
-      onOpen: (_selectedDates, _dateStr, instance) => {
-        if (instance.calendarContainer) {
-          instance.calendarContainer.style.setProperty(
-            "z-index",
-            "99999",
-            "important"
-          );
-        }
-      },
+      ...overlayHooks,
       onChange: (selectedDates, currentDateString, instance, data) => {
         onValueChangeRef.current?.(currentDateString);
 
@@ -133,7 +125,7 @@ export default function DatePicker({
       }
       flatPickrRef.current = null;
     };
-  }, [mode, defaultDate, disabled, monthOnly]);
+  }, [mode, defaultDate, disabled, monthOnly, position]);
 
   useEffect(() => {
     if (!flatPickrRef.current) return;

@@ -1,7 +1,7 @@
 # 프론트엔드 API 클라이언트 가이드
 
 백엔드와 통신하는 `src/api/*.ts` 모듈의 **공통 규칙**과 **엔드포인트 요약**입니다.  
-상세 도메인 설명은 각각 [PURCHASE_ORDER.md](./PURCHASE_ORDER.md), [ITEMS.md](./ITEMS.md) 등을 참고하세요.
+상세 도메인 설명은 [docs/README.md](./README.md) · [domains/](./domains/) 를 참고하세요.
 
 ---
 
@@ -103,8 +103,10 @@
 
 ## 5. 관련 문서
 
-- [PURCHASE_ORDER.md](./PURCHASE_ORDER.md) — 발주 화면·API 흐름
-- [ITEMS.md](./ITEMS.md) — 품목 마스터
-- [COMMON_CODE.md](./COMMON_CODE.md) — 공통코드 (있는 경우)
+- [domains/ORDER.md](./domains/ORDER.md) — 발주·결재
+- [domains/PRODUCT.md](./domains/PRODUCT.md) — 제품·제품 정의
+- [domains/PRODUCTION.md](./domains/PRODUCTION.md) — 생산 계획·LOT
+- [domains/DELIVERY.md](./domains/DELIVERY.md) — 납품
+- [COMMON_CODE.md](./COMMON_CODE.md) — 공통코드
 
 코드 내 **함수 단위 JSDoc**은 `src/api/purchaseOrder.ts` 등에 `@` 태그로 경로를 반복 기재해 두었습니다.

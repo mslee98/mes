@@ -1,5 +1,9 @@
 import type { CSSProperties } from "react";
-import type { DataTableColSpan } from "../../../components/list/DataTable/dataTableStyles";
+import type {
+  DataTableAlign,
+  DataTableColSpan,
+} from "../../../components/list/DataTable/dataTableStyles";
+import { dataTableFlexAlignClass } from "../../../components/list/DataTable/dataTableStyles";
 
 export type DeliveryUnitTableLayout = {
   checkbox: DataTableColSpan;
@@ -34,7 +38,7 @@ const COL = {
   partner: "minmax(8rem, 1.1fr)",
   operator: "minmax(3rem, 0.65fr)",
   process: "minmax(3.5rem, 0.85fr)",
-  status: "minmax(2.75rem, 0.5fr)",
+  status: "minmax(5.5rem, 0.9fr)",
   orderPlan: "minmax(9rem, 1.4fr)",
   dates: "minmax(5.5rem, 0.8fr)",
   delay: "minmax(2.75rem, 0.45fr)",
@@ -79,6 +83,31 @@ const SHARED_DATA_COLUMNS = {
   dates: 1 as const,
   delay: 1 as const,
 };
+
+/** 컬럼별 가로 정렬 — 헤더·본문 동일 적용 */
+export const DELIVERY_UNIT_COLUMN_ALIGN: Record<
+  keyof DeliveryUnitTableLayout,
+  DataTableAlign
+> = {
+  checkbox: "center",
+  no: "center",
+  lot: "start",
+  item: "start",
+  serial: "start",
+  partner: "start",
+  operator: "center",
+  process: "center",
+  status: "center",
+  orderPlan: "start",
+  dates: "start",
+  delay: "center",
+};
+
+export function deliveryUnitColumnAlignClass(
+  column: keyof DeliveryUnitTableLayout
+): string {
+  return dataTableFlexAlignClass(DELIVERY_UNIT_COLUMN_ALIGN[column]);
+}
 
 const DELIVERY_UNIT_TABLE_TRACK_COUNT = 12 as DataTableColSpan;
 

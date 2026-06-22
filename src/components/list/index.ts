@@ -14,6 +14,14 @@ export {
   DataTableSortIndicator,
   DataTableStatusPill,
   DATA_TABLE_BODY_TEXT_CLASS,
+  DATA_TABLE_COMPACT_BODY_TEXT_CLASS,
+  DATA_TABLE_COMPACT_LABEL_CLASS,
+  DATA_TABLE_COMPACT_MUTED_TEXT_CLASS,
+  DATA_TABLE_COMPACT_PRIMARY_TEXT_CLASS,
+  DATA_TABLE_COMPACT_STACK_CLASS,
+  DATA_TABLE_COMPACT_STACK_ROW_CLASS,
+  DATA_TABLE_COMPACT_LINK_CLASS,
+  DATA_TABLE_LINK_CLASS,
   DATA_TABLE_PRIMARY_TEXT_CLASS,
   DATA_TABLE_SECONDARY_TEXT_CLASS,
 } from "./DataTable";
@@ -28,6 +36,7 @@ export type {
   DataTableRowProps,
   DataTableStatusTone,
 } from "./DataTable";
+export type { DataTableAlign } from "./DataTable/dataTableStyles";
 export { ListPageLayout } from "./ListPageLayout";
 export type { ListPageLayoutProps } from "./ListPageLayout";
 export {

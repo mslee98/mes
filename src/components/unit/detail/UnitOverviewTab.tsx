@@ -33,6 +33,7 @@ import {
   unitListDelayDays,
   unitListDelayLabel,
 } from "../../../domains/production-plan/helpers/unitListDates";
+import { isUnitDeliveryOrProductionFinished } from "../../../domains/production-plan/helpers/planCompletion";
 import { resolvePlanUnitDetectorFields, type FlatPlanUnitRow } from "../../../domains/production-plan/helpers/detailHelpers";
 import { productionPlanUnitFromDetail } from "../../../domains/production-plan/mappers/unitMappers";
 import { normalizeUnitProcessRecordAttachments } from "../../../domains/production-plan/helpers/unitProcessRecordAttachments";
@@ -147,7 +148,9 @@ export function UnitOverviewTab({
     formatDateYmd(purchaseOrder?.dueDate ?? purchaseOrder?.requestDeliveryDate, {
       emptyFallback: "",
     });
-  const dueRel = getDueDateRelative(unit.dueDate ?? purchaseOrder?.dueDate);
+  const dueRel = isUnitDeliveryOrProductionFinished(unit)
+    ? null
+    : getDueDateRelative(unit.dueDate ?? purchaseOrder?.dueDate);
 
   const planNo = unit.plan?.planNo?.trim() || planId || "—";
   const planStatus = String(unit.plan?.status ?? "").trim() || "—";

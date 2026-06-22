@@ -1128,6 +1128,7 @@ export interface DeliveryTabCountsResponse {
 }
 
 export type ProductionPlanUnitTab =
+  | "ALL"
   | "WAITING"
   | "IN_PROGRESS"
   | "COMPLETED"
@@ -1152,6 +1153,7 @@ export interface ProductionPlanUnitOverviewParams {
 }
 
 export interface ProductionPlanUnitCounts {
+  all: number;
   waiting: number;
   inProgress: number;
   completed: number;
@@ -1178,13 +1180,20 @@ export interface ProductionPlanUnitOverviewResponse {
 }
 
 export interface ProductionPlanUnitListParams extends ProductionPlanUnitOverviewParams {
-  tab: ProductionPlanUnitTab;
+  tab?: ProductionPlanUnitTab;
   page?: number;
   pageSize?: number;
   q?: string;
-  sortBy?: "dueDate" | "deliveredAt" | "createdAt" | "productionCompletedAt";
+  sortBy?: ProductionPlanUnitListSortBy;
   sortOrder?: "asc" | "desc";
 }
+
+export type ProductionPlanUnitListSortBy =
+  | "dueDate"
+  | "deliveredAt"
+  | "createdAt"
+  | "productionCompletedAt"
+  | "orderedAt";
 
 export interface ProductionPlanUnitListResponse {
   meta: {
@@ -1201,6 +1210,7 @@ export interface ProductionPlanUnitListResponse {
   items: Array<{
     unitId: string;
     unitCode?: string | null;
+    createdAt?: string | null;
     /** LOT 내 발주·년도·업체·일련 복합 세그먼트 — PP 컬럼 표시 */
     lotPoComposite?: string | null;
     serialNo?: string | null;
@@ -1241,6 +1251,8 @@ export interface ProductionPlanUnitListResponse {
     order?: {
       orderId?: string;
       orderNo?: string | null;
+      orderDate?: string | null;
+      orderedAt?: string | null;
       partnerId?: string;
       partnerName?: string | null;
       /** 레거시·평탄화 응답용 — `partner.countryCode` 우선 */
@@ -1489,13 +1501,27 @@ export interface DeliveryPlanAddUnitsPayload {
 export type ProductionPlanUnitListItem =
   ProductionPlanUnitListResponse["items"][number];
 
-/** `GET /api/production-plans` 탭 */
-export type ProductionPlanListTab = "WITHOUT_DELIVERY" | "WITH_DELIVERY";
+/** `GET /api/production-plans` 탭 — 납품 계획 목록과 동형 */
+export type ProductionPlanListTab = "ALL" | "OPEN" | "COMPLETED" | "DELAYED";
+
+/** `GET /api/production-plans` — 납품 배정 coverage 필터 (탭과 AND) */
+export type ProductionPlanDeliveryCoverageFilter = "none" | "partial" | "full";
+
+export type ProductionPlanDeliveryCoverage = "NONE" | "PARTIAL" | "FULL";
+
+export interface ProductionPlanDeliveryCoverageInfo {
+  totalUnitCount: number;
+  assignedUnitCount: number;
+  unassignedUnitCount: number;
+  coverage: ProductionPlanDeliveryCoverage;
+  deliveryPlanIds: string[];
+}
 
 export type ProductionPlanListSortBy =
   | "plannedDate"
   | "dueDate"
   | "createdAt"
+  | "orderedAt"
   | "planNo";
 
 export interface ProductionPlanUnitSummary {
@@ -1505,6 +1531,9 @@ export interface ProductionPlanUnitSummary {
   deliveryReady?: number;
   completed?: number;
   delayed?: number;
+  /** 납품 계획 배정 유닛 수 (목록 API optional) */
+  deliveryAssigned?: number;
+  deliveryUnassigned?: number;
   [key: string]: unknown;
 }
 
@@ -1527,13 +1556,26 @@ export interface ProductionPlanListItem {
   status?: string | null;
   statusName?: string | null;
   unitSummary?: ProductionPlanUnitSummary | null;
+  deliveryCoverage?: ProductionPlanDeliveryCoverageInfo | null;
   selectableForDelivery?: boolean;
 }
 
+/** 목록 tab 필드와 1:1 (total === all) — 진행 상태 (레거시·납품 계획과 동형) */
 export interface ProductionPlanTabCounts {
-  withoutDelivery: number;
-  withDelivery: number;
-  total?: number;
+  all: number;
+  open: number;
+  completed: number;
+  delayed: number;
+  total: number;
+}
+
+/** `GET /api/production-plans/coverage-counts` — 배정 coverage 탭 배지 */
+export interface ProductionPlanCoverageCounts {
+  all: number;
+  none: number;
+  partial: number;
+  full: number;
+  total: number;
 }
 
 export interface ProductionPlanListOverviewParams extends ProductionPlanUnitOverviewParams {
@@ -1541,7 +1583,8 @@ export interface ProductionPlanListOverviewParams extends ProductionPlanUnitOver
 }
 
 export interface ProductionPlanListParams extends ProductionPlanListOverviewParams {
-  tab: ProductionPlanListTab;
+  tab?: ProductionPlanListTab;
+  deliveryCoverage?: ProductionPlanDeliveryCoverageFilter;
   page?: number;
   pageSize?: number;
   q?: string;
@@ -2971,11 +3014,12 @@ export async function getProductionPlanUnitTabCounts(
   const perspective: ProductionPlanUnitPerspective =
     perspectiveRaw === "delivery" ? "delivery" : "production";
   return {
+    all: Number(raw.all) || 0,
     waiting: Number(raw.waiting) || 0,
     inProgress: Number(raw.inProgress) || 0,
     completed: Number(raw.completed) || 0,
     delayed: Number(raw.delayed) || 0,
-    total: Number(raw.total) || 0,
+    total: Number(raw.total) || Number(raw.all) || 0,
     perspective,
   };
 }
@@ -2987,7 +3031,7 @@ export async function getProductionPlanUnits(
 ): Promise<ProductionPlanUnitListResponse> {
   const sp = new URLSearchParams();
   appendProductionPlanUnitOverviewParams(sp, params);
-  sp.set("tab", params.tab);
+  sp.set("tab", params.tab ?? "ALL");
   if (params.page != null && params.page > 0) sp.set("page", String(params.page));
   if (params.pageSize != null && params.pageSize > 0) {
     sp.set("pageSize", String(params.pageSize));
@@ -3023,6 +3067,69 @@ function appendProductionPlanListOverviewParams(
   }
 }
 
+function normalizeProductionPlanUnitSummary(
+  raw: unknown
+): ProductionPlanUnitSummary | null {
+  if (!raw || typeof raw !== "object") return null;
+  const o = raw as Record<string, unknown>;
+  const totalRaw = Number(o.total);
+  const total = Number.isFinite(totalRaw) ? totalRaw : undefined;
+  const deliveryAssignedRaw =
+    o.deliveryAssigned ??
+    o.delivery_assigned ??
+    o.inDeliveryPlan ??
+    o.in_delivery_plan ??
+    o.assigned;
+  const deliveryUnassignedRaw =
+    o.deliveryUnassigned ??
+    o.delivery_unassigned ??
+    o.unassigned;
+  const deliveryAssigned =
+    deliveryAssignedRaw != null && Number.isFinite(Number(deliveryAssignedRaw))
+      ? Number(deliveryAssignedRaw)
+      : undefined;
+  const deliveryUnassigned =
+    deliveryUnassignedRaw != null &&
+    Number.isFinite(Number(deliveryUnassignedRaw))
+      ? Number(deliveryUnassignedRaw)
+      : deliveryAssigned != null && total != null
+        ? Math.max(0, total - deliveryAssigned)
+        : undefined;
+
+  return {
+    ...(o as ProductionPlanUnitSummary),
+    total,
+    deliveryAssigned,
+    deliveryUnassigned,
+  };
+}
+
+function normalizeProductionPlanDeliveryCoverage(
+  raw: unknown
+): ProductionPlanDeliveryCoverageInfo | null {
+  if (!raw || typeof raw !== "object") return null;
+  const o = raw as Record<string, unknown>;
+  const coverageRaw = String(o.coverage ?? "").trim().toUpperCase();
+  const coverage: ProductionPlanDeliveryCoverage =
+    coverageRaw === "PARTIAL"
+      ? "PARTIAL"
+      : coverageRaw === "FULL"
+        ? "FULL"
+        : "NONE";
+  const idsRaw = o.deliveryPlanIds ?? o.delivery_plan_ids;
+  const deliveryPlanIds = Array.isArray(idsRaw)
+    ? idsRaw.map((id) => String(id ?? "").trim()).filter(Boolean)
+    : [];
+  return {
+    totalUnitCount: Number(o.totalUnitCount ?? o.total_unit_count) || 0,
+    assignedUnitCount: Number(o.assignedUnitCount ?? o.assigned_unit_count) || 0,
+    unassignedUnitCount:
+      Number(o.unassignedUnitCount ?? o.unassigned_unit_count) || 0,
+    coverage,
+    deliveryPlanIds,
+  };
+}
+
 function nestedRecord(raw: unknown): Record<string, unknown> | null {
   return raw && typeof raw === "object"
     ? (raw as Record<string, unknown>)
@@ -3043,10 +3150,11 @@ function normalizeProductionPlanListItem(
 ): ProductionPlanListItem {
   const planId = String(raw.planId ?? raw.id ?? "").trim();
   const unitSummaryRaw = raw.unitSummary ?? raw.unit_summary;
-  const unitSummary =
-    unitSummaryRaw && typeof unitSummaryRaw === "object"
-      ? (unitSummaryRaw as ProductionPlanUnitSummary)
-      : null;
+  const unitSummary = normalizeProductionPlanUnitSummary(unitSummaryRaw);
+  const deliveryCoverageRaw = raw.deliveryCoverage ?? raw.delivery_coverage;
+  const deliveryCoverage = normalizeProductionPlanDeliveryCoverage(
+    deliveryCoverageRaw
+  );
 
   const orderNested = nestedRecord(raw.order);
   const purchaseOrder =
@@ -3153,7 +3261,10 @@ function normalizeProductionPlanListItem(
     status: (raw.status as string | null | undefined) ?? null,
     statusName: (raw.statusName as string | null | undefined) ?? null,
     unitSummary,
-    selectableForDelivery: raw.selectableForDelivery === true,
+    deliveryCoverage,
+    selectableForDelivery:
+      raw.selectableForDelivery === true ||
+      raw.selectable_for_delivery === true,
   };
 }
 
@@ -3227,9 +3338,54 @@ export async function getProductionPlanTabCounts(
   }
   const raw = (await res.json()) as Record<string, unknown>;
   return {
-    withoutDelivery: Number(raw.withoutDelivery) || 0,
-    withDelivery: Number(raw.withDelivery) || 0,
-    total: Number(raw.total) || 0,
+    all: Number(raw.all) || 0,
+    open: Number(raw.open) || 0,
+    completed: Number(raw.completed) || 0,
+    delayed: Number(raw.delayed) || 0,
+    total: Number(raw.total) || Number(raw.all) || 0,
+  };
+}
+
+function parseProductionPlanCoverageCounts(
+  raw: Record<string, unknown>
+): ProductionPlanCoverageCounts {
+  const all = Number(raw.all) || Number(raw.total) || 0;
+  return {
+    all,
+    none: Number(raw.none) || 0,
+    partial: Number(raw.partial) || 0,
+    full: Number(raw.full) || 0,
+    total: Number(raw.total) || all,
+  };
+}
+
+/** `GET /api/production-plans/coverage-counts` — 목록과 동일 필터, coverage·페이지 제외 */
+export async function getProductionPlanCoverageCounts(
+  accessToken: string,
+  params?: ProductionPlanListOverviewParams
+): Promise<ProductionPlanCoverageCounts> {
+  const sp = new URLSearchParams();
+  if (params) appendProductionPlanListOverviewParams(sp, params);
+  const qs = sp.toString();
+  const res = await fetchAuthorized(
+    `${API_BASE}/production-plans/coverage-counts${qs ? `?${qs}` : ""}`,
+    {
+      headers: authHeaders(accessToken),
+      credentials: "include",
+    },
+    accessToken
+  );
+  if (res.ok) {
+    const raw = (await res.json()) as Record<string, unknown>;
+    return parseProductionPlanCoverageCounts(raw);
+  }
+  const fallback = await getProductionPlanTabCounts(accessToken, params);
+  return {
+    all: fallback.all,
+    none: 0,
+    partial: 0,
+    full: 0,
+    total: fallback.total || fallback.all,
   };
 }
 
@@ -3240,7 +3396,11 @@ export async function getProductionPlans(
 ): Promise<ProductionPlanListResponse> {
   const sp = new URLSearchParams();
   appendProductionPlanListOverviewParams(sp, params);
-  sp.set("tab", params.tab);
+  const tab = params.tab ?? "ALL";
+  sp.set("tab", tab);
+  if (params.deliveryCoverage) {
+    sp.set("deliveryCoverage", params.deliveryCoverage);
+  }
   if (params.page != null && params.page > 0) sp.set("page", String(params.page));
   if (params.pageSize != null && params.pageSize > 0) {
     sp.set("pageSize", String(params.pageSize));
@@ -3261,7 +3421,7 @@ export async function getProductionPlans(
     throw await createApiError(res, "생산 계획 목록을 불러오지 못했습니다.");
   }
   const raw = await res.json();
-  return parseProductionPlanListResponse(raw, params.tab);
+  return parseProductionPlanListResponse(raw, tab);
 }
 
 /** `GET /api/production-plan-units/:id` (`delivery.read`) */
@@ -3545,18 +3705,33 @@ export async function getDeliveryPlansList(
   const raw = await res.json();
   if (raw && typeof raw === "object" && Array.isArray((raw as { items?: unknown }).items)) {
     const o = raw as Record<string, unknown>;
+    const meta =
+      o.meta && typeof o.meta === "object"
+        ? (o.meta as Record<string, unknown>)
+        : null;
+    const items = (o.items as DeliveryPlanListItem[]) ?? [];
+    const page =
+      parsePagedListNumber(meta?.page, o.page) || p.page || 1;
+    const pageSize =
+      parsePagedListNumber(meta?.pageSize, o.pageSize) ||
+      p.pageSize ||
+      items.length ||
+      20;
+    const sortByRaw = meta?.sortBy ?? o.sortBy;
+    const sortOrderRaw = meta?.sortOrder ?? o.sortOrder;
     return {
-      items: (o.items as DeliveryPlanListItem[]) ?? [],
-      total: Number(o.total) || 0,
-      page: Number(o.page) || p.page || 1,
-      pageSize: Number(o.pageSize) || p.pageSize || 20,
+      items,
+      total:
+        parsePagedListNumber(meta?.total, o.total, o.totalCount) ?? items.length,
+      page,
+      pageSize,
       sortBy:
-        typeof o.sortBy === "string"
-          ? (o.sortBy as DeliveryPlanListSortBy)
+        typeof sortByRaw === "string"
+          ? (sortByRaw as DeliveryPlanListSortBy)
           : undefined,
       sortOrder:
-        typeof o.sortOrder === "string"
-          ? (o.sortOrder as ListSortOrder)
+        typeof sortOrderRaw === "string"
+          ? (sortOrderRaw as ListSortOrder)
           : undefined,
       serverPaginationApplied: true,
     };

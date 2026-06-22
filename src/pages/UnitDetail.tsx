@@ -101,7 +101,7 @@ import {
  * 공정/시리얼·납품은 `flatRow`(발주 품목 + `resolvePlanUnitDetectorFields`)에 의존합니다.
  * Unit API(`processUnit`)만으로는 소자·파장·productId가 비어 있을 수 있습니다.
  *
- * @see docs/process-handling-frontend-temp.md
+ * @see docs/domains/PRODUCTION.md
  */
 const IN_PROGRESS_RMA_STATUSES = [
   "RECEIVED",

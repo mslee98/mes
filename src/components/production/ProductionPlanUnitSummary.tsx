@@ -48,7 +48,7 @@ export function ProductionPlanUnitCountRatio({
 
   return (
     <span
-      className={`inline-block tabular-nums text-theme-sm font-medium text-gray-800 dark:text-gray-200 ${className}`}
+      className={`inline-block tabular-nums font-medium text-gray-800 dark:text-gray-200 text-theme-xs ${className}`}
       title={`진행 ${progressed} · 전체 ${total}`}
     >
       {label}

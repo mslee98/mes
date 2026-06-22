@@ -302,3 +302,17 @@ Network 탭에서 아래를 먼저 확인합니다.
 3. 해당 사용자에게 메뉴 권한이 실제로 부여되어 있는지
 4. `/menu` 페이지에서 CRUD/드래그 저장 요청 payload가 올바른지
 5. 삭제 정책이 프론트/백엔드에서 일치하는지
+
+---
+
+## 11. 메뉴 트리 DnD 라이브러리 참고
+
+현재 메뉴 트리는 **@dnd-kit** flat 리스트 + depth/projection으로 직접 구현되어 있습니다. 트리 전용 DnD로 마이그레이션 검토 시 참고:
+
+| 라이브러리 | 비고 |
+|------------|------|
+| [dnd-kit-sortable-tree](https://www.npmjs.com/package/dnd-kit-sortable-tree) | @dnd-kit 위 트리 레이어, `SortableTree` + `onItemsChanged` |
+| [react-complex-tree](https://rct.lukasbach.com/docs/) | 접근성·키보드, [DnD 가이드](https://rct.lukasbach.com/docs/guides/drag-and-drop/) |
+| [react-arborist](https://github.com/brimdata/react-arborist) | 가상화·대형 트리 |
+
+현재 스택과 가장 가까운 것은 **dnd-kit-sortable-tree**입니다.

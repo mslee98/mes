@@ -41,6 +41,7 @@ export function mapPlanDetailUnitsToListItems(
       qualityStatus: u.qualityStatus ?? null,
       isDeliveryReady: u.isDeliveryReady ?? false,
       isDelivered: u.isDelivered ?? false,
+      isInDeliveryPlan: !!(u.isInDeliveryPlan ?? u.deliveryPlanId),
       deliveryPlanId: u.deliveryPlanId ?? null,
       deliveryPlanNo: u.deliveryPlanNo ?? null,
       purchaseOrderId: Number.isFinite(purchaseOrderId) ? purchaseOrderId : null,

@@ -10,7 +10,12 @@ import {
 } from "../../lib/format/dueDateDisplay";
 import { buttonClassName } from "../../lib/ui/buttonStyles";
 import { partnerCountrySubline } from "../../domains/delivery/display/deliveryUnitListDisplay";
+import { isProductionPlanDeliveryComplete } from "../../domains/production-plan/helpers/planCompletion";
+import { formatPlanDeliveryAction } from "../../domains/production-plan/helpers/deliveryActionCopy";
+import { resolveDeliveryLinkage } from "../../domains/production-plan/helpers/deliveryLinkage";
+import { ProductionPlanDeliveryLinkageCell } from "./ProductionPlanDeliveryLinkageCell";
 import { ProductionPlanUnitCountRatio } from "./ProductionPlanUnitSummary";
+import { DATA_TABLE_COMPACT_BODY_TEXT_CLASS, DATA_TABLE_COMPACT_MUTED_TEXT_CLASS } from "../list/DataTable/dataTableStyles";
 
 export type ProductionPlanListRowCellsProps = {
   item: ProductionPlanListItem;
@@ -53,12 +58,17 @@ export function ProductionPlanListRowCells({
   todayYmd,
 }: ProductionPlanListRowCellsProps) {
   const plannedRaw = plannedDateForRow(item);
-  const plannedRel = getDueDateRelative(plannedRaw, { todayYmd });
+  const plannedRel =
+    isProductionPlanDeliveryComplete(item) || !plannedRaw
+      ? null
+      : getDueDateRelative(plannedRaw, { todayYmd });
   const countryLine = partnerCountrySubline(
     item.partnerCountryCode,
     countryCodes
   );
   const detailHref = planDetailPath(item);
+  const deliveryLinkage = resolveDeliveryLinkage(item);
+  const deliveryAction = formatPlanDeliveryAction(item);
 
   return (
     <>
@@ -70,24 +80,24 @@ export function ProductionPlanListRowCells({
           aria-hidden
         />
       </TableCell>
-      <TableCell className="min-w-[18rem] align-middle px-3 py-2 text-start text-theme-sm">
+      <TableCell className={`min-w-[18rem] align-middle px-3 py-2 text-start ${DATA_TABLE_COMPACT_BODY_TEXT_CLASS}`}>
         <div className="flex flex-col gap-0.5 leading-tight">
           <span className="break-words font-semibold text-gray-900 dark:text-white">
             {item.planNo?.trim() || planDisplayTitle(item)}
           </span>
           {item.title?.trim() ? (
-            <span className="break-words text-theme-xs text-gray-500 dark:text-gray-400">
+            <span className={`break-words ${DATA_TABLE_COMPACT_MUTED_TEXT_CLASS}`}>
               {item.title.trim()}
             </span>
           ) : null}
         </div>
       </TableCell>
-      <TableCell className="min-w-[8rem] max-w-[12rem] align-middle px-3 py-2 text-start text-theme-sm">
+      <TableCell className={`min-w-[8rem] max-w-[12rem] align-middle px-3 py-2 text-start ${DATA_TABLE_COMPACT_BODY_TEXT_CLASS}`}>
         <div className="break-words font-semibold text-gray-800 dark:text-white/90">
           {item.partnerName?.trim() || "—"}
         </div>
         {countryLine ? (
-          <div className="mt-1 flex items-center gap-1.5 text-theme-xs text-gray-500 dark:text-gray-400">
+          <div className={`mt-1 flex items-center gap-1.5 ${DATA_TABLE_COMPACT_MUTED_TEXT_CLASS}`}>
             {countryLine.flagUrl ? (
               <img
                 src={countryLine.flagUrl}
@@ -100,7 +110,7 @@ export function ProductionPlanListRowCells({
           </div>
         ) : null}
       </TableCell>
-      <TableCell className="min-w-[7rem] align-middle px-3 py-2 text-center text-theme-sm text-gray-700 dark:text-gray-300">
+      <TableCell className={`min-w-[7rem] align-middle px-3 py-2 text-center ${DATA_TABLE_COMPACT_BODY_TEXT_CLASS}`}>
         <div
           className={`flex min-h-[3.75rem] flex-col items-center justify-center ${
             plannedRel ? "gap-1" : ""
@@ -119,11 +129,21 @@ export function ProductionPlanListRowCells({
           ) : null}
         </div>
       </TableCell>
-      <TableCell className="min-w-[7rem] max-w-[10rem] align-middle px-3 py-2 text-center text-theme-sm text-gray-600 dark:text-gray-300">
+      <TableCell className={`min-w-[7rem] max-w-[10rem] align-middle px-3 py-2 text-center ${DATA_TABLE_COMPACT_BODY_TEXT_CLASS}`}>
         {item.productionManagerName?.trim() || "—"}
       </TableCell>
       <TableCell className="min-w-[5rem] align-middle px-3 py-2 text-center">
         <ProductionPlanUnitCountRatio summary={item.unitSummary} />
+      </TableCell>
+      <TableCell className="min-w-[6rem] align-middle px-3 py-2 text-center">
+        <ProductionPlanDeliveryLinkageCell linkage={deliveryLinkage} compact />
+      </TableCell>
+      <TableCell className="min-w-[10rem] align-middle px-3 py-2 text-center">
+        <div className="flex flex-col items-center gap-1.5">
+          <span className={`leading-snug ${DATA_TABLE_COMPACT_BODY_TEXT_CLASS}`}>
+            {deliveryAction.summaryLine}
+          </span>
+        </div>
       </TableCell>
       <TableCell className="min-w-[8.5rem] align-middle px-2 py-2 text-center">
         <div
@@ -147,7 +167,7 @@ export function ProductionPlanListRowCells({
               상세보기
             </Link>
           ) : (
-            <span className="text-theme-xs text-gray-400 dark:text-gray-500">—</span>
+            <span className={DATA_TABLE_COMPACT_MUTED_TEXT_CLASS}>—</span>
           )}
         </div>
       </TableCell>

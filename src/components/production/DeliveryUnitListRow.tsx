@@ -18,7 +18,9 @@ import type {
 import {
   completedTabLabel,
   tabLabel,
+  type UnitListMode,
 } from "../../domains/production-plan/helpers/unitListPerspective";
+import { formatUnitDeliveryStatus } from "../../domains/production-plan/helpers/deliveryActionCopy";
 import { ProductionPlanProcessStageBadge } from "../delivery/ProductionPlanProcessStageBadge";
 import { CopyTextButton } from "../common/CopyTextButton";
 import Checkbox from "../form/input/Checkbox";
@@ -26,6 +28,13 @@ import Badge from "../ui/badge/Badge";
 import {
   DataTableCell,
   DataTableRow,
+  DATA_TABLE_COMPACT_BODY_TEXT_CLASS,
+  DATA_TABLE_COMPACT_LABEL_CLASS,
+  DATA_TABLE_COMPACT_MUTED_TEXT_CLASS,
+  DATA_TABLE_COMPACT_PRIMARY_TEXT_CLASS,
+  DATA_TABLE_COMPACT_STACK_CLASS,
+  DATA_TABLE_COMPACT_STACK_ROW_CLASS,
+  DATA_TABLE_COMPACT_LINK_CLASS,
 } from "../list";
 import type { DataTableColSpan } from "../list/DataTable/dataTableStyles";
 import {
@@ -37,18 +46,20 @@ import {
 } from "../../domains/production-plan/helpers/unitListDates";
 import {
   currentProcessDisplay,
+  deliveryUnitAssignedRowClassName,
   deliveryUnitRowClassName,
+  isUnitAssignedToDeliveryPlan,
   listDetectorSerialDisplay,
   listOperatorDisplay,
   listProductSerialDisplay,
   listUnitIndexLabel,
   listUnitLotCode,
   partnerCountrySubline,
-  unitDetailLinkClassName,
   type DeliveryUnitListRow as DeliveryUnitListRowData,
 } from "../../domains/delivery/display/deliveryUnitListDisplay";
 import type { DeliveryUnitTableLayout } from "../../domains/delivery/layout/deliveryUnitDataTableLayout";
 import {
+  DELIVERY_UNIT_COLUMN_ALIGN,
   DELIVERY_UNIT_NARROW_CELL_CLASS,
   DELIVERY_UNIT_ROW_MIN_HEIGHT_CLASS,
 } from "../../domains/delivery/layout/deliveryUnitDataTableLayout";
@@ -74,6 +85,7 @@ export type DeliveryUnitListRowProps = {
   pageSize: number;
   tab?: ProductionPlanUnitTab;
   perspective?: ProductionPlanUnitPerspective;
+  mode?: UnitListMode;
   unitProcessStepCodes: CommonCodeItem[];
   countryCodes: CommonCodeItem[];
   layout: DeliveryUnitTableLayout;
@@ -90,15 +102,22 @@ export type DeliveryUnitListRowProps = {
 
 function Cell({
   colSpan,
+  column,
   className = "",
   children,
 }: {
   colSpan: DataTableColSpan;
+  column: keyof DeliveryUnitTableLayout;
   className?: string;
   children: ReactNode;
 }) {
   return (
-    <DataTableCell colSpan={colSpan} compact className={className}>
+    <DataTableCell
+      colSpan={colSpan}
+      compact
+      align={DELIVERY_UNIT_COLUMN_ALIGN[column]}
+      className={className}
+    >
       {children}
     </DataTableCell>
   );
@@ -111,6 +130,7 @@ export const DeliveryUnitListRow = memo(function DeliveryUnitListRow({
   pageSize,
   tab = "IN_PROGRESS",
   perspective = "production",
+  mode = "delivery",
   unitProcessStepCodes,
   countryCodes,
   layout,
@@ -193,6 +213,9 @@ export const DeliveryUnitListRow = memo(function DeliveryUnitListRow({
   const planNo = row.plan?.planNo?.trim() || row.plan?.planId || "";
   const deliveryPlanNo =
     row.deliveryPlanNo?.trim() || row.deliveryPlanId || "";
+  const deliveryStatus = formatUnitDeliveryStatus(row);
+  const isAssignedToDeliveryPlan = isUnitAssignedToDeliveryPlan(row);
+  const dimAssignedRow = mode === "overview-units" && isAssignedToDeliveryPlan;
   return (
     <>
     <DataTableRow
@@ -200,14 +223,18 @@ export const DeliveryUnitListRow = memo(function DeliveryUnitListRow({
       selected={showCheckbox && checked}
       gridTemplateColumns={gridTemplateColumns}
       className={`group ${deliveryUnitRowClassName(index)} ${DELIVERY_UNIT_ROW_MIN_HEIGHT_CLASS}${
-        checkboxOrderMismatchHint ? " cursor-not-allowed" : ""
-      }`}
+        dimAssignedRow ? ` ${deliveryUnitAssignedRowClassName()}` : ""
+      }${checkboxOrderMismatchHint ? " cursor-not-allowed" : ""}`}
       onMouseEnter={handleRowMouseEnter}
       onMouseLeave={handleRowMouseLeave}
       aria-describedby={hintOpen ? tooltipId : undefined}
     >
       {reserveCheckboxColumn ? (
-        <Cell colSpan={layout.checkbox} className={DELIVERY_UNIT_NARROW_CELL_CLASS}>
+        <Cell
+          colSpan={layout.checkbox}
+          column="checkbox"
+          className={DELIVERY_UNIT_NARROW_CELL_CLASS}
+        >
           {showCheckbox ? (
             <Checkbox
               checked={checked}
@@ -220,23 +247,24 @@ export const DeliveryUnitListRow = memo(function DeliveryUnitListRow({
       ) : null}
       <Cell
         colSpan={layout.no}
+        column="no"
         className={
-          layout.no === 1 ? DELIVERY_UNIT_NARROW_CELL_CLASS : "justify-center"
+          layout.no === 1 ? DELIVERY_UNIT_NARROW_CELL_CLASS : undefined
         }
       >
         <Link
           to={`/delivery/units/${row.unitId}`}
-          className={`font-mono text-theme-xs ${unitDetailLinkClassName}`}
+          className={`font-mono ${DATA_TABLE_COMPACT_LINK_CLASS}`}
           title="생산·납품 현황"
         >
           {listUnitIndexLabel(index, page, pageSize)}
         </Link>
       </Cell>
-      <Cell colSpan={layout.lot}>
+      <Cell colSpan={layout.lot} column="lot">
         <div className="flex items-center gap-0.5">
           <Link
             to={`/delivery/units/${row.unitId}`}
-            className={`whitespace-nowrap font-mono text-sm font-semibold ${unitDetailLinkClassName}`}
+            className={`whitespace-nowrap font-mono font-semibold ${DATA_TABLE_COMPACT_LINK_CLASS}`}
             title={lotCode}
           >
             {lotCode}
@@ -244,41 +272,41 @@ export const DeliveryUnitListRow = memo(function DeliveryUnitListRow({
           <CopyTextButton value={lotCode} ariaLabel="LOT 복사" />
         </div>
       </Cell>
-      <Cell colSpan={layout.item} className="min-w-0 items-start">
-        <div className="flex min-w-0 flex-col gap-0.5 leading-tight">
+      <Cell colSpan={layout.item} column="item" className="min-w-0 items-center">
+        <div className="flex min-w-0 w-full flex-col gap-0.5 leading-tight">
           <div
-            className="truncate text-theme-sm font-semibold text-gray-900 dark:text-white"
+            className={`truncate ${DATA_TABLE_COMPACT_PRIMARY_TEXT_CLASS}`}
             title={business || undefined}
           >
             {business || "-"}
           </div>
           <div
-            className="truncate text-theme-xs text-gray-500 dark:text-gray-400"
+            className={`truncate ${DATA_TABLE_COMPACT_MUTED_TEXT_CLASS}`}
             title={product || undefined}
           >
             {product || "-"}
           </div>
         </div>
       </Cell>
-      <Cell colSpan={layout.serial} className="min-w-0 items-start">
-        <div className="flex min-w-0 flex-col gap-0.5 leading-tight text-[11px]">
-          <div className="flex min-w-0 items-baseline gap-1">
-            <span className="shrink-0 text-[10px] font-medium text-gray-500 dark:text-gray-400">
+      <Cell colSpan={layout.serial} column="serial" className="min-w-0 items-center">
+        <div className={`min-w-0 w-full ${DATA_TABLE_COMPACT_STACK_CLASS}`}>
+          <div className={DATA_TABLE_COMPACT_STACK_ROW_CLASS}>
+            <span className={DATA_TABLE_COMPACT_LABEL_CLASS}>
               제품
             </span>
             <span
-              className="min-w-0 truncate font-mono text-gray-800 dark:text-white/90"
+              className={`min-w-0 truncate font-mono ${DATA_TABLE_COMPACT_BODY_TEXT_CLASS} text-gray-800 dark:text-white/90`}
               title={listProductSerialDisplay(row)}
             >
               {listProductSerialDisplay(row)}
             </span>
           </div>
-          <div className="flex min-w-0 items-baseline gap-1">
-            <span className="shrink-0 text-[10px] font-medium text-gray-500 dark:text-gray-400">
+          <div className={DATA_TABLE_COMPACT_STACK_ROW_CLASS}>
+            <span className={DATA_TABLE_COMPACT_LABEL_CLASS}>
               검출기
             </span>
             <span
-              className="min-w-0 truncate font-mono text-gray-800 dark:text-white/90"
+              className={`min-w-0 truncate font-mono ${DATA_TABLE_COMPACT_BODY_TEXT_CLASS} text-gray-800 dark:text-white/90`}
               title={detectorSn}
             >
               {detectorSn}
@@ -286,15 +314,16 @@ export const DeliveryUnitListRow = memo(function DeliveryUnitListRow({
           </div>
         </div>
       </Cell>
-      <Cell colSpan={layout.partner} className="min-w-0 flex-col items-start">
+      <Cell colSpan={layout.partner} column="partner" className="min-w-0 items-center">
+        <div className="flex min-w-0 w-full flex-col gap-0.5">
         <div
-          className="w-full break-words text-theme-sm font-semibold text-gray-800 dark:text-white/90"
+          className={`w-full break-words ${DATA_TABLE_COMPACT_PRIMARY_TEXT_CLASS} text-gray-800 dark:text-white/90`}
           title={partnerName !== "-" ? partnerName : undefined}
         >
           {partnerName}
         </div>
         {countryLine ? (
-          <div className="mt-0.5 flex w-full min-w-0 items-center gap-1 text-theme-xs text-gray-500 dark:text-gray-400">
+          <div className={`flex w-full min-w-0 items-center gap-1 ${DATA_TABLE_COMPACT_MUTED_TEXT_CLASS}`}>
             {countryLine.flagUrl ? (
               <img
                 src={countryLine.flagUrl}
@@ -319,54 +348,57 @@ export const DeliveryUnitListRow = memo(function DeliveryUnitListRow({
             </span>
           </div>
         ) : null}
+        </div>
       </Cell>
-      <Cell colSpan={layout.operator} className="justify-center">
+      <Cell colSpan={layout.operator} column="operator">
         {listOperatorDisplay(row)}
       </Cell>
-      <Cell colSpan={layout.process} className="justify-center">
+      <Cell colSpan={layout.process} column="process">
         <Badge size="sm" color="light">
           <span className="break-words text-start normal-case">
             {currentProcessDisplay(row, unitProcessStepCodes)}
           </span>
         </Badge>
       </Cell>
-      <Cell colSpan={layout.status} className="justify-center">
-        {tab === "COMPLETED" ? (
-          row.isDelivered ? (
-            <Badge size="sm" color="success">
-              {completedTabLabel("delivery")}
-            </Badge>
-          ) : perspective === "production" && row.isDeliveryReady ? (
-            <Badge size="sm" color="info">
-              {tabLabel("delivery", "WAITING")}
-            </Badge>
+      <Cell colSpan={layout.status} column="status">
+        <span className="whitespace-nowrap">
+          {tab === "COMPLETED" ? (
+            row.isDelivered ? (
+              <Badge size="sm" color="success">
+                {completedTabLabel("delivery")}
+              </Badge>
+            ) : perspective === "production" && row.isDeliveryReady ? (
+              <Badge size="sm" color="info">
+                {tabLabel("delivery", "WAITING")}
+              </Badge>
+            ) : (
+              <Badge size="sm" color="success">
+                {completedTabLabel(perspective)}
+              </Badge>
+            )
           ) : (
-            <Badge size="sm" color="success">
-              {completedTabLabel(perspective)}
-            </Badge>
-          )
-        ) : (
-          <ProductionPlanProcessStageBadge unit={toProcessBadgeUnit(row)} />
-        )}
+            <ProductionPlanProcessStageBadge unit={toProcessBadgeUnit(row)} />
+          )}
+        </span>
       </Cell>
-      <Cell colSpan={layout.orderPlan} className="min-w-0 items-start">
-        <div className="flex min-w-0 w-full flex-col gap-0.5 leading-tight text-[11px]">
-          <div className="flex min-w-0 items-baseline gap-1">
-            <span className="shrink-0 text-[10px] font-medium text-gray-500 dark:text-gray-400">
+      <Cell colSpan={layout.orderPlan} column="orderPlan" className="min-w-0 items-start">
+        <div className={`min-w-0 w-full ${DATA_TABLE_COMPACT_STACK_CLASS}`}>
+          <div className={DATA_TABLE_COMPACT_STACK_ROW_CLASS}>
+            <span className={DATA_TABLE_COMPACT_LABEL_CLASS}>
               발주
             </span>
             <div className="flex min-w-0 flex-1 items-center gap-0.5">
               {row.order?.orderId ? (
                 <Link
                   to={`/order/${row.order.orderId}`}
-                  className="min-w-0 flex-1 truncate font-mono text-theme-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
+                  className={`min-w-0 flex-1 truncate font-mono ${DATA_TABLE_COMPACT_LINK_CLASS}`}
                   title={orderNo}
                 >
                   {orderNo}
                 </Link>
               ) : (
                 <span
-                  className="min-w-0 flex-1 truncate font-mono text-theme-xs text-gray-600 dark:text-gray-300"
+                  className={`min-w-0 flex-1 truncate font-mono ${DATA_TABLE_COMPACT_BODY_TEXT_CLASS}`}
                   title={row.order?.orderNo?.trim() || undefined}
                 >
                   {orderNo || "-"}
@@ -379,8 +411,8 @@ export const DeliveryUnitListRow = memo(function DeliveryUnitListRow({
               </span>
             </div>
           </div>
-          <div className="flex min-w-0 items-baseline gap-1">
-            <span className="shrink-0 text-[10px] font-medium text-gray-500 dark:text-gray-400">
+          <div className={DATA_TABLE_COMPACT_STACK_ROW_CLASS}>
+            <span className={DATA_TABLE_COMPACT_LABEL_CLASS}>
               생산계획
             </span>
             <div
@@ -390,12 +422,12 @@ export const DeliveryUnitListRow = memo(function DeliveryUnitListRow({
               {row.plan?.planId && row.order?.orderId ? (
                 <Link
                   to={`/order/${row.order.orderId}/plan/${row.plan.planId}`}
-                  className="min-w-0 flex-1 truncate font-mono text-theme-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
+                  className={`min-w-0 flex-1 truncate font-mono ${DATA_TABLE_COMPACT_LINK_CLASS}`}
                 >
                   {planNo || "-"}
                 </Link>
               ) : (
-                <span className="min-w-0 flex-1 truncate font-mono text-theme-xs text-gray-600 dark:text-gray-300">
+                <span className={`min-w-0 flex-1 truncate font-mono ${DATA_TABLE_COMPACT_BODY_TEXT_CLASS}`}>
                   {planNo || "-"}
                 </span>
               )}
@@ -406,8 +438,8 @@ export const DeliveryUnitListRow = memo(function DeliveryUnitListRow({
               </span>
             </div>
           </div>
-          <div className="flex min-w-0 items-baseline gap-1">
-            <span className="shrink-0 text-[10px] font-medium text-gray-500 dark:text-gray-400">
+          <div className={DATA_TABLE_COMPACT_STACK_ROW_CLASS}>
+            <span className={DATA_TABLE_COMPACT_LABEL_CLASS}>
               납품계획
             </span>
             <div
@@ -417,13 +449,19 @@ export const DeliveryUnitListRow = memo(function DeliveryUnitListRow({
               {row.deliveryPlanId ? (
                 <Link
                   to={`/delivery/plans/${encodeURIComponent(row.deliveryPlanId)}`}
-                  className="min-w-0 flex-1 truncate font-mono text-theme-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
+                  className={`min-w-0 flex-1 truncate font-mono ${DATA_TABLE_COMPACT_LINK_CLASS}`}
                 >
-                  {deliveryPlanNo || "-"}
+                  {deliveryStatus.label}
                 </Link>
-              ) : (
-                <span className="min-w-0 flex-1 truncate font-mono text-theme-xs text-gray-600 dark:text-gray-300">
+              ) : mode === "delivery" ? (
+                <span className={`min-w-0 flex-1 truncate font-mono ${DATA_TABLE_COMPACT_BODY_TEXT_CLASS}`}>
                   -
+                </span>
+              ) : (
+                <span className={`min-w-0 flex-1 truncate font-mono ${DATA_TABLE_COMPACT_BODY_TEXT_CLASS}`}>
+                  <span className="font-medium text-amber-700 dark:text-amber-400/90">
+                    {deliveryStatus.label}
+                  </span>
                 </span>
               )}
               <span className="inline-flex w-[1.125rem] shrink-0 justify-center">
@@ -438,27 +476,27 @@ export const DeliveryUnitListRow = memo(function DeliveryUnitListRow({
           </div>
         </div>
       </Cell>
-      <Cell colSpan={layout.dates} className="items-start">
-        <div className="flex w-full flex-col gap-0.5 leading-tight text-[11px]">
-          <div className="flex items-baseline gap-1 whitespace-nowrap">
-            <span className="shrink-0 text-[10px] font-medium text-gray-500 dark:text-gray-400">
+      <Cell colSpan={layout.dates} column="dates" className="items-center">
+        <div className={`w-full ${DATA_TABLE_COMPACT_STACK_CLASS}`}>
+          <div className={`${DATA_TABLE_COMPACT_STACK_ROW_CLASS} whitespace-nowrap`}>
+            <span className={DATA_TABLE_COMPACT_LABEL_CLASS}>
               예정
             </span>
-            <span className="text-theme-sm text-gray-700 dark:text-gray-300">
+            <span className={DATA_TABLE_COMPACT_BODY_TEXT_CLASS}>
               {formatUnitListScheduleDate(perspective, row)}
             </span>
           </div>
-          <div className="flex items-baseline gap-1 whitespace-nowrap">
-            <span className="shrink-0 text-[10px] font-medium text-gray-500 dark:text-gray-400">
+          <div className={`${DATA_TABLE_COMPACT_STACK_ROW_CLASS} whitespace-nowrap`}>
+            <span className={DATA_TABLE_COMPACT_LABEL_CLASS}>
               완료
             </span>
-            <span className="text-theme-xs text-gray-700 dark:text-gray-300">
+            <span className={DATA_TABLE_COMPACT_BODY_TEXT_CLASS}>
               {formatUnitListCompletedDate(perspective, row)}
             </span>
           </div>
         </div>
       </Cell>
-      <Cell colSpan={layout.delay} className="justify-center border-r-0">
+      <Cell colSpan={layout.delay} column="delay" className="border-r-0">
         <span
           className={unitListDelayBadgeClassName(delayDays)}
           title={delayDays > 0 ? `${delayDays}일 지연` : undefined}

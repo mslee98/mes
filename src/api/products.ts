@@ -186,6 +186,11 @@ function mapProduct(raw: unknown): RepresentativeProduct {
     typeof o.createdAt === "string" ? o.createdAt : undefined;
   const updatedAt =
     typeof o.updatedAt === "string" ? o.updatedAt : undefined;
+  const inactive =
+    o.isActive === false ||
+    o.is_active === false ||
+    o.isActive === 0 ||
+    o.is_active === 0;
   return {
     id: String(o.id ?? "").trim(),
     businessCode,
@@ -198,7 +203,7 @@ function mapProduct(raw: unknown): RepresentativeProduct {
     arrayHeight: Number.isFinite(arrayHeight) ? arrayHeight : null,
     pixelPitch,
     description,
-    isActive: typeof o.isActive === "boolean" ? o.isActive : undefined,
+    isActive: inactive ? false : true,
     createdAt,
     updatedAt,
   };

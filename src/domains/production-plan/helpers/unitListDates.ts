@@ -3,9 +3,10 @@ import type {
   ProductionPlanUnitPerspective,
 } from "../../../api/purchaseOrder";
 import { formatDateTimeKo, formatDateYmd } from "../../../lib/format/dateFormat";
+import { isUnitDeliveryOrProductionFinished } from "./planCompletion";
 
 const DELAY_BADGE_BASE =
-  "inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-medium";
+  "inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-theme-xs font-medium";
 
 export function unitListScheduleDateYmd(
   perspective: ProductionPlanUnitPerspective,
@@ -34,6 +35,7 @@ export function unitListCompletedAt(
 }
 
 export function unitListDelayDays(row: ProductionPlanUnitListItem): number {
+  if (isUnitDeliveryOrProductionFinished(row)) return 0;
   const n = Number(row.delayDays);
   return Number.isFinite(n) && n > 0 ? Math.trunc(n) : 0;
 }

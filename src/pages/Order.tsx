@@ -7,6 +7,7 @@ import { Link, useNavigate } from "react-router";
 import flatpickr from "flatpickr";
 import "flatpickr/dist/flatpickr.css";
 import { Korean } from "flatpickr/dist/l10n/ko.js";
+import { createFlatpickrOverlayHooks } from "../lib/ui/flatpickrOverlay";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import PageMeta from "../components/common/PageMeta";
 import Select from "../components/form/Select";
@@ -26,6 +27,7 @@ import {
   ListPageLayout,
   ListPageToolbarRow,
   dataListOutlineButtonClassName,
+  DATA_TABLE_COMPACT_LINK_CLASS,
   TablePagination,
 } from "../components/list";
 import Badge from "../components/ui/badge/Badge";
@@ -145,6 +147,7 @@ export default function Order() {
 
   useEffect(() => {
     if (!dateRangeInputRef.current) return;
+    const overlayHooks = createFlatpickrOverlayHooks();
     const fp = flatpickr(dateRangeInputRef.current, {
       locale: Korean,
       mode: "range",
@@ -152,17 +155,8 @@ export default function Order() {
       static: false,
       monthSelectorType: "static",
       appendTo: document.body,
-      position: "above",
-      onReady: (_selectedDates, _dateStr, instance) => {
-        if (instance.calendarContainer) {
-          instance.calendarContainer.style.setProperty("z-index", "99999", "important");
-        }
-      },
-      onOpen: (_selectedDates, _dateStr, instance) => {
-        if (instance.calendarContainer) {
-          instance.calendarContainer.style.setProperty("z-index", "99999", "important");
-        }
-      },
+      position: "auto",
+      ...overlayHooks,
       onChange: (selectedDates: Date[]) => {
         setDateStart(selectedDates[0] ? selectedDates[0].toISOString().slice(0, 10) : "");
         setDateEnd(selectedDates[1] ? selectedDates[1].toISOString().slice(0, 10) : "");
@@ -364,7 +358,7 @@ export default function Order() {
               목록을 불러오는 중 오류가 발생했습니다.
             </div>
           ) : (
-            <DataTable minWidth={900}>
+            <DataTable fillWidth minWidth={0}>
               <DataTableHeader>
                 <DataTableHeaderCell
                   colSpan={2}
@@ -442,13 +436,13 @@ export default function Order() {
                       <DataTableCell colSpan={2} compact>
                         <Link
                           to={`/order/${row.id}`}
-                          className="font-medium text-brand-600 hover:underline dark:text-brand-400"
+                          className={DATA_TABLE_COMPACT_LINK_CLASS}
                         >
                           {row.orderNo}
                         </Link>
                       </DataTableCell>
                       <DataTableCell colSpan={3} compact className="min-w-0">
-                        <p className="truncate text-theme-sm text-gray-700 dark:text-gray-300">
+                        <p className="truncate text-theme-xs text-gray-700 dark:text-gray-300">
                           {row.title ?? "-"}
                         </p>
                       </DataTableCell>

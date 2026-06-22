@@ -45,6 +45,7 @@ import DeliveryUnits from "./pages/DeliveryUnits";
 import DeliveryPlans from "./pages/DeliveryPlans";
 import DeliveryPlanDetail from "./pages/DeliveryPlanDetail";
 import ProductionPlans from "./pages/ProductionPlans";
+import ProductionUnits from "./pages/ProductionUnits";
 import DeliveryDetail from "./pages/DeliveryDetail";
 import UIPlayground from "./pages/UIPlayground";
 import IddcaTypeTable from "./pages/IddcaTypeTable";
@@ -175,9 +176,14 @@ function App() {
               <Route path="order/:orderId/edit" element={<OrderForm />} />
 
               <Route path="production/plans" element={<ProductionPlans />} />
+              <Route path="production/units" element={<ProductionUnits />} />
               <Route
-                path="production/units"
-                element={<DeliveryUnits perspective="production" />}
+                path="production/overview"
+                element={<Navigate to="/production/plans" replace />}
+              />
+              <Route
+                path="delivery/preparation"
+                element={<Navigate to="/production/units" replace />}
               />
               <Route
                 path="delivery/units"
@@ -185,7 +191,7 @@ function App() {
               />
               <Route
                 path="delivery"
-                element={<Navigate to="/delivery/units" replace />}
+                element={<Navigate to="/delivery/plans" replace />}
               />
               <Route path="delivery/units/:unitId" element={<UnitDetail />} />
               <Route path="delivery/plans" element={<DeliveryPlans />} />

@@ -22,7 +22,7 @@ import { notify } from "../../../lib/notify";
 import { invalidateDeliveryPlanListQueries } from "../../../domains/delivery/queries/invalidateDeliveryPlanListQueries";
 import { listUnitLotCode } from "../../../domains/delivery/display/deliveryUnitListDisplay";
 import { DELIVERY_UNIT_ROW_MIN_HEIGHT_CLASS } from "../../../domains/delivery/layout/deliveryUnitDataTableLayout";
-import { DATA_TABLE_BODY_TEXT_CLASS } from "../../list";
+import { DATA_TABLE_COMPACT_BODY_TEXT_CLASS } from "../../list";
 
 const ADD_UNITS_MODAL_GRID_TEMPLATE =
   "2.5rem minmax(5.5rem, 1.1fr) minmax(8rem, 2fr) minmax(5.5rem, 1.2fr)";
@@ -162,23 +162,22 @@ export function DeliveryPlanAddUnitsModal({
                 gridTemplateColumns={ADD_UNITS_MODAL_GRID_TEMPLATE}
                 className="sticky top-0 z-10 border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900"
               >
-                <DataTableHeaderCell compact sortable={false} className="justify-center">
-                  <DataTableHeaderLabel className="w-full text-center">선택</DataTableHeaderLabel>
+                <DataTableHeaderCell compact sortable={false} align="center">
+                  <DataTableHeaderLabel align="center">선택</DataTableHeaderLabel>
                 </DataTableHeaderCell>
-                <DataTableHeaderCell compact sortable={false} className="justify-center">
-                  <DataTableHeaderLabel className="w-full text-center">LOT</DataTableHeaderLabel>
+                <DataTableHeaderCell compact sortable={false} align="center">
+                  <DataTableHeaderLabel align="center">LOT</DataTableHeaderLabel>
                 </DataTableHeaderCell>
-                <DataTableHeaderCell compact sortable={false} className="justify-center">
-                  <DataTableHeaderLabel className="w-full text-center">품목</DataTableHeaderLabel>
+                <DataTableHeaderCell compact sortable={false} align="center">
+                  <DataTableHeaderLabel align="center">품목</DataTableHeaderLabel>
                 </DataTableHeaderCell>
                 <DataTableHeaderCell
                   compact
                   sortable={false}
-                  className="justify-center border-r-0"
+                  align="center"
+                  className="border-r-0"
                 >
-                  <DataTableHeaderLabel className="w-full text-center">
-                    생산 계획
-                  </DataTableHeaderLabel>
+                  <DataTableHeaderLabel align="center">생산 계획</DataTableHeaderLabel>
                 </DataTableHeaderCell>
               </DataTableHeader>
               <DataTableBody>
@@ -191,7 +190,7 @@ export function DeliveryPlanAddUnitsModal({
                       gridTemplateColumns={ADD_UNITS_MODAL_GRID_TEMPLATE}
                       className={DELIVERY_UNIT_ROW_MIN_HEIGHT_CLASS}
                     >
-                      <DataTableCell compact className="justify-center">
+                      <DataTableCell compact align="center">
                         <Checkbox
                           checked={checked}
                           onChange={(next) => toggleRow(row, next)}
@@ -199,12 +198,13 @@ export function DeliveryPlanAddUnitsModal({
                       </DataTableCell>
                       <DataTableCell
                         compact
-                        className="justify-center text-center font-mono"
+                        align="center"
+                        className="font-mono"
                         textClassName="text-theme-xs font-mono text-gray-800 dark:text-white/90"
                       >
                         {listUnitLotCode(row)}
                       </DataTableCell>
-                      <DataTableCell compact className="min-w-0 justify-center text-center">
+                      <DataTableCell compact align="center" className="min-w-0">
                         <div className="flex min-w-0 flex-col items-center justify-center leading-tight">
                           <p className="w-full truncate text-theme-xs font-medium text-gray-900 dark:text-white">
                             {row.item?.businessNameSnapshot?.trim() || "—"}
@@ -216,8 +216,9 @@ export function DeliveryPlanAddUnitsModal({
                       </DataTableCell>
                       <DataTableCell
                         compact
-                        className="justify-center border-r-0 text-center"
-                        textClassName={`text-theme-xs ${DATA_TABLE_BODY_TEXT_CLASS}`}
+                        align="center"
+                        className="border-r-0"
+                        textClassName={DATA_TABLE_COMPACT_BODY_TEXT_CLASS}
                       >
                         {row.plan?.planNo?.trim() || row.plan?.planId || "—"}
                       </DataTableCell>

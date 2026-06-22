@@ -22,6 +22,7 @@ import {
   DataListSearchOptionsButton,
   ListPageLayout,
   ListPageToolbarRow,
+  DATA_TABLE_COMPACT_LINK_CLASS,
   TablePagination,
 } from "../components/list";
 import Badge from "../components/ui/badge/Badge";
@@ -439,8 +440,9 @@ export default function Delivery() {
                   activeSortBy={sortBy}
                   activeSortOrder={sortOrder}
                   onToggleSort={handleDeliverySortToggle}
+                  align="center"
                 >
-                  <DataTableHeaderLabel>납품일</DataTableHeaderLabel>
+                  <DataTableHeaderLabel align="center">납품일</DataTableHeaderLabel>
                 </DataTableHeaderCell>
                 <DataTableHeaderCell
                   colSpan={2}
@@ -449,17 +451,16 @@ export default function Delivery() {
                   activeSortBy={sortBy}
                   activeSortOrder={sortOrder}
                   onToggleSort={handleDeliverySortToggle}
-                  className="justify-center border-r-0"
+                  align="center"
+                  className="border-r-0"
                 >
-                  <DataTableHeaderLabel className="w-full text-center">
-                    납품 상태
-                  </DataTableHeaderLabel>
+                  <DataTableHeaderLabel align="center">납품 상태</DataTableHeaderLabel>
                 </DataTableHeaderCell>
               </DataTableHeader>
               <DataTableBody>
                 {rows.length === 0 ? (
                   <DataTableRow>
-                    <DataTableCell colSpan={12} compact className="justify-center border-r-0 py-4">
+                    <DataTableCell colSpan={12} compact align="center" className="border-r-0 py-4">
                       조건에 맞는 납품이 없습니다.
                     </DataTableCell>
                   </DataTableRow>
@@ -471,9 +472,9 @@ export default function Delivery() {
                         <DataTableCell colSpan={2} compact>
                           <Link
                             to={`/delivery/${row.id}`}
-                            className="flex flex-col gap-0.5 rounded-md leading-tight outline-offset-2 hover:text-brand-600 focus-visible:ring-2 focus-visible:ring-brand-400 dark:hover:text-brand-400"
+                            className={`flex flex-col gap-0.5 rounded-md leading-tight outline-offset-2 focus-visible:ring-2 focus-visible:ring-brand-400 ${DATA_TABLE_COMPACT_LINK_CLASS}`}
                           >
-                            <span className="font-medium text-brand-600 hover:underline dark:text-brand-400">
+                            <span className="truncate hover:underline">
                               {row.deliveryNo?.trim() || `#${row.id}`}
                             </span>
                             <span className="text-theme-xs leading-tight text-gray-500 dark:text-gray-400">
@@ -485,7 +486,7 @@ export default function Delivery() {
                           {oid != null ? (
                             <Link
                               to={`/order/${oid}`}
-                              className="font-medium text-brand-600 hover:underline dark:text-brand-400"
+                              className={DATA_TABLE_COMPACT_LINK_CLASS}
                             >
                               {deliveryOrderNo(row)}
                             </Link>
@@ -497,12 +498,12 @@ export default function Delivery() {
                           {oid != null ? (
                             <Link
                               to={`/order/${oid}`}
-                              className="truncate text-theme-sm text-gray-700 hover:text-brand-600 hover:underline dark:text-gray-300 dark:hover:text-brand-400"
+                              className={`truncate ${DATA_TABLE_COMPACT_LINK_CLASS}`}
                             >
                               {deliveryOrderTitle(row)}
                             </Link>
                           ) : (
-                            <p className="truncate text-theme-sm text-gray-700 dark:text-gray-300">
+                            <p className="truncate text-theme-xs text-gray-700 dark:text-gray-300">
                               {deliveryOrderTitle(row)}
                             </p>
                           )}
@@ -510,10 +511,10 @@ export default function Delivery() {
                         <DataTableCell colSpan={2} compact>
                           {partnerLabel(row, countryCodes)}
                         </DataTableCell>
-                        <DataTableCell colSpan={1} compact>
+                        <DataTableCell colSpan={1} compact align="center">
                           {row.deliveryDate?.trim() ? row.deliveryDate : "-"}
                         </DataTableCell>
-                        <DataTableCell colSpan={2} compact className="justify-center border-r-0">
+                        <DataTableCell colSpan={2} compact align="center" className="border-r-0">
                           <Badge
                             size="sm"
                             color={badgeColorFromKoStatusLabel(getDeliveryStatusName(row.status))}

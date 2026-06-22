@@ -92,27 +92,22 @@ export function DeliveryPlanUnitGroupSection({
             <DataTableHeaderCell compact sortable={false}>
               <DataTableHeaderLabel>현재 공정</DataTableHeaderLabel>
             </DataTableHeaderCell>
-            <DataTableHeaderCell compact sortable={false} className="justify-center">
-              <DataTableHeaderLabel className="w-full text-center">
-                공정 상태
-              </DataTableHeaderLabel>
+            <DataTableHeaderCell compact sortable={false} align="center">
+              <DataTableHeaderLabel align="center">공정 상태</DataTableHeaderLabel>
             </DataTableHeaderCell>
-            <DataTableHeaderCell compact sortable={false} className="justify-center">
-              <DataTableHeaderLabel className="w-full text-center">
-                납품 가능
-              </DataTableHeaderLabel>
+            <DataTableHeaderCell compact sortable={false} align="center">
+              <DataTableHeaderLabel align="center">납품 가능</DataTableHeaderLabel>
             </DataTableHeaderCell>
-            <DataTableHeaderCell compact sortable={false} className="justify-center">
-              <DataTableHeaderLabel className="w-full text-center">
-                납품 상태
-              </DataTableHeaderLabel>
+            <DataTableHeaderCell compact sortable={false} align="center">
+              <DataTableHeaderLabel align="center">납품 상태</DataTableHeaderLabel>
             </DataTableHeaderCell>
             <DataTableHeaderCell
               compact
               sortable={false}
-              className="justify-center border-r-0"
+              align="center"
+              className="border-r-0"
             >
-              <DataTableHeaderLabel className="w-full text-center">액션</DataTableHeaderLabel>
+              <DataTableHeaderLabel align="center">액션</DataTableHeaderLabel>
             </DataTableHeaderCell>
           </DataTableHeader>
           <DataTableBody>

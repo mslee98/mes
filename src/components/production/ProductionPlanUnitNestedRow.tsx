@@ -1,7 +1,12 @@
+import type { MouseEvent } from "react";
 import { Link, useNavigate } from "react-router";
 import type { CommonCodeItem } from "../../api/commonCode";
-import type { ProductionPlanUnit } from "../../api/purchaseOrder";
+import type {
+  ProductionPlanUnit,
+  ProductionPlanUnitListItem,
+} from "../../api/purchaseOrder";
 import { ProductionPlanProcessStageBadge } from "../delivery/ProductionPlanProcessStageBadge";
+import Checkbox from "../form/input/Checkbox";
 import Badge from "../ui/badge/Badge";
 import { TableCell, TableRow } from "../ui/table";
 import { formatDateYmd } from "../../lib/format/dateFormat";
@@ -9,6 +14,8 @@ import {
   dueDateDdayBadgeClassName,
   getDueDateRelative,
 } from "../../lib/format/dueDateDisplay";
+import { isUnitDeliveryOrProductionFinished } from "../../domains/production-plan/helpers/planCompletion";
+import { formatUnitDeliveryStatus } from "../../domains/production-plan/helpers/deliveryActionCopy";
 import {
   currentProcessDisplay,
   deliveryUnitRowClassName,
@@ -18,13 +25,22 @@ import {
   listUnitIndexLabel,
   listUnitLotOrDetailLabel,
   listUnitLotCode,
-  unitDetailLinkClassName,
   unitDetailPath,
   type DeliveryUnitListRow as DeliveryUnitListRowData,
 } from "../../domains/delivery/display/deliveryUnitListDisplay";
+import {
+  DATA_TABLE_COMPACT_BODY_TEXT_CLASS,
+  DATA_TABLE_COMPACT_LABEL_CLASS,
+  DATA_TABLE_COMPACT_LINK_CLASS,
+  DATA_TABLE_COMPACT_STACK_CLASS,
+  DATA_TABLE_COMPACT_STACK_ROW_CLASS,
+} from "../list/DataTable/dataTableStyles";
 
 const NESTED_CELL =
-  "px-2 py-1 align-middle text-[11px] leading-snug text-gray-700 dark:text-gray-300";
+  `px-2 py-1 align-middle leading-snug ${DATA_TABLE_COMPACT_BODY_TEXT_CLASS}`;
+
+const NESTED_CELL_START = `${NESTED_CELL} text-start`;
+const NESTED_CELL_CENTER = `${NESTED_CELL} text-center`;
 
 function toProcessBadgeUnit(
   row: DeliveryUnitListRowData
@@ -47,9 +63,14 @@ export type ProductionPlanUnitNestedRowProps = {
   pageSize: number;
   unitProcessStepCodes: CommonCodeItem[];
   todayYmd: string;
+  showCheckbox?: boolean;
+  reserveCheckboxColumn?: boolean;
+  checked?: boolean;
+  checkboxDisabled?: boolean;
+  onToggle?: (row: ProductionPlanUnitListItem, checked: boolean) => void;
 };
 
-/** 생산 계획 목록 콜랩스 — 컴팩트 유닛 행(행 클릭 → 유닛 상세, LOT 없으면 unitId 표시) */
+/** 생산 계획 목록 펼침 — 컴팩트 유닛 행(행 클릭 → 유닛 상세) */
 export function ProductionPlanUnitNestedRow({
   row,
   index,
@@ -57,6 +78,11 @@ export function ProductionPlanUnitNestedRow({
   pageSize,
   unitProcessStepCodes,
   todayYmd,
+  showCheckbox = false,
+  reserveCheckboxColumn = false,
+  checked = false,
+  checkboxDisabled = false,
+  onToggle,
 }: ProductionPlanUnitNestedRowProps) {
   const navigate = useNavigate();
   const detailPath = unitDetailPath(row.unitId);
@@ -66,10 +92,10 @@ export function ProductionPlanUnitNestedRow({
   const product = row.item?.productNameSnapshot?.trim();
   const productSn = listProductSerialDisplay(row);
   const detectorSn = listDetectorSerialDisplay(row);
-  const dueRel =
-    row.isDelivered === true
-      ? null
-      : getDueDateRelative(row.dueDate, { todayYmd });
+  const dueRel = isUnitDeliveryOrProductionFinished(row)
+    ? null
+    : getDueDateRelative(row.dueDate, { todayYmd });
+  const deliveryStatus = formatUnitDeliveryStatus(row);
 
   const openUnitDetail = () => {
     if (detailPath) navigate(detailPath);
@@ -83,26 +109,40 @@ export function ProductionPlanUnitNestedRow({
       onClick={detailPath ? openUnitDetail : undefined}
       title={detailPath ? "유닛 상세로 이동" : undefined}
     >
-      <TableCell
-        className={`${NESTED_CELL} w-9 text-center tabular-nums`}
-      >
+      {reserveCheckboxColumn ? (
+        <TableCell className={`${NESTED_CELL_CENTER} w-8`}>
+          <div onClick={(e: MouseEvent) => e.stopPropagation()}>
+            {showCheckbox ? (
+              <Checkbox
+                checked={checked}
+                disabled={checkboxDisabled}
+                onChange={(next) =>
+                  onToggle?.(row as ProductionPlanUnitListItem, next)
+                }
+                aria-label={`${lotLabel} 선택`}
+              />
+            ) : null}
+          </div>
+        </TableCell>
+      ) : null}
+      <TableCell className={`${NESTED_CELL_CENTER} w-9 tabular-nums`}>
         <span
           className={
             detailPath
-              ? `font-mono ${unitDetailLinkClassName}`
+              ? DATA_TABLE_COMPACT_LINK_CLASS
               : "font-mono text-gray-500"
           }
         >
           {listUnitIndexLabel(index, page, pageSize)}
         </span>
       </TableCell>
-      <TableCell className={`${NESTED_CELL} min-w-[9rem] max-w-[12rem] text-start`}>
+      <TableCell className={`${NESTED_CELL_START} min-w-[9rem] max-w-[12rem]`}>
         <span
           className={`block truncate font-mono font-semibold ${
             detailPath
-              ? unitDetailLinkClassName
+              ? DATA_TABLE_COMPACT_LINK_CLASS
               : "text-gray-500 dark:text-gray-400"
-          } ${!hasLot && detailPath ? "text-theme-xs font-normal" : ""}`}
+          } ${!hasLot && detailPath ? "font-normal" : ""}`}
           title={
             hasLot
               ? `LOT · ${lotLabel}`
@@ -114,23 +154,23 @@ export function ProductionPlanUnitNestedRow({
           {lotLabel}
         </span>
       </TableCell>
-      <TableCell className={`${NESTED_CELL} min-w-[9rem] max-w-[13rem] text-start font-mono`}>
-        <div className="flex flex-col gap-0.5">
-          <span className="block min-w-0 truncate text-gray-800 dark:text-gray-200" title={productSn}>
-            <span className="font-sans text-[10px] font-medium text-gray-500 dark:text-gray-400">
-              제품{" "}
+      <TableCell className={`${NESTED_CELL_START} min-w-[9rem] max-w-[13rem] font-mono`}>
+        <div className={DATA_TABLE_COMPACT_STACK_CLASS}>
+          <div className={DATA_TABLE_COMPACT_STACK_ROW_CLASS} title={productSn}>
+            <span className={DATA_TABLE_COMPACT_LABEL_CLASS}>제품</span>
+            <span className="min-w-0 truncate font-mono text-gray-800 dark:text-gray-200">
+              {productSn}
             </span>
-            {productSn}
-          </span>
-          <span className="block min-w-0 truncate text-gray-800 dark:text-gray-200" title={detectorSn}>
-            <span className="font-sans text-[10px] font-medium text-gray-500 dark:text-gray-400">
-              검출{" "}
+          </div>
+          <div className={DATA_TABLE_COMPACT_STACK_ROW_CLASS} title={detectorSn}>
+            <span className={DATA_TABLE_COMPACT_LABEL_CLASS}>검출</span>
+            <span className="min-w-0 truncate font-mono text-gray-800 dark:text-gray-200">
+              {detectorSn}
             </span>
-            {detectorSn}
-          </span>
+          </div>
         </div>
       </TableCell>
-      <TableCell className={`${NESTED_CELL} min-w-[8rem] max-w-[14rem] text-start`}>
+      <TableCell className={`${NESTED_CELL_START} min-w-[8rem] max-w-[14rem]`}>
         <div className="flex flex-col gap-0.5">
           <span
             className="block truncate font-medium text-gray-900 dark:text-white"
@@ -146,12 +186,10 @@ export function ProductionPlanUnitNestedRow({
           </span>
         </div>
       </TableCell>
-      <TableCell
-        className={`${NESTED_CELL} min-w-[5.5rem] max-w-[8rem] text-center`}
-      >
+      <TableCell className={`${NESTED_CELL_CENTER} min-w-[5.5rem] max-w-[8rem]`}>
         <span className="line-clamp-2 break-words">{listOperatorDisplay(row)}</span>
       </TableCell>
-      <TableCell className={`${NESTED_CELL} min-w-[6.5rem] text-center`}>
+      <TableCell className={`${NESTED_CELL_CENTER} min-w-[6.5rem]`}>
         <div className="flex justify-center">
           <Badge size="sm" color="light">
             <span className="max-w-[8rem] truncate text-start normal-case text-gray-800 dark:text-gray-200">
@@ -160,16 +198,16 @@ export function ProductionPlanUnitNestedRow({
           </Badge>
         </div>
       </TableCell>
-      <TableCell className={`${NESTED_CELL} w-[4.5rem] text-center`}>
+      <TableCell className={`${NESTED_CELL_CENTER} w-[4.5rem]`}>
         <div className="flex justify-center">
           <ProductionPlanProcessStageBadge unit={toProcessBadgeUnit(row)} />
         </div>
       </TableCell>
-      <TableCell className={`${NESTED_CELL} min-w-[6.5rem] max-w-[9rem] text-center`}>
+      <TableCell className={`${NESTED_CELL_CENTER} min-w-[6.5rem] max-w-[9rem]`}>
         {row.order?.orderId ? (
           <Link
             to={`/order/${row.order.orderId}`}
-            className={`break-words font-medium ${unitDetailLinkClassName}`}
+            className={`break-words ${DATA_TABLE_COMPACT_LINK_CLASS}`}
             onClick={(e) => e.stopPropagation()}
           >
             {row.order.orderNo?.trim() || row.order.orderId}
@@ -178,7 +216,26 @@ export function ProductionPlanUnitNestedRow({
           <span>{row.order?.orderNo?.trim() || "—"}</span>
         )}
       </TableCell>
-      <TableCell className={`${NESTED_CELL} min-w-[5.5rem] text-center`}>
+      <TableCell className={`${NESTED_CELL_CENTER} min-w-[6rem] max-w-[9rem]`}>
+        <div
+          className="flex justify-center"
+          onClick={(e: MouseEvent) => e.stopPropagation()}
+        >
+          {deliveryStatus.deliveryPlanId ? (
+            <Link
+              to={`/delivery/plans/${encodeURIComponent(deliveryStatus.deliveryPlanId)}`}
+              className={DATA_TABLE_COMPACT_LINK_CLASS}
+            >
+              {deliveryStatus.label}
+            </Link>
+          ) : (
+            <span className={`font-medium text-amber-700 dark:text-amber-400/90 ${DATA_TABLE_COMPACT_BODY_TEXT_CLASS}`}>
+              {deliveryStatus.label}
+            </span>
+          )}
+        </div>
+      </TableCell>
+      <TableCell className={`${NESTED_CELL_CENTER} min-w-[5.5rem]`}>
         <div
           className={`flex flex-col items-center ${dueRel ? "gap-0.5" : ""}`}
         >

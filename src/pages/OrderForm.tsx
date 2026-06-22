@@ -269,7 +269,11 @@ export default function OrderForm() {
       }),
     enabled: !!accessToken,
   });
-  const productList: RepresentativeProduct[] = productListResult?.items ?? [];
+  const productList: RepresentativeProduct[] = useMemo(
+    () =>
+      (productListResult?.items ?? []).filter((p) => p.isActive !== false),
+    [productListResult]
+  );
   const productById = useMemo(() => {
     const m = new Map<string, RepresentativeProduct>();
     productList.forEach((p) => {
@@ -510,12 +514,14 @@ export default function OrderForm() {
    * 
    * @returns 제품 옵션
    */
-  const productSelectOptions = useMemo(() => {
-    return productList.map((p) => ({
-      value: String(p.id),
-      label: representativeProductSelectLabel(p),
-    }));
-  }, [productList]);
+  const productSelectOptions = useMemo(
+    () =>
+      productList.map((p) => ({
+        value: String(p.id),
+        label: representativeProductSelectLabel(p),
+      })),
+    [productList]
+  );
 
   const lensSelectOptions = useMemo(() => {
     return lensList.map((lens) => {

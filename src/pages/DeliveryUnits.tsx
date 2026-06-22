@@ -33,15 +33,23 @@ import {
   COMMON_CODE_GROUP_COUNTRY,
   COMMON_CODE_GROUP_UNIT_PROCESS_STEP,
 } from "../api/commonCode";
-import { formatDateYmd, todayYmdInTimeZone } from "../lib/format/dateFormat";
+import { todayYmdInTimeZone } from "../lib/format/dateFormat";
 import { getDueDateRelative } from "../lib/format/dueDateDisplay";
 import {
+  PRODUCTION_PLAN_UNIT_TABS,
   tabLabel,
+  type UnitListMode,
   unitListBreadcrumbTitle,
   unitListMetaDescription,
   unitListPageTitle,
+  perspectiveForUnitListMode,
 } from "../domains/production-plan/helpers/unitListPerspective";
 import {
+  compareUnitsNewestFirst,
+  resolveUnitListSort,
+} from "../domains/production-plan/helpers/unitListSort";
+import {
+  DELIVERY_UNIT_COLUMN_ALIGN,
   DELIVERY_UNIT_TABLE_MIN_WIDTH_PX,
   deliveryUnitTableGridTemplate,
   deliveryUnitTableLayout,
@@ -62,20 +70,17 @@ import {
 const DEFAULT_PAGE_SIZE = 20;
 /** 지연 탭: 서버 `DELAYED` 외 대기·진행 중 달력 지연 유닛 포함 — 소스 탭별 상한(백엔드와 동일 범위·검색 조건) */
 const DELAYED_TAB_SOURCE_PAGE_SIZE = 500;
-const DELIVERY_UNIT_TAB_VALUES: ProductionPlanUnitTab[] = [
-  "WAITING",
-  "IN_PROGRESS",
-  "COMPLETED",
-  "DELAYED",
-];
 
 const DELIVERY_PLAN_ASSIGNMENT_LABELS: Record<
-  DeliveryPlanAssignmentFilter,
+  DeliveryPlanAssignmentFilter | "all",
   string
 > = {
-  unassigned: "납품 계획 없음",
-  assigned: "납품 계획 있음",
+  unassigned: "미배정",
+  assigned: "배정됨",
+  all: "전체",
 };
+
+type ProductionAssignmentView = DeliveryPlanAssignmentFilter | "all";
 
 function normalizeMonthInput(v: string): string {
   if (!/^\d{4}-\d{2}$/.test(v)) return "";
@@ -94,6 +99,7 @@ function tabBadgeCount(
   summary?: ProductionPlanUnitCounts
 ): number {
   if (!summary) return 0;
+  if (tab === "ALL") return Number(summary.all) || Number(summary.total) || 0;
   if (tab === "WAITING") return Number(summary.waiting) || 0;
   if (tab === "IN_PROGRESS") return Number(summary.inProgress) || 0;
   if (tab === "COMPLETED") return Number(summary.completed) || 0;
@@ -101,6 +107,13 @@ function tabBadgeCount(
 }
 
 function tabCountBadge(tab: ProductionPlanUnitTab, count: number) {
+  if (tab === "ALL") {
+    return (
+      <Badge size="sm" variant="solid" color="dark">
+        {count}
+      </Badge>
+    );
+  }
   if (tab === "WAITING") {
     return (
       <Badge size="sm" variant="solid" color="dark">
@@ -156,21 +169,28 @@ function mergeDelayedTabItems(
     }
   }
   const merged = [...byId.values()].filter((row) => isRowCalendarDelayed(row, todayYmd));
-  merged.sort((a, b) => {
-    const da = formatDateYmd(a.dueDate, { emptyFallback: "" }) || "9999-12-31";
-    const db = formatDateYmd(b.dueDate, { emptyFallback: "" }) || "9999-12-31";
-    return da.localeCompare(db);
-  });
+  merged.sort(compareUnitsNewestFirst);
   return merged;
 }
 
 type DeliveryUnitsProps = {
+  /** @deprecated perspective 대신 mode 사용 */
   perspective?: ProductionPlanUnitPerspective;
+  mode?: UnitListMode;
+  embedded?: boolean;
 };
 
 export default function DeliveryUnits({
-  perspective = "delivery",
+  perspective: perspectiveProp,
+  mode: modeProp,
+  embedded = false,
 }: DeliveryUnitsProps) {
+  const mode: UnitListMode =
+    modeProp ??
+    (perspectiveProp === "delivery" ? "delivery" : "overview-units");
+  const perspective = perspectiveForUnitListMode(mode);
+  const isOverviewUnits = mode === "overview-units";
+  const isDelivery = mode === "delivery";
   const { accessToken, isLoading: isAuthLoading } = useAuth();
   const { canCreateDelivery } = useDeliveryPermissions();
 
@@ -198,9 +218,9 @@ export default function DeliveryUnits({
 
   const [searchOptionsOpen, setSearchOptionsOpen] = useState(false);
   const [searchKeyword, setSearchKeyword] = useState("");
-  const [tab, setTab] = useState<ProductionPlanUnitTab>("WAITING");
+  const [tab, setTab] = useState<ProductionPlanUnitTab>("ALL");
   const [assignmentView, setAssignmentView] =
-    useState<DeliveryPlanAssignmentFilter>("unassigned");
+    useState<ProductionAssignmentView>("all");
   const [createPlanOpen, setCreatePlanOpen] = useState(false);
   const [fromMonth, setFromMonth] = useState("");
   const [toMonth, setToMonth] = useState("");
@@ -213,11 +233,14 @@ export default function DeliveryUnits({
   const hasMonthRange = safeFromMonth !== "" && safeToMonth !== "";
 
   const assignmentParams = useMemo(
-    () =>
-      perspective === "production"
-        ? { deliveryPlanAssignment: assignmentView }
-        : {},
-    [perspective, assignmentView]
+    () => {
+      if (isOverviewUnits) return {};
+      if (perspective === "production" && assignmentView !== "all") {
+        return { deliveryPlanAssignment: assignmentView };
+      }
+      return {};
+    },
+    [isOverviewUnits, perspective, assignmentView]
   );
 
   const overviewParams = useMemo(
@@ -243,27 +266,26 @@ export default function DeliveryUnits({
     ]
   );
 
-  const listParams = useMemo(
-    () => ({
+  const listParams = useMemo(() => {
+    const sort = resolveUnitListSort(tab);
+    return {
       ...overviewParams,
       tab,
       page,
       pageSize,
       q: searchKeyword.trim() || undefined,
-      sortBy: tab === "COMPLETED" ? ("deliveredAt" as const) : ("dueDate" as const),
-      sortOrder: tab === "COMPLETED" ? ("desc" as const) : ("asc" as const),
-    }),
-    [overviewParams, tab, page, pageSize, searchKeyword]
-  );
+      ...sort,
+    };
+  }, [overviewParams, tab, page, pageSize, searchKeyword]);
 
   const delayedMergeFetchParams = useMemo((): Omit<ProductionPlanUnitListParams, "tab"> => {
+    const sort = resolveUnitListSort("DELAYED");
     return {
       ...overviewParams,
       page: 1,
       pageSize: DELAYED_TAB_SOURCE_PAGE_SIZE,
       q: searchKeyword.trim() || undefined,
-      sortBy: "dueDate",
-      sortOrder: "asc",
+      ...sort,
     };
   }, [overviewParams, searchKeyword]);
 
@@ -348,12 +370,10 @@ export default function DeliveryUnits({
     (delayedSourceQueries.some((q) => q.isLoading) || calendarDelayedMerged === null);
   const delayedSourcesError = delayedSourceQueries.find((q) => q.error)?.error;
 
-  /** 생산 관점: 배정 탭 전환 시에도 그리드·컬럼 너비 유지 */
-  const reserveCheckboxColumn =
-    perspective === "production" && canCreateDelivery;
+  /** overview-units: 미배정 유닛 선택 → 납품 계획 생성 */
+  const reserveCheckboxColumn = isOverviewUnits && canCreateDelivery;
 
-  const showCheckboxColumn =
-    reserveCheckboxColumn && assignmentView === "unassigned";
+  const showCheckboxColumn = reserveCheckboxColumn;
 
   const unitTableLayout = useMemo(
     () => deliveryUnitTableLayout({ showCheckbox: reserveCheckboxColumn }),
@@ -391,7 +411,7 @@ export default function DeliveryUnits({
 
   const tabOptions = useMemo(
     () =>
-      DELIVERY_UNIT_TAB_VALUES.map((tabValue) => {
+      PRODUCTION_PLAN_UNIT_TABS.map((tabValue) => {
         const badgeCount =
           tabValue === "DELAYED"
             ? calendarDelayedMerged !== null
@@ -413,7 +433,7 @@ export default function DeliveryUnits({
 
   const assignmentOptions = useMemo(
     () =>
-      (["unassigned", "assigned"] as const).map((value) => ({
+      (["unassigned", "assigned", "all"] as const).map((value) => ({
         value,
         label: DELIVERY_PLAN_ASSIGNMENT_LABELS[value],
       })),
@@ -425,8 +445,8 @@ export default function DeliveryUnits({
     setFromMonth("");
     setToMonth("");
     setDateBasis("planned");
-    setTab("WAITING");
-    setAssignmentView("unassigned");
+    setTab("ALL");
+    setAssignmentView("all");
     setPage(1);
     clear();
   };
@@ -437,19 +457,34 @@ export default function DeliveryUnits({
     (tab === "DELAYED" ? isDelayedSourcesLoading : isServerListLoading);
   const error = overviewError ?? (tab === "DELAYED" ? delayedSourcesError : serverListError);
 
-  const statusSectionTitle =
-    perspective === "production" ? "생산 상태" : "납품 상태";
+  const statusSectionTitle = isDelivery ? "납품 상태" : "생산 상태";
+
+  const pageDesc = isOverviewUnits
+    ? "생산 진행과 납품 등록 상태를 확인하고, 유닛을 선택해 납품 계획을 등록합니다."
+    : "납품 계획에 포함된 유닛만 표시됩니다.";
+
+  const listItems = listData?.items ?? [];
+
+  const pageTitle = unitListPageTitle(mode);
+  const showStatusTabs = true;
+  const showAssignmentFilter =
+    perspective === "production" && !isOverviewUnits;
 
   return (
     <>
-      <PageMeta
-        title={`아이쓰리시스템(주) | ${unitListPageTitle(perspective)}`}
-        description={unitListMetaDescription(perspective)}
-      />
-      <PageBreadcrumb pageTitle={unitListBreadcrumbTitle(perspective)} />
-      <div className="space-y-6">
+      {!embedded ? (
+        <>
+          <PageMeta
+            title={`아이쓰리시스템(주) | ${pageTitle}`}
+            description={unitListMetaDescription(mode)}
+          />
+          <PageBreadcrumb pageTitle={unitListBreadcrumbTitle(mode)} />
+        </>
+      ) : null}
+      <div className={embedded ? "" : "space-y-6"}>
         <ListPageLayout
-          title={unitListPageTitle(perspective)}
+          title={pageTitle}
+          desc={pageDesc}
           toolbar={
             <ListPageToolbarRow
               search={
@@ -551,37 +586,55 @@ export default function DeliveryUnits({
           }
           belowSearchOptions={
             <div className="space-y-2 border-b border-gray-100 pt-2 pb-3 dark:border-white/[0.05]">
-              <p className="text-xs font-medium text-gray-600 dark:text-gray-400">
-                {statusSectionTitle}
-              </p>
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch sm:gap-4">
-                <SegmentedControl
-                  ariaLabel="유닛 상태 탭"
-                  value={tab}
-                  onChange={(nextTab) => {
-                    setTab(nextTab);
-                    setPage(1);
-                  }}
-                  options={tabOptions}
-                  className="min-w-0 flex-1"
-                />
-                {perspective === "production" ? (
-                  <SegmentedControl
-                    ariaLabel="납품 계획 배정 필터"
-                    value={assignmentView}
-                    onChange={(next) => {
-                      setAssignmentView(next);
-                      setPage(1);
-                    }}
-                    options={assignmentOptions}
-                    className="w-full shrink-0 sm:w-auto sm:min-w-[16rem]"
-                  />
-                ) : null}
-              </div>
+              {showStatusTabs ? (
+                <>
+                  <p className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                    {statusSectionTitle}
+                  </p>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch sm:gap-4">
+                    <SegmentedControl
+                      ariaLabel="유닛 상태 탭"
+                      value={tab}
+                      onChange={(nextTab) => {
+                        setTab(nextTab);
+                        setPage(1);
+                      }}
+                      options={tabOptions}
+                      className="min-w-0 flex-1"
+                    />
+                    {showAssignmentFilter ? (
+                      <div className="flex w-full shrink-0 flex-col gap-1 sm:w-auto sm:min-w-[16rem]">
+                        <p className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                          납품 배정
+                        </p>
+                        <SegmentedControl
+                          ariaLabel="납품 계획 배정 필터"
+                          value={assignmentView}
+                          onChange={(next) => {
+                            setAssignmentView(next);
+                            setPage(1);
+                          }}
+                          options={assignmentOptions}
+                          className="w-full"
+                        />
+                      </div>
+                    ) : null}
+                  </div>
+                </>
+              ) : (
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  생산 상태는 각 행의 뱃지로 표시됩니다. 상태별로 좁히려면 검색
+                  옵션을 사용하세요.
+                </p>
+              )}
               <p className="text-xs text-gray-500 dark:text-gray-400">
                 조회 범위:{" "}
                 {hasMonthRange ? `${safeFromMonth} ~ ${safeToMonth}` : "전체 기간"} / 기준일:{" "}
-                {toDateBasisLabel(dateBasis)} / 총 {overviewData?.summary?.total ?? 0}건
+                {toDateBasisLabel(dateBasis)} / 총{" "}
+                {overviewData?.summary?.all ??
+                  overviewData?.summary?.total ??
+                  0}
+                건
               </p>
             </div>
           }
@@ -610,79 +663,118 @@ export default function DeliveryUnits({
                     colSpan={unitTableLayout.checkbox}
                     compact
                     sortable={false}
+                    align={DELIVERY_UNIT_COLUMN_ALIGN.checkbox}
                   >
                     {showCheckboxColumn ? (
                       <span className="sr-only">선택</span>
                     ) : null}
                   </DataTableHeaderCell>
                 ) : null}
-                <DataTableHeaderCell colSpan={unitTableLayout.no} compact sortable={false}>
-                  <DataTableHeaderLabel className="w-full text-center">
-                    No.
-                  </DataTableHeaderLabel>
+                <DataTableHeaderCell
+                  colSpan={unitTableLayout.no}
+                  compact
+                  sortable={false}
+                  align={DELIVERY_UNIT_COLUMN_ALIGN.no}
+                >
+                  <DataTableHeaderLabel align="center">No.</DataTableHeaderLabel>
                 </DataTableHeaderCell>
-                <DataTableHeaderCell colSpan={unitTableLayout.lot} compact sortable={false}>
+                <DataTableHeaderCell
+                  colSpan={unitTableLayout.lot}
+                  compact
+                  sortable={false}
+                  align={DELIVERY_UNIT_COLUMN_ALIGN.lot}
+                >
                   <DataTableHeaderLabel>LOT</DataTableHeaderLabel>
                 </DataTableHeaderCell>
-                <DataTableHeaderCell colSpan={unitTableLayout.item} compact sortable={false}>
+                <DataTableHeaderCell
+                  colSpan={unitTableLayout.item}
+                  compact
+                  sortable={false}
+                  align={DELIVERY_UNIT_COLUMN_ALIGN.item}
+                >
                   <DataTableHeaderLabel>품목</DataTableHeaderLabel>
                 </DataTableHeaderCell>
-                <DataTableHeaderCell colSpan={unitTableLayout.serial} compact sortable={false}>
+                <DataTableHeaderCell
+                  colSpan={unitTableLayout.serial}
+                  compact
+                  sortable={false}
+                  align={DELIVERY_UNIT_COLUMN_ALIGN.serial}
+                >
                   <DataTableHeaderLabel>S/N</DataTableHeaderLabel>
                 </DataTableHeaderCell>
-                <DataTableHeaderCell colSpan={unitTableLayout.partner} compact sortable={false}>
+                <DataTableHeaderCell
+                  colSpan={unitTableLayout.partner}
+                  compact
+                  sortable={false}
+                  align={DELIVERY_UNIT_COLUMN_ALIGN.partner}
+                >
                   <DataTableHeaderLabel>고객</DataTableHeaderLabel>
                 </DataTableHeaderCell>
                 <DataTableHeaderCell
                   colSpan={unitTableLayout.operator}
                   compact
                   sortable={false}
+                  align={DELIVERY_UNIT_COLUMN_ALIGN.operator}
                 >
-                  <DataTableHeaderLabel className="w-full text-center">
-                    생산 담당
-                  </DataTableHeaderLabel>
+                  <DataTableHeaderLabel align="center">생산 담당</DataTableHeaderLabel>
                 </DataTableHeaderCell>
-                <DataTableHeaderCell colSpan={unitTableLayout.process} compact sortable={false}>
-                  <DataTableHeaderLabel className="w-full text-center">
-                    공정
-                  </DataTableHeaderLabel>
+                <DataTableHeaderCell
+                  colSpan={unitTableLayout.process}
+                  compact
+                  sortable={false}
+                  align={DELIVERY_UNIT_COLUMN_ALIGN.process}
+                >
+                  <DataTableHeaderLabel align="center">공정</DataTableHeaderLabel>
                 </DataTableHeaderCell>
-                <DataTableHeaderCell colSpan={unitTableLayout.status} compact sortable={false}>
-                  <DataTableHeaderLabel className="w-full text-center">
-                    상태
-                  </DataTableHeaderLabel>
+                <DataTableHeaderCell
+                  colSpan={unitTableLayout.status}
+                  compact
+                  sortable={false}
+                  align={DELIVERY_UNIT_COLUMN_ALIGN.status}
+                >
+                  <DataTableHeaderLabel align="center">상태</DataTableHeaderLabel>
                 </DataTableHeaderCell>
                 <DataTableHeaderCell
                   colSpan={unitTableLayout.orderPlan}
                   compact
                   sortable={false}
+                  align={DELIVERY_UNIT_COLUMN_ALIGN.orderPlan}
                 >
                   <DataTableHeaderLabel>발주·계획</DataTableHeaderLabel>
                 </DataTableHeaderCell>
-                <DataTableHeaderCell colSpan={unitTableLayout.dates} compact sortable={false}>
+                <DataTableHeaderCell
+                  colSpan={unitTableLayout.dates}
+                  compact
+                  sortable={false}
+                  align={DELIVERY_UNIT_COLUMN_ALIGN.dates}
+                >
                   <DataTableHeaderLabel>일정</DataTableHeaderLabel>
                 </DataTableHeaderCell>
-                <DataTableHeaderCell colSpan={unitTableLayout.delay} compact sortable={false}>
-                  <DataTableHeaderLabel className="w-full text-center">
-                    지연
-                  </DataTableHeaderLabel>
+                <DataTableHeaderCell
+                  colSpan={unitTableLayout.delay}
+                  compact
+                  sortable={false}
+                  align={DELIVERY_UNIT_COLUMN_ALIGN.delay}
+                >
+                  <DataTableHeaderLabel align="center">지연</DataTableHeaderLabel>
                 </DataTableHeaderCell>
               </DataTableHeader>
               <DataTableBody>
-                {(listData?.items ?? []).length === 0 ? (
+                {(listItems ?? []).length === 0 ? (
                   <DataTableRow
                     gridTemplateColumns={unitTableGridColumns}
                   >
                     <DataTableCell
                       colSpan={tableTrackCount}
                       compact
-                      className="justify-center py-4 text-theme-sm text-gray-500 dark:text-gray-400"
+                      align="center"
+                      className="py-4 text-theme-xs text-gray-500 dark:text-gray-400"
                     >
                       조건에 맞는 유닛이 없습니다.
                     </DataTableCell>
                   </DataTableRow>
                 ) : (
-                  (listData?.items ?? []).map((row, index) => (
+                  listItems.map((row, index) => (
                     <DeliveryUnitListRow
                       key={row.unitId}
                       row={row}
@@ -691,6 +783,7 @@ export default function DeliveryUnits({
                       pageSize={pageSize}
                       tab={tab}
                       perspective={perspective}
+                      mode={mode}
                       unitProcessStepCodes={unitProcessStepCodes}
                       countryCodes={countryCodes}
                       layout={unitTableLayout}
@@ -710,15 +803,17 @@ export default function DeliveryUnits({
         </ListPageLayout>
       </div>
 
-      <DeliveryPlanCreateModal
-        isOpen={createPlanOpen}
-        onClose={() => setCreatePlanOpen(false)}
-        selectedUnits={selectedItems}
-        onSuccess={() => {
-          clear();
-          setCreatePlanOpen(false);
-        }}
-      />
+      {isOverviewUnits ? (
+        <DeliveryPlanCreateModal
+          isOpen={createPlanOpen}
+          onClose={() => setCreatePlanOpen(false)}
+          selectedUnits={selectedItems}
+          onSuccess={() => {
+            clear();
+            setCreatePlanOpen(false);
+          }}
+        />
+      ) : null}
     </>
   );
 }

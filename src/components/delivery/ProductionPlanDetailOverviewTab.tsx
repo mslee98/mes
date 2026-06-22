@@ -184,7 +184,12 @@ export function ProductionPlanDetailOverviewTab({
     return y && y !== "-" ? y : "";
   }, [purchaseOrder]);
 
-  const finalDueRel = finalYmd ? getDueDateRelative(finalYmd) : null;
+  const finalDueRel =
+    finalYmd &&
+    String(plan.status ?? "").trim().toUpperCase() !== "COMPLETED" &&
+    !(stats.total > 0 && stats.deliveredCount >= stats.total)
+      ? getDueDateRelative(finalYmd)
+      : null;
 
   return (
     <div className="space-y-6">

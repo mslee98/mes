@@ -16,7 +16,10 @@ import {
   DataTableHeaderCell,
   DataTableHeaderLabel,
   DataTableRow,
-  DATA_TABLE_BODY_TEXT_CLASS,
+  DATA_TABLE_COMPACT_BODY_TEXT_CLASS,
+  DATA_TABLE_COMPACT_LABEL_CLASS,
+  DATA_TABLE_COMPACT_STACK_CLASS,
+  DATA_TABLE_COMPACT_STACK_ROW_CLASS,
 } from "../../list";
 import { Modal } from "../../ui/modal";
 import Button from "../../ui/button/Button";
@@ -250,24 +253,24 @@ export function DeliveryPlanDeliverModal({
                           </span>
                         </DataTableCell>
                         <DataTableCell compact className="min-w-0 items-start">
-                          <div className="flex min-w-0 flex-col gap-0.5 leading-tight text-[11px]">
-                            <div className="flex min-w-0 items-baseline gap-1">
-                              <span className="shrink-0 text-[10px] font-medium text-gray-500 dark:text-gray-400">
+                          <div className={DATA_TABLE_COMPACT_STACK_CLASS}>
+                            <div className={DATA_TABLE_COMPACT_STACK_ROW_CLASS}>
+                              <span className={DATA_TABLE_COMPACT_LABEL_CLASS}>
                                 제품
                               </span>
                               <span
-                                className="min-w-0 truncate font-mono text-gray-800 dark:text-white/90"
+                                className={`min-w-0 truncate font-mono ${DATA_TABLE_COMPACT_BODY_TEXT_CLASS} text-gray-800 dark:text-white/90`}
                                 title={row.productSerial}
                               >
                                 {row.productSerial}
                               </span>
                             </div>
-                            <div className="flex min-w-0 items-baseline gap-1">
-                              <span className="shrink-0 text-[10px] font-medium text-gray-500 dark:text-gray-400">
+                            <div className={DATA_TABLE_COMPACT_STACK_ROW_CLASS}>
+                              <span className={DATA_TABLE_COMPACT_LABEL_CLASS}>
                                 검출기
                               </span>
                               <span
-                                className="min-w-0 truncate font-mono text-gray-800 dark:text-white/90"
+                                className={`min-w-0 truncate font-mono ${DATA_TABLE_COMPACT_BODY_TEXT_CLASS} text-gray-800 dark:text-white/90`}
                                 title={row.detectorSerial}
                               >
                                 {row.detectorSerial}
@@ -278,7 +281,7 @@ export function DeliveryPlanDeliverModal({
                         <DataTableCell
                           compact
                           className="min-w-0 border-r-0"
-                          textClassName={`truncate text-theme-xs ${DATA_TABLE_BODY_TEXT_CLASS}`}
+                          textClassName={DATA_TABLE_COMPACT_BODY_TEXT_CLASS}
                         >
                           <span className="truncate" title={row.item}>
                             {row.item}

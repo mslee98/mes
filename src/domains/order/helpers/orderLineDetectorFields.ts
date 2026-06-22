@@ -4,7 +4,7 @@
  * 생산·Unit 공정에서는 `resolvePlanUnitDetectorFields`(productionPlanDetailHelpers)가
  * 동일 취지로 보정합니다. 통합·제거 시 두 경로를 함께 수정하세요.
  *
- * @see docs/process-handling-frontend-temp.md
+ * @see docs/domains/PRODUCTION.md
  */
 import type { RepresentativeProduct } from "../../../api/products";
 import type { ItemRow } from "../../../features/order-form/types";

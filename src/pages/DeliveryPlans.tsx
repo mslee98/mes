@@ -19,6 +19,9 @@ import {
   DataListSearchOptionsButton,
   ListPageLayout,
   ListPageToolbarRow,
+  DATA_TABLE_COMPACT_LINK_CLASS,
+  DATA_TABLE_COMPACT_BODY_TEXT_CLASS,
+  DATA_TABLE_COMPACT_MUTED_TEXT_CLASS,
   TablePagination,
 } from "../components/list";
 import Badge from "../components/ui/badge/Badge";
@@ -53,10 +56,8 @@ const DEFAULT_SORT_KEY: DeliveryPlanSortKey = "plannedDeliveryDate";
 const DEFAULT_TAB: DeliveryPlanTab = "OPEN";
 
 const DELIVERY_PLAN_TABS: Array<{ value: DeliveryPlanTab; label: string }> = [
-  { value: "ALL", label: "전체" },
-  { value: "OPEN", label: "진행" },
+  { value: "OPEN", label: "진행 중" },
   { value: "COMPLETED", label: "완료" },
-  { value: "DELAYED", label: "지연" },
 ];
 
 function getDefaultSortOrder(sortKey: DeliveryPlanSortKey): "asc" | "desc" {
@@ -445,26 +446,26 @@ export default function DeliveryPlans() {
                   activeSortBy={sortBy}
                   activeSortOrder={sortOrder}
                   onToggleSort={handleSortToggle}
+                  align="center"
                 >
-                  <DataTableHeaderLabel>예정일</DataTableHeaderLabel>
+                  <DataTableHeaderLabel align="center">예정일</DataTableHeaderLabel>
                 </DataTableHeaderCell>
-                <DataTableHeaderCell colSpan={2} compact sortable={false}>
-                  <DataTableHeaderLabel className="text-center">
-                    품목 (전체/납품대기/미납품)
+                <DataTableHeaderCell colSpan={2} compact sortable={false} align="center">
+                  <DataTableHeaderLabel align="center">
+                    유닛 (전체/납품대기/미납품)
                   </DataTableHeaderLabel>
                 </DataTableHeaderCell>
-                <DataTableHeaderCell colSpan={1} compact sortable={false}>
-                  <DataTableHeaderLabel>담당</DataTableHeaderLabel>
+                <DataTableHeaderCell colSpan={1} compact sortable={false} align="center">
+                  <DataTableHeaderLabel align="center">담당</DataTableHeaderLabel>
                 </DataTableHeaderCell>
                 <DataTableHeaderCell
                   colSpan={2}
                   compact
                   sortable={false}
-                  className="justify-center border-r-0"
+                  align="center"
+                  className="border-r-0"
                 >
-                  <DataTableHeaderLabel className="w-full text-center">
-                    상태
-                  </DataTableHeaderLabel>
+                  <DataTableHeaderLabel align="center">상태</DataTableHeaderLabel>
                 </DataTableHeaderCell>
               </DataTableHeader>
               <DataTableBody>
@@ -473,7 +474,8 @@ export default function DeliveryPlans() {
                     <DataTableCell
                       colSpan={12}
                       compact
-                      className="justify-center border-r-0 py-4"
+                      align="center"
+                      className="border-r-0 py-4"
                     >
                       조건에 맞는 납품 계획이 없습니다.
                     </DataTableCell>
@@ -492,9 +494,9 @@ export default function DeliveryPlans() {
                         <DataTableCell colSpan={2} compact className="min-w-0">
                           <Link
                             to={`/delivery/plans/${encodeURIComponent(planId)}`}
-                            className="flex min-w-0 flex-col gap-0.5 rounded-md leading-tight outline-offset-2 hover:text-brand-600 focus-visible:ring-2 focus-visible:ring-brand-400 dark:hover:text-brand-400"
+                            className={`flex min-w-0 flex-col gap-0.5 rounded-md leading-tight outline-offset-2 focus-visible:ring-2 focus-visible:ring-brand-400 ${DATA_TABLE_COMPACT_LINK_CLASS}`}
                           >
-                            <span className="truncate font-medium text-brand-600 hover:underline dark:text-brand-400">
+                            <span className="truncate hover:underline">
                               {row.planNo?.trim() || planId}
                             </span>
                             <span className="truncate text-theme-xs leading-tight text-gray-500 dark:text-gray-400">
@@ -506,34 +508,42 @@ export default function DeliveryPlans() {
                           {orderId ? (
                             <Link
                               to={`/order/${encodeURIComponent(orderId)}`}
-                              className="font-medium text-brand-600 hover:underline dark:text-brand-400"
+                              className={DATA_TABLE_COMPACT_LINK_CLASS}
                             >
                               {row.order?.orderNo?.trim() || orderId}
                             </Link>
                           ) : (
-                            <span className="text-gray-500">—</span>
+                            <span className={DATA_TABLE_COMPACT_MUTED_TEXT_CLASS}>—</span>
                           )}
                         </DataTableCell>
                         <DataTableCell colSpan={2} compact className="min-w-0">
-                          <span className="truncate">{row.partner?.name?.trim() || "—"}</span>
+                          <span
+                            className={`truncate ${DATA_TABLE_COMPACT_BODY_TEXT_CLASS}`}
+                          >
+                            {row.partner?.name?.trim() || "—"}
+                          </span>
                         </DataTableCell>
-                        <DataTableCell colSpan={1} compact>
+                        <DataTableCell colSpan={1} compact align="center">
                           {formatDateYmd(row.plannedDeliveryDate)}
                         </DataTableCell>
                         <DataTableCell
                           colSpan={2}
                           compact
-                          className="justify-center tabular-nums"
+                          align="center"
+                          className="tabular-nums"
                         >
-                          {unitSummaryLabel(row)}
+                          <span className={DATA_TABLE_COMPACT_BODY_TEXT_CLASS}>
+                            {unitSummaryLabel(row)}
+                          </span>
                         </DataTableCell>
-                        <DataTableCell colSpan={1} compact>
+                        <DataTableCell colSpan={1} compact align="center">
                           {row.deliveryManager?.name?.trim() || "—"}
                         </DataTableCell>
                         <DataTableCell
                           colSpan={2}
                           compact
-                          className="justify-center border-r-0"
+                          align="center"
+                          className="border-r-0"
                         >
                           <Badge
                             size="sm"

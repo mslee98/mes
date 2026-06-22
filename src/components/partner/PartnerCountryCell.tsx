@@ -85,7 +85,7 @@ export function PartnerCountryCell({
     if (!mainLine) {
       return (
         <div className="flex min-w-0 flex-col gap-0.5 text-start">
-          <span className="truncate text-theme-sm font-medium text-gray-400 dark:text-gray-500">
+          <span className="truncate text-theme-xs font-medium text-gray-400 dark:text-gray-500">
             —
           </span>
           <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
@@ -100,7 +100,7 @@ export function PartnerCountryCell({
 
     return (
       <div className="flex min-w-0 flex-col gap-0.5 text-start">
-        <span className="min-w-0 truncate text-theme-sm font-medium text-gray-800 dark:text-gray-200">
+        <span className="min-w-0 truncate text-theme-xs font-medium text-gray-800 dark:text-gray-200">
           {mainLine}
         </span>
         <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">

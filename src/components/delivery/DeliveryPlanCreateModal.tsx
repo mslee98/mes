@@ -170,24 +170,19 @@ export function DeliveryPlanCreateModal({
               gridTemplateColumns={DELIVERY_PLAN_CREATE_MODAL_GRID_TEMPLATE}
               className="sticky top-0 z-10 border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900"
             >
-              <DataTableHeaderCell compact sortable={false} className="justify-center">
-                <DataTableHeaderLabel className="w-full text-center">
-                  LOT
-                </DataTableHeaderLabel>
+              <DataTableHeaderCell compact sortable={false} align="center">
+                <DataTableHeaderLabel align="center">LOT</DataTableHeaderLabel>
               </DataTableHeaderCell>
-              <DataTableHeaderCell compact sortable={false} className="justify-center">
-                <DataTableHeaderLabel className="w-full text-center">
-                  품목
-                </DataTableHeaderLabel>
+              <DataTableHeaderCell compact sortable={false} align="center">
+                <DataTableHeaderLabel align="center">품목</DataTableHeaderLabel>
               </DataTableHeaderCell>
               <DataTableHeaderCell
                 compact
                 sortable={false}
-                className="justify-center border-r-0"
+                align="center"
+                className="border-r-0"
               >
-                <DataTableHeaderLabel className="w-full text-center">
-                  생산 계획
-                </DataTableHeaderLabel>
+                <DataTableHeaderLabel align="center">생산 계획</DataTableHeaderLabel>
               </DataTableHeaderCell>
             </DataTableHeader>
             <DataTableBody>
@@ -199,11 +194,12 @@ export function DeliveryPlanCreateModal({
                 >
                   <DataTableCell
                     compact
-                    className="justify-center text-center font-mono text-theme-xs"
+                    align="center"
+                    className="font-mono text-theme-xs"
                   >
                     {listUnitLotCode(row)}
                   </DataTableCell>
-                  <DataTableCell compact className="min-w-0 justify-center text-center">
+                  <DataTableCell compact align="center" className="min-w-0">
                     <div className="flex min-w-0 flex-col items-center justify-center leading-tight">
                       <p className="w-full truncate text-theme-xs font-medium text-gray-900 dark:text-white">
                         {row.item?.businessNameSnapshot?.trim() || "-"}
@@ -215,7 +211,8 @@ export function DeliveryPlanCreateModal({
                   </DataTableCell>
                   <DataTableCell
                     compact
-                    className="justify-center border-r-0 text-center text-theme-xs"
+                    align="center"
+                    className="border-r-0 text-theme-xs"
                   >
                     {row.plan?.planNo?.trim() || row.plan?.planId || "-"}
                   </DataTableCell>
