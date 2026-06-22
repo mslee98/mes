@@ -30,6 +30,7 @@ import {
   isUnitSelectableForDeliveryPlan,
   validateDeliveryPlanUnitSelection,
 } from "../../domains/delivery/helpers/deliveryPlanUnitSelection";
+import { invalidateProductionPlanUnitListQueries } from "../../domains/production-plan/queries/invalidateUnitListQueries";
 import { invalidateDeliveryPlanListQueries } from "../../domains/delivery/queries/invalidateDeliveryPlanListQueries";
 import { isDeliveryPlanCompleted } from "../../domains/delivery/policy/unitDetailDeliveryPolicy";
 import { useDeliveryPermissions } from "../../hooks/useDeliveryPermissions";
@@ -193,7 +194,7 @@ export function ProductionPlanUnitsPanel({
         invalidateDeliveryPlanListQueries(queryClient),
         queryClient.invalidateQueries({ queryKey: ["productionPlan", planId] }),
         queryClient.invalidateQueries({ queryKey: ["productionPlans"] }),
-        queryClient.invalidateQueries({ queryKey: ["productionPlanUnits"] }),
+        invalidateProductionPlanUnitListQueries(queryClient),
       ]);
     },
     onError: (err: Error) => {
@@ -207,7 +208,7 @@ export function ProductionPlanUnitsPanel({
       invalidateDeliveryPlanListQueries(queryClient),
       queryClient.invalidateQueries({ queryKey: ["productionPlan", planId] }),
       queryClient.invalidateQueries({ queryKey: ["productionPlans"] }),
-      queryClient.invalidateQueries({ queryKey: ["productionPlanUnits"] }),
+      invalidateProductionPlanUnitListQueries(queryClient),
     ]);
   }, [clear, planId, queryClient]);
 

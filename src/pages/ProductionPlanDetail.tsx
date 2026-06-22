@@ -51,6 +51,8 @@ import {
   flattenPlanUnits,
   type FlatPlanUnitRow,
 } from "../domains/production-plan/helpers/detailHelpers";
+import { invalidateProductionPlanUnitListQueries } from "../domains/production-plan/queries/invalidateUnitListQueries";
+import { PRODUCTION_PLAN_UNIT_LIST_STALE_TIME_MS } from "../domains/production-plan/queries/unitListQueryOptions";
 import { labelForProcessCode } from "../domains/production-plan/labels/processLabels";
 import { formatDateYmd } from "../lib/format/dateFormat";
 import {
@@ -200,7 +202,7 @@ export default function ProductionPlanDetail() {
     queryFn: () => getProductionPlan(pid, accessToken!),
     enabled: !!accessToken && !isAuthLoading && pid !== "",
     /** LOT 발급·공정 처리 직후 품목 목록 즉시 반영 — 전역 staleTime(60s) 무력화 */
-    staleTime: 0,
+    staleTime: PRODUCTION_PLAN_UNIT_LIST_STALE_TIME_MS,
   });
 
   const { data: modalRecords = [], isLoading: modalRecordsLoading } = useQuery({
@@ -212,8 +214,7 @@ export default function ProductionPlanDetail() {
       !isAuthLoading &&
       !!recordsModalUnitId &&
       recordsModalUnitId !== "",
-    /** 공정 처리 직후 목록과 맞추기 — 전역 staleTime(60s) 무력화 */
-    staleTime: 0,
+    staleTime: PRODUCTION_PLAN_UNIT_LIST_STALE_TIME_MS,
   });
 
   const deliverRecordsUnitId = deliverModal?.unit.id ?? null;
@@ -559,10 +560,11 @@ export default function ProductionPlanDetail() {
       queryClient.invalidateQueries({
         queryKey: ["purchaseOrderProductionPlans", oid],
       }),
+      invalidateProductionPlanUnitListQueries(queryClient),
     ]);
     const u = unitIdForHistory?.trim();
     if (!u) return;
-    /** 비활성 쿼리(이력 모달 닫힘)도 즉시 재조회 — 기본 invalidate는 active만 refetch */
+    /** 비활성 쿼리(이력 모달 닫힘)도 즉시 재조회 */
     await queryClient.invalidateQueries({
       queryKey: ["productionPlanUnitProcessRecords", u],
       refetchType: "all",

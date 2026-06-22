@@ -48,6 +48,7 @@ import {
   compareUnitsNewestFirst,
   resolveUnitListSort,
 } from "../domains/production-plan/helpers/unitListSort";
+import { PRODUCTION_PLAN_UNIT_LIST_STALE_TIME_MS } from "../domains/production-plan/queries/unitListQueryOptions";
 import {
   DELIVERY_UNIT_COLUMN_ALIGN,
   DELIVERY_UNIT_TABLE_MIN_WIDTH_PX,
@@ -302,6 +303,7 @@ export default function DeliveryUnits({
     queryKey: ["productionPlanUnitOverview", overviewParams],
     queryFn: () => getProductionPlanUnitOverview(accessToken!, overviewParams),
     enabled: !!accessToken && !isAuthLoading,
+    staleTime: PRODUCTION_PLAN_UNIT_LIST_STALE_TIME_MS,
   });
 
   const {
@@ -312,6 +314,7 @@ export default function DeliveryUnits({
     queryKey: ["productionPlanUnits", listParams],
     queryFn: () => getProductionPlanUnits(accessToken!, listParams),
     enabled: !!accessToken && !isAuthLoading && tab !== "DELAYED",
+    staleTime: PRODUCTION_PLAN_UNIT_LIST_STALE_TIME_MS,
   });
 
   const delayedSourceQueries = useQueries({
@@ -323,7 +326,7 @@ export default function DeliveryUnits({
           tab: sourceTab,
         }),
       enabled: !!accessToken && !isAuthLoading,
-      staleTime: 30_000,
+      staleTime: PRODUCTION_PLAN_UNIT_LIST_STALE_TIME_MS,
     })),
   });
 
