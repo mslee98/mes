@@ -1,4 +1,10 @@
-import { forwardRef, type CSSProperties, type MouseEventHandler, type ReactNode } from "react";
+import {
+  forwardRef,
+  type CSSProperties,
+  type KeyboardEventHandler,
+  type MouseEventHandler,
+  type ReactNode,
+} from "react";
 import Badge from "../../ui/badge/Badge";
 import type { TableSortOrder } from "../../ui/table/SortableHeaderCell";
 import { PencilIcon, TrashBinIcon } from "../../../icons";
@@ -205,6 +211,10 @@ export type DataTableRowProps = {
   className?: string;
   gridClassName?: string;
   gridTemplateColumns?: string;
+  onClick?: MouseEventHandler<HTMLDivElement>;
+  onKeyDown?: KeyboardEventHandler<HTMLDivElement>;
+  role?: React.AriaRole;
+  tabIndex?: number;
   onMouseEnter?: MouseEventHandler<HTMLDivElement>;
   onMouseLeave?: MouseEventHandler<HTMLDivElement>;
 };
@@ -217,6 +227,10 @@ export const DataTableRow = forwardRef<HTMLDivElement, DataTableRowProps>(
       className = "",
       gridClassName = DATA_TABLE_GRID_CLASS,
       gridTemplateColumns,
+      onClick,
+      onKeyDown,
+      role,
+      tabIndex,
       onMouseEnter,
       onMouseLeave,
     },
@@ -230,6 +244,10 @@ export const DataTableRow = forwardRef<HTMLDivElement, DataTableRowProps>(
     return (
       <div
         ref={ref}
+        role={role}
+        tabIndex={tabIndex}
+        onClick={onClick}
+        onKeyDown={onKeyDown}
         onMouseEnter={onMouseEnter}
         onMouseLeave={onMouseLeave}
         className={`${gridClass} ${DATA_TABLE_BODY_ROW_CLASS} ${

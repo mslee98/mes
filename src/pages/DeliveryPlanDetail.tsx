@@ -13,13 +13,8 @@ import { DeliveryPlanAddUnitsModal } from "../components/delivery/deliveryPlanDe
 import { DeliveryPlanDeliverModal } from "../components/delivery/deliveryPlanDetail/DeliveryPlanDeliverModal";
 import { useAuth } from "../hooks/useAuth";
 import { useDeliveryPermissions } from "../hooks/useDeliveryPermissions";
-import { useCommonCodesByGroup } from "../hooks/useCommonCodesByGroup";
-import {
-  COMMON_CODE_GROUP_COUNTRY,
-  COMMON_CODE_GROUP_DELIVERY_PLAN_STATUS,
-  COMMON_CODE_GROUP_UNIT_PROCESS_STATUS,
-  COMMON_CODE_GROUP_UNIT_PROCESS_STEP,
-} from "../api/commonCode";
+import { useDeliveryCommonCodes } from "../hooks/useDeliveryCommonCodes";
+import { useProductionPlanCommonCodes } from "../hooks/useProductionPlanCommonCodes";
 import {
   getDeliveryPlan,
   removeUnitFromDeliveryPlan,
@@ -27,6 +22,7 @@ import {
   type DeliveryPlanUnitSummary,
 } from "../api/purchaseOrder";
 import { getUsers } from "../api/user";
+import { mutationErrorNotify } from "../lib/api/mutationOnError";
 import { notify } from "../lib/notify";
 import { invalidateDeliveryPlanListQueries } from "../domains/delivery/queries/invalidateDeliveryPlanListQueries";
 import {
@@ -65,29 +61,16 @@ export default function DeliveryPlanDetail() {
     enabled: !!accessToken && !isAuthLoading && canReadDelivery && id !== "",
   });
 
-  const { data: countryCodes = [] } = useCommonCodesByGroup(
-    COMMON_CODE_GROUP_COUNTRY,
+  const { countryCodes, deliveryPlanStatusCodes } = useDeliveryCommonCodes(
     accessToken,
-    { enabled: !!accessToken && !isAuthLoading && canReadDelivery }
+    !!accessToken && !isAuthLoading && canReadDelivery
   );
 
-  const { data: deliveryPlanStatusCodes = [] } = useCommonCodesByGroup(
-    COMMON_CODE_GROUP_DELIVERY_PLAN_STATUS,
-    accessToken,
-    { enabled: !!accessToken && !isAuthLoading && canReadDelivery }
-  );
-
-  const { data: processStatusCodes = [] } = useCommonCodesByGroup(
-    COMMON_CODE_GROUP_UNIT_PROCESS_STATUS,
-    accessToken,
-    { enabled: !!accessToken && !isAuthLoading && canReadDelivery }
-  );
-
-  const { data: processStepCodes = [] } = useCommonCodesByGroup(
-    COMMON_CODE_GROUP_UNIT_PROCESS_STEP,
-    accessToken,
-    { enabled: !!accessToken && !isAuthLoading && canReadDelivery }
-  );
+  const { unitProcessStatusCodes: processStatusCodes, unitProcessStepCodes: processStepCodes } =
+    useProductionPlanCommonCodes(
+      accessToken,
+      !!accessToken && !isAuthLoading && canReadDelivery
+    );
 
   const { data: users = [] } = useQuery({
     queryKey: ["users"],
@@ -165,9 +148,11 @@ export default function DeliveryPlanDetail() {
       void invalidateDeliveryPlanListQueries(queryClient);
       queryClient.invalidateQueries({ queryKey: ["productionPlanUnits"] });
     },
-    onError: (e: Error) => {
-      notify.error(e.message || "품목 제거에 실패했습니다.");
-    },
+    onError: (e) =>
+      mutationErrorNotify(e, {
+        forbiddenMessage: "납품 계획 품목 제거 권한이 없습니다.",
+        fallbackMessage: "품목 제거에 실패했습니다.",
+      }),
   });
 
   if (!canReadDelivery) {

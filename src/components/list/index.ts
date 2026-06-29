@@ -48,3 +48,6 @@ export {
   dataListOutlineButtonClassName,
   dataListSearchInputClassName,
 } from "./DataListToolbar";
+export { ListTabCountBadge } from "./ListTabCountBadge";
+export type { ListTabBadgeTone } from "./ListTabCountBadge";
+export { StatusBadgeCell } from "./StatusBadgeCell";

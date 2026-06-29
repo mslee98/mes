@@ -23,15 +23,16 @@ import {
   DATA_TABLE_COMPACT_BODY_TEXT_CLASS,
   DATA_TABLE_COMPACT_MUTED_TEXT_CLASS,
   TablePagination,
+  ListTabCountBadge,
+  StatusBadgeCell,
 } from "../components/list";
-import Badge from "../components/ui/badge/Badge";
 import ListPageLoading from "../components/common/ListPageLoading";
 import { useAuth } from "../hooks/useAuth";
 import { useDeliveryPermissions } from "../hooks/useDeliveryPermissions";
 import { usePartnerListFilter } from "../hooks/usePartnerListFilter";
 import { useServerListPagination } from "../hooks/useServerListPagination";
-import { COMMON_CODE_GROUP_COUNTRY, COMMON_CODE_GROUP_DELIVERY_PLAN_STATUS } from "../api/commonCode";
-import { useCommonCodesByGroup } from "../hooks/useCommonCodesByGroup";
+import { useListSortState } from "../hooks/useListSortState";
+import { useDeliveryCommonCodes } from "../hooks/useDeliveryCommonCodes";
 import {
   getDeliveryPlansList,
   getDeliveryPlansTabCounts,
@@ -39,8 +40,11 @@ import {
   type DeliveryPlanListParams,
   type DeliveryPlanListTab,
 } from "../api/purchaseOrder";
-import { badgeColorFromKoStatusLabel } from "../lib/ui/badgeStatusColor";
 import { labelForDeliveryPlanStatus } from "../domains/delivery/labels/statusLabels";
+import {
+  deliveryPlanTabBadgeTone,
+  deliveryPlanTabCount,
+} from "../domains/delivery/helpers/deliveryListTabBadges";
 import { isDeliveryPlanCompleted } from "../domains/delivery/policy/unitDetailDeliveryPolicy";
 import { formatDateYmd } from "../lib/format/dateFormat";
 import {
@@ -63,51 +67,6 @@ const DELIVERY_PLAN_TABS: Array<{ value: DeliveryPlanTab; label: string }> = [
 function getDefaultSortOrder(sortKey: DeliveryPlanSortKey): "asc" | "desc" {
   if (sortKey === "createdAt" || sortKey === "plannedDeliveryDate") return "desc";
   return "asc";
-}
-
-function deliveryPlanTabCount(
-  tab: DeliveryPlanTab,
-  counts?: {
-    all?: number;
-    open?: number;
-    completed?: number;
-    delayed?: number;
-  }
-): number {
-  if (!counts) return 0;
-  if (tab === "ALL") return Number(counts.all) || 0;
-  if (tab === "OPEN") return Number(counts.open) || 0;
-  if (tab === "COMPLETED") return Number(counts.completed) || 0;
-  return Number(counts.delayed) || 0;
-}
-
-function deliveryPlanTabCountBadge(tab: DeliveryPlanTab, count: number) {
-  if (tab === "ALL") {
-    return (
-      <Badge size="sm" variant="solid" color="dark">
-        {count}
-      </Badge>
-    );
-  }
-  if (tab === "COMPLETED") {
-    return (
-      <Badge size="sm" color="success">
-        {count}
-      </Badge>
-    );
-  }
-  if (tab === "DELAYED") {
-    return (
-      <Badge size="sm" color="warning">
-        {count}
-      </Badge>
-    );
-  }
-  return (
-    <Badge size="sm" color="primary">
-      {count}
-    </Badge>
-  );
 }
 
 function resolveOrderId(row: DeliveryPlanListItem): string {
@@ -144,21 +103,15 @@ export default function DeliveryPlans() {
   const [tab, setTab] = useState<DeliveryPlanTab>(DEFAULT_TAB);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
-  const [sortBy, setSortBy] = useState<DeliveryPlanSortKey>(DEFAULT_SORT_KEY);
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">(
-    getDefaultSortOrder(DEFAULT_SORT_KEY)
+  const { sortBy, sortOrder, onToggleSort: handleSortToggle } = useListSortState(
+    DEFAULT_SORT_KEY,
+    getDefaultSortOrder,
+    setPage
   );
 
-  const { data: countryCodes = [] } = useCommonCodesByGroup(
-    COMMON_CODE_GROUP_COUNTRY,
+  const { countryCodes, deliveryPlanStatusCodes } = useDeliveryCommonCodes(
     accessToken,
-    { enabled: !!accessToken && !isAuthLoading && canReadDelivery }
-  );
-
-  const { data: deliveryPlanStatusCodes = [] } = useCommonCodesByGroup(
-    COMMON_CODE_GROUP_DELIVERY_PLAN_STATUS,
-    accessToken,
-    { enabled: !!accessToken && !isAuthLoading && canReadDelivery }
+    !!accessToken && !isAuthLoading && canReadDelivery
   );
 
   const {
@@ -264,7 +217,10 @@ export default function DeliveryPlans() {
           label: (
             <span className="inline-flex items-center gap-2">
               <span>{tabOption.label}</span>
-              {deliveryPlanTabCountBadge(tabOption.value, count)}
+              <ListTabCountBadge
+                count={count}
+                tone={deliveryPlanTabBadgeTone(tabOption.value)}
+              />
             </span>
           ),
         };
@@ -280,17 +236,6 @@ export default function DeliveryPlans() {
     setTab(DEFAULT_TAB);
     setPage(1);
     remountPartnerField();
-  };
-
-  const handleSortToggle = (nextSortKey: string) => {
-    const normalized = nextSortKey as DeliveryPlanSortKey;
-    setPage(1);
-    if (sortBy === normalized) {
-      setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
-      return;
-    }
-    setSortBy(normalized);
-    setSortOrder(getDefaultSortOrder(normalized));
   };
 
   const rows = data?.items ?? [];
@@ -545,12 +490,7 @@ export default function DeliveryPlans() {
                           align="center"
                           className="border-r-0"
                         >
-                          <Badge
-                            size="sm"
-                            color={badgeColorFromKoStatusLabel(statusName)}
-                          >
-                            {statusName}
-                          </Badge>
+                          <StatusBadgeCell label={statusName} />
                         </DataTableCell>
                       </DataTableRow>
                     );

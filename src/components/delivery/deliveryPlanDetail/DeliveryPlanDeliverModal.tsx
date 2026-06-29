@@ -26,6 +26,7 @@ import Button from "../../ui/button/Button";
 import { useAuth } from "../../../hooks/useAuth";
 import { notify } from "../../../lib/notify";
 import { MSG_INDIVIDUAL_DELIVERY_AT_UNIT_DETAIL_SENTENCE } from "../../../domains/delivery/labels/statusLabels";
+import { invalidateProductionPlanUnitListQueries } from "../../../domains/production-plan/queries/invalidateUnitListQueries";
 import { invalidateDeliveryPlanListQueries } from "../../../domains/delivery/queries/invalidateDeliveryPlanListQueries";
 import { formatDateYmd } from "../../../lib/format/dateFormat";
 import { isApiError } from "../../../lib/api/apiError";
@@ -127,7 +128,7 @@ export function DeliveryPlanDeliverModal({
       notify.success(formatDeliverPlanSuccessMessage(result));
       queryClient.invalidateQueries({ queryKey: ["deliveryPlan", planId] });
       void invalidateDeliveryPlanListQueries(queryClient);
-      queryClient.invalidateQueries({ queryKey: ["productionPlanUnits"] });
+      void invalidateProductionPlanUnitListQueries(queryClient);
       queryClient.invalidateQueries({ queryKey: ["deliveries"] });
       queryClient.invalidateQueries({
         queryKey: ["purchaseOrderDeliveries", purchaseOrderId],

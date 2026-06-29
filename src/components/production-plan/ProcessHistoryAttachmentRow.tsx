@@ -1,4 +1,4 @@
-import toast from "react-hot-toast";
+import { notify } from "../../lib/notify";
 import { formatDateTimeKo } from "../../lib/format/dateFormat";
 import { downloadFileWithAuth } from "../../lib/fileDownload";
 import { fileTypeIconSrc } from "../../lib/ui/fileTypeIcon";
@@ -34,7 +34,7 @@ export function ProcessHistoryAttachmentRow({
           aria-label="첨�??�일 ?�운로드"
           onClick={async () => {
             if (!accessToken) {
-              toast.error("로그?�이 ?�요?�니??");
+              notify.error("로그?�이 ?�요?�니??");
               return;
             }
             try {
@@ -48,7 +48,7 @@ export function ProcessHistoryAttachmentRow({
                 error instanceof Error
                   ? error.message
                   : "첨�??�일 ?�운로드???�패?�습?�다.";
-              toast.error(message);
+              notify.error(message);
             }
           }}
         >

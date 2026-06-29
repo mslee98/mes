@@ -1,7 +1,8 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import SegmentedControl from "../components/common/SegmentedControl";
-import { useCommonCodesByGroup } from "../hooks/useCommonCodesByGroup";
+import { useDeliveryCommonCodes } from "../hooks/useDeliveryCommonCodes";
+import { useListSortState } from "../hooks/useListSortState";
 import { usePartnerListFilter } from "../hooks/usePartnerListFilter";
 import { useServerListPagination } from "../hooks/useServerListPagination";
 import { Link } from "react-router";
@@ -24,8 +25,9 @@ import {
   ListPageToolbarRow,
   DATA_TABLE_COMPACT_LINK_CLASS,
   TablePagination,
+  ListTabCountBadge,
+  StatusBadgeCell,
 } from "../components/list";
-import Badge from "../components/ui/badge/Badge";
 import ListPageLoading from "../components/common/ListPageLoading";
 import { useAuth } from "../hooks/useAuth";
 import {
@@ -37,12 +39,14 @@ import {
   type Partner,
 } from "../api/purchaseOrder";
 import {
-  COMMON_CODE_GROUP_DELIVERY_STATUS,
-  COMMON_CODE_GROUP_COUNTRY,
   type CommonCodeItem,
 } from "../api/commonCode";
 import { partnerSelectLabel } from "../domains/partner/display/partnerDisplay";
-import { badgeColorFromKoStatusLabel } from "../lib/ui/badgeStatusColor";
+import { labelForDeliveryStatus } from "../domains/delivery/labels/statusLabels";
+import {
+  deliveryTabBadgeTone,
+  deliveryTabCount,
+} from "../domains/delivery/helpers/deliveryListTabBadges";
 
 const DEFAULT_PAGE_SIZE = 20;
 type DeliverySortKey = NonNullable<DeliveryListParams["sortBy"]>;
@@ -67,60 +71,6 @@ function getDefaultDeliverySortOrder(sortKey: DeliverySortKey): "asc" | "desc" {
     default:
       return "asc";
   }
-}
-
-function deliveryTabCount(
-  tab: DeliveryTab,
-  counts?: {
-    all?: number;
-    pending?: number;
-    ready?: number;
-    completed?: number;
-    delayed?: number;
-  }
-): number {
-  if (!counts) return 0;
-  if (tab === "ALL") return Number(counts.all) || 0;
-  if (tab === "PENDING") return Number(counts.pending) || 0;
-  if (tab === "READY") return Number(counts.ready) || 0;
-  if (tab === "COMPLETED") return Number(counts.completed) || 0;
-  return Number(counts.delayed) || 0;
-}
-
-function deliveryTabCountBadge(tab: DeliveryTab, count: number) {
-  if (tab === "ALL") {
-    return (
-      <Badge size="sm" variant="solid" color="dark">
-        {count}
-      </Badge>
-    );
-  }
-  if (tab === "READY") {
-    return (
-      <Badge size="sm" color="primary">
-        {count}
-      </Badge>
-    );
-  }
-  if (tab === "COMPLETED") {
-    return (
-      <Badge size="sm" color="success">
-        {count}
-      </Badge>
-    );
-  }
-  if (tab === "DELAYED") {
-    return (
-      <Badge size="sm" color="warning">
-        {count}
-      </Badge>
-    );
-  }
-  return (
-    <Badge size="sm" color="info">
-      {count}
-    </Badge>
-  );
 }
 
 function deliveryOrderId(d: Delivery): number | undefined {
@@ -158,15 +108,16 @@ export default function Delivery() {
   const [tab, setTab] = useState<DeliveryTab>(DEFAULT_DELIVERY_TAB);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
-  const [sortBy, setSortBy] = useState<DeliverySortKey>(DEFAULT_DELIVERY_SORT_KEY);
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">(
-    getDefaultDeliverySortOrder(DEFAULT_DELIVERY_SORT_KEY)
-  );
+  const { sortBy, sortOrder, onToggleSort: handleDeliverySortToggle } =
+    useListSortState(
+      DEFAULT_DELIVERY_SORT_KEY,
+      getDefaultDeliverySortOrder,
+      setPage
+    );
 
-  const { data: countryCodes = [] } = useCommonCodesByGroup(
-    COMMON_CODE_GROUP_COUNTRY,
+  const { countryCodes, deliveryStatusCodes } = useDeliveryCommonCodes(
     accessToken,
-    { enabled: !!accessToken && !isAuthLoading }
+    !!accessToken && !isAuthLoading
   );
 
   const {
@@ -245,12 +196,6 @@ export default function Delivery() {
     ],
   });
 
-  const { data: deliveryStatusCodes = [] } = useCommonCodesByGroup(
-    COMMON_CODE_GROUP_DELIVERY_STATUS,
-    accessToken,
-    { enabled: !!accessToken && !isAuthLoading }
-  );
-
   const tabOptions = useMemo(
     () =>
       DELIVERY_TABS.map((tabOption) => {
@@ -260,7 +205,10 @@ export default function Delivery() {
           label: (
             <span className="inline-flex items-center gap-2">
               <span>{tabOption.label}</span>
-              {deliveryTabCountBadge(tabOption.value, count)}
+              <ListTabCountBadge
+                count={count}
+                tone={deliveryTabBadgeTone(tabOption.value)}
+              />
             </span>
           ),
         };
@@ -278,24 +226,10 @@ export default function Delivery() {
     setSearchKey((k) => k + 1);
   };
 
-  const getDeliveryStatusName = (code: string | undefined) => {
-    const c = code?.trim();
-    if (!c) return "미지정";
-    return deliveryStatusCodes.find((x) => x.code === c)?.name ?? c;
-  };
+  const getDeliveryStatusName = (code: string | undefined) =>
+    labelForDeliveryStatus(deliveryStatusCodes, code);
 
   const rows = data?.items ?? [];
-
-  const handleDeliverySortToggle = (nextSortKey: string) => {
-    const normalizedSortKey = nextSortKey as DeliverySortKey;
-    setPage(1);
-    if (sortBy === normalizedSortKey) {
-      setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
-      return;
-    }
-    setSortBy(normalizedSortKey);
-    setSortOrder(getDefaultDeliverySortOrder(normalizedSortKey));
-  };
 
   return (
     <>
@@ -515,12 +449,7 @@ export default function Delivery() {
                           {row.deliveryDate?.trim() ? row.deliveryDate : "-"}
                         </DataTableCell>
                         <DataTableCell colSpan={2} compact align="center" className="border-r-0">
-                          <Badge
-                            size="sm"
-                            color={badgeColorFromKoStatusLabel(getDeliveryStatusName(row.status))}
-                          >
-                            {getDeliveryStatusName(row.status)}
-                          </Badge>
+                          <StatusBadgeCell label={getDeliveryStatusName(row.status)} />
                         </DataTableCell>
                       </DataTableRow>
                     );

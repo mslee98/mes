@@ -5,8 +5,16 @@ import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import ListPageLoading from "../components/common/ListPageLoading";
 import Select from "../components/form/Select";
-import Badge from "../components/ui/badge/Badge";
+import ActiveStatusBadge from "../components/common/ActiveStatusBadge";
 import {
+  DataTable,
+  DataTableBody,
+  DataTableCell,
+  DataTableHeader,
+  DataTableHeaderCell,
+  DataTableHeaderLabel,
+  DataTableRow,
+  DATA_TABLE_COMPACT_LINK_CLASS,
   DataListPrimaryActionButton,
   DataListSearchInput,
   DataListSearchOptionsButton,
@@ -14,13 +22,6 @@ import {
   ListPageToolbarRow,
   TablePagination,
 } from "../components/list";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHeader,
-  TableRow,
-} from "../components/ui/table";
 import { useAuth } from "../hooks/useAuth";
 import { useServerListPagination } from "../hooks/useServerListPagination";
 import {
@@ -189,125 +190,101 @@ export default function Products() {
                 : "제품 목록을 불러오지 못했습니다."}
             </p>
           </div>
-        ) : items.length === 0 ? (
-          <div className="flex min-h-[320px] items-center justify-center text-gray-500 dark:text-gray-400">
-            <p className="text-sm">조건에 맞는 제품이 없습니다.</p>
-          </div>
         ) : (
-          <Table>
-            <TableHeader className="border-b border-gray-100 dark:border-white/[0.05]">
-              <TableRow>
-                <TableCell
-                  isHeader
-                  className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400"
-                >
-                  사업코드
-                </TableCell>
-                <TableCell
-                  isHeader
-                  className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400"
-                >
-                  사업명
-                </TableCell>
-                <TableCell
-                  isHeader
-                  className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400"
-                >
-                  제품명
-                </TableCell>
-                <TableCell
-                  isHeader
-                  className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400"
-                >
-                  타입/해상도
-                </TableCell>
-                <TableCell
-                  isHeader
-                  className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400"
-                >
-                  설명
-                </TableCell>
-                <TableCell
-                  isHeader
-                  className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400"
-                >
-                  상태
-                </TableCell>
-              </TableRow>
-            </TableHeader>
-            <TableBody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
-              {items.map((p: ProductListItemDto) => (
-                <TableRow
-                  key={p.id}
-                  className="cursor-pointer hover:bg-gray-50 dark:hover:bg-white/[0.03]"
-                  onClick={() => navigate(`/products/${p.id}`)}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e: React.KeyboardEvent) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      navigate(`/products/${p.id}`);
-                    }
-                  }}
-                >
-                  <TableCell className="px-5 py-4 text-sm text-gray-500 dark:text-gray-400">
-                    <code>{String(p.businessCode ?? "").trim() || "-"}</code>
-                  </TableCell>
-                  <TableCell className="px-5 py-4 text-sm text-gray-500 dark:text-gray-400">
-                    {p.businessName || "-"}
-                  </TableCell>
-                  <TableCell className="px-5 py-4 text-sm font-medium text-gray-800 dark:text-white/90">
-                    <Link
-                      to={`/products/${p.id}`}
-                      className="text-brand-600 hover:underline dark:text-brand-400"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {p.productName || "-"}
-                    </Link>
-                  </TableCell>
-                  <TableCell className="px-5 py-4 text-sm text-gray-500 dark:text-gray-400">
-                    <code>
-                      {(() => {
-                        const productType = String(p.productType ?? "").trim() || "-";
-                        const arrayType = String(p.arrayType ?? "").trim();
-                        const arrayTypeDisplay =
-                          arrayType === "CUSTOM"
-                            ? `CUSTOM${
-                                p.arrayCustomText?.trim()
-                                  ? ` (${p.arrayCustomText.trim()})`
-                                  : ""
-                              }`
-                            : arrayType || "-";
-                        const resolution =
-                          p.arrayWidth != null && p.arrayHeight != null
-                            ? `${p.arrayWidth}x${p.arrayHeight}`
-                            : "-";
-                        return `${productType} / ${arrayTypeDisplay} (${resolution})`;
-                      })()}
-                    </code>
-                  </TableCell>
-                  <TableCell className="max-w-[14rem] px-5 py-4 text-sm text-gray-500 dark:text-gray-400">
-                    <span
-                      className="block truncate"
-                      title={
-                        p.description?.trim() ? p.description : undefined
-                      }
-                    >
-                      {p.description?.trim() ? p.description : "-"}
-                    </span>
-                  </TableCell>
-                  <TableCell className="px-5 py-4 text-sm">
-                    <Badge
-                      size="sm"
-                      color={p.isActive === false ? "error" : "success"}
-                    >
-                      {p.isActive === false ? "비활성" : "활성"}
-                    </Badge>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <DataTable fillWidth>
+            <DataTableHeader>
+              <DataTableHeaderCell colSpan={1} compact sortable={false}>
+                <DataTableHeaderLabel>사업코드</DataTableHeaderLabel>
+              </DataTableHeaderCell>
+              <DataTableHeaderCell colSpan={1} compact sortable={false}>
+                <DataTableHeaderLabel>사업명</DataTableHeaderLabel>
+              </DataTableHeaderCell>
+              <DataTableHeaderCell colSpan={1} compact sortable={false}>
+                <DataTableHeaderLabel>제품명</DataTableHeaderLabel>
+              </DataTableHeaderCell>
+              <DataTableHeaderCell colSpan={1} compact sortable={false}>
+                <DataTableHeaderLabel>타입/해상도</DataTableHeaderLabel>
+              </DataTableHeaderCell>
+              <DataTableHeaderCell colSpan={1} compact sortable={false}>
+                <DataTableHeaderLabel>설명</DataTableHeaderLabel>
+              </DataTableHeaderCell>
+              <DataTableHeaderCell
+                colSpan={1}
+                compact
+                sortable={false}
+                className="border-r-0"
+              >
+                <DataTableHeaderLabel>상태</DataTableHeaderLabel>
+              </DataTableHeaderCell>
+            </DataTableHeader>
+            <DataTableBody>
+              {items.length === 0 ? (
+                <DataTableRow>
+                  <DataTableCell
+                    colSpan={6}
+                    compact
+                    className="justify-center border-r-0 py-6"
+                  >
+                    조건에 맞는 제품이 없습니다.
+                  </DataTableCell>
+                </DataTableRow>
+              ) : (
+                items.map((p: ProductListItemDto) => (
+                  <DataTableRow key={p.id}>
+                    <DataTableCell colSpan={1} compact>
+                      <code>{String(p.businessCode ?? "").trim() || "-"}</code>
+                    </DataTableCell>
+                    <DataTableCell colSpan={1} compact>
+                      {p.businessName || "-"}
+                    </DataTableCell>
+                    <DataTableCell colSpan={1} compact>
+                      <Link
+                        to={`/products/${p.id}`}
+                        className={DATA_TABLE_COMPACT_LINK_CLASS}
+                      >
+                        {p.productName || "-"}
+                      </Link>
+                    </DataTableCell>
+                    <DataTableCell colSpan={1} compact>
+                      <code>
+                        {(() => {
+                          const productType =
+                            String(p.productType ?? "").trim() || "-";
+                          const arrayType = String(p.arrayType ?? "").trim();
+                          const arrayTypeDisplay =
+                            arrayType === "CUSTOM"
+                              ? `CUSTOM${
+                                  p.arrayCustomText?.trim()
+                                    ? ` (${p.arrayCustomText.trim()})`
+                                    : ""
+                                }`
+                              : arrayType || "-";
+                          const resolution =
+                            p.arrayWidth != null && p.arrayHeight != null
+                              ? `${p.arrayWidth}x${p.arrayHeight}`
+                              : "-";
+                          return `${productType} / ${arrayTypeDisplay} (${resolution})`;
+                        })()}
+                      </code>
+                    </DataTableCell>
+                    <DataTableCell colSpan={1} compact className="min-w-0">
+                      <span
+                        className="block truncate"
+                        title={
+                          p.description?.trim() ? p.description : undefined
+                        }
+                      >
+                        {p.description?.trim() ? p.description : "-"}
+                      </span>
+                    </DataTableCell>
+                    <DataTableCell colSpan={1} compact className="border-r-0">
+                      <ActiveStatusBadge active={p.isActive} />
+                    </DataTableCell>
+                  </DataTableRow>
+                ))
+              )}
+            </DataTableBody>
+          </DataTable>
         )}
       </ListPageLayout>
     </>

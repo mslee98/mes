@@ -9,22 +9,23 @@ import {
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import ListPageLoading from "../components/common/ListPageLoading";
+import ActiveStatusBadge from "../components/common/ActiveStatusBadge";
 import Badge from "../components/ui/badge/Badge";
 import Select from "../components/form/Select";
 import {
+  DataTable,
+  DataTableBody,
+  DataTableCell,
+  DataTableHeader,
+  DataTableHeaderCell,
+  DataTableHeaderLabel,
+  DataTableRow,
   DataListSearchInput,
   DataListSearchOptionsButton,
   ListPageLayout,
   ListPageToolbarRow,
   TablePagination,
 } from "../components/list";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHeader,
-  TableRow,
-} from "../components/ui/table";
 import { useAuth } from "../hooks/useAuth";
 import { useClientListPagination } from "../hooks/useClientListPagination";
 
@@ -193,102 +194,96 @@ export default function User() {
                 : "사용자 목록을 불러오지 못했습니다."}
             </p>
           </div>
-        ) : filteredUsers.length === 0 ? (
-          <div className="flex min-h-[320px] items-center justify-center text-gray-500 dark:text-gray-400">
-            <p className="text-sm">조건에 맞는 사용자가 없습니다.</p>
-          </div>
         ) : (
-          <Table>
-            <TableHeader className="border-b border-gray-100 dark:border-white/[0.05]">
-              <TableRow>
-                <TableCell
-                  isHeader
-                  className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400"
-                >
-                  사번
-                </TableCell>
-                <TableCell
-                  isHeader
-                  className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400"
-                >
-                  이름
-                </TableCell>
-                <TableCell
-                  isHeader
-                  className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400"
-                >
-                  이메일
-                </TableCell>
-                <TableCell
-                  isHeader
-                  className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400"
-                >
-                  연락처
-                </TableCell>
-                <TableCell
-                  isHeader
-                  className="px-5 py-3 text-center text-theme-xs font-medium text-gray-500 dark:text-gray-400"
-                >
+          <DataTable fillWidth>
+            <DataTableHeader>
+              <DataTableHeaderCell colSpan={1} compact sortable={false}>
+                <DataTableHeaderLabel>사번</DataTableHeaderLabel>
+              </DataTableHeaderCell>
+              <DataTableHeaderCell colSpan={1} compact sortable={false}>
+                <DataTableHeaderLabel>이름</DataTableHeaderLabel>
+              </DataTableHeaderCell>
+              <DataTableHeaderCell colSpan={2} compact sortable={false}>
+                <DataTableHeaderLabel>이메일</DataTableHeaderLabel>
+              </DataTableHeaderCell>
+              <DataTableHeaderCell colSpan={1} compact sortable={false}>
+                <DataTableHeaderLabel>연락처</DataTableHeaderLabel>
+              </DataTableHeaderCell>
+              <DataTableHeaderCell
+                colSpan={1}
+                compact
+                sortable={false}
+                className="justify-center"
+              >
+                <DataTableHeaderLabel className="w-full text-center">
                   팀장
-                </TableCell>
-                <TableCell
-                  isHeader
-                  className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400"
-                >
-                  상태
-                </TableCell>
-                <TableCell
-                  isHeader
-                  className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400"
-                >
-                  관리
-                </TableCell>
-              </TableRow>
-            </TableHeader>
-            <TableBody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
-              {paginatedUsers.map((user, index) => (
-                <TableRow
-                  key={`${user.id}-${pagination.currentPage}-${index}`}
-                >
-                  <TableCell className="px-5 py-4 text-sm text-gray-800 dark:text-white/90">
-                    {getEmployeeNo(user)}
-                  </TableCell>
-                  <TableCell className="px-5 py-4 text-sm text-gray-800 dark:text-white/90">
-                    {getUserName(user)}
-                  </TableCell>
-                  <TableCell className="px-5 py-4 text-sm text-gray-500 dark:text-gray-400">
-                    {getUserEmail(user)}
-                  </TableCell>
-                  <TableCell className="px-5 py-4 text-sm text-gray-500 dark:text-gray-400">
-                    {getUserPhone(user)}
-                  </TableCell>
-                  <TableCell className="px-5 py-4 text-sm text-center">
-                    {userIsTeamLeaderForActiveOrgs(user) ? (
-                      <Badge size="sm" color="primary">팀장</Badge>
-                    ) : (
-                      <span className="text-theme-xs text-gray-400">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="px-5 py-4 text-sm">
-                    <Badge
-                      size="sm"
-                      color={user.isActive === false ? "error" : "success"}
-                    >
-                      {user.isActive === false ? "비활성" : "활성"}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="px-5 py-4 text-sm">
-                    <Link
-                      to={`/user/${user.id}`}
-                      className="inline-flex h-9 items-center justify-center rounded-md border border-brand-300 px-3 text-xs font-medium text-brand-600 hover:bg-brand-50 dark:border-brand-500/30 dark:text-brand-400 dark:hover:bg-brand-500/10"
-                    >
-                      역할 관리
-                    </Link>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+                </DataTableHeaderLabel>
+              </DataTableHeaderCell>
+              <DataTableHeaderCell colSpan={1} compact sortable={false}>
+                <DataTableHeaderLabel>상태</DataTableHeaderLabel>
+              </DataTableHeaderCell>
+              <DataTableHeaderCell
+                colSpan={1}
+                compact
+                sortable={false}
+                className="border-r-0"
+              >
+                <DataTableHeaderLabel>관리</DataTableHeaderLabel>
+              </DataTableHeaderCell>
+            </DataTableHeader>
+            <DataTableBody>
+              {filteredUsers.length === 0 ? (
+                <DataTableRow>
+                  <DataTableCell
+                    colSpan={8}
+                    compact
+                    className="justify-center border-r-0 py-6"
+                  >
+                    조건에 맞는 사용자가 없습니다.
+                  </DataTableCell>
+                </DataTableRow>
+              ) : (
+                paginatedUsers.map((user, index) => (
+                  <DataTableRow key={`${user.id}-${pagination.currentPage}-${index}`}>
+                    <DataTableCell colSpan={1} compact>
+                      {getEmployeeNo(user)}
+                    </DataTableCell>
+                    <DataTableCell colSpan={1} compact>
+                      {getUserName(user)}
+                    </DataTableCell>
+                    <DataTableCell colSpan={2} compact className="min-w-0">
+                      <p className="truncate text-theme-xs text-gray-500 dark:text-gray-400">
+                        {getUserEmail(user)}
+                      </p>
+                    </DataTableCell>
+                    <DataTableCell colSpan={1} compact>
+                      {getUserPhone(user)}
+                    </DataTableCell>
+                    <DataTableCell colSpan={1} compact className="justify-center">
+                      {userIsTeamLeaderForActiveOrgs(user) ? (
+                        <Badge size="sm" color="primary">
+                          팀장
+                        </Badge>
+                      ) : (
+                        <span className="text-theme-xs text-gray-400">—</span>
+                      )}
+                    </DataTableCell>
+                    <DataTableCell colSpan={1} compact>
+                      <ActiveStatusBadge active={user.isActive} />
+                    </DataTableCell>
+                    <DataTableCell colSpan={1} compact className="border-r-0">
+                      <Link
+                        to={`/user/${user.id}`}
+                        className="inline-flex h-9 items-center justify-center rounded-md border border-brand-300 px-3 text-xs font-medium text-brand-600 hover:bg-brand-50 dark:border-brand-500/30 dark:text-brand-400 dark:hover:bg-brand-500/10"
+                      >
+                        역할 관리
+                      </Link>
+                    </DataTableCell>
+                  </DataTableRow>
+                ))
+              )}
+            </DataTableBody>
+          </DataTable>
         )}
       </ListPageLayout>
     </>

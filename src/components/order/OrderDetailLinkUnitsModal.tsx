@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import toast from "react-hot-toast";
+import { notify } from "../../lib/notify";
 import { Modal } from "../ui/modal";
 import Label from "../form/Label";
 import {
@@ -118,10 +118,10 @@ export function OrderDetailLinkUnitsModal({
         next[line.deliveryItemId] = new Set();
       }
       setSelectedByDeliveryItem(next);
-      toast.success("생산 계획을 불러왔습니다.");
+      notify.success("생산 계획을 불러왔습니다.");
     },
     onError: (e: Error) =>
-      toast.error(e.message || "생산 계획을 불러오지 못했습니다."),
+      notify.error(e.message || "생산 계획을 불러오지 못했습니다."),
   });
 
   const linkMutation = useMutation({
@@ -146,7 +146,7 @@ export function OrderDetailLinkUnitsModal({
       await Promise.all(tasks);
     },
     onSuccess: () => {
-      toast.success("선택한 Unit이 납품 라인에 연결되었습니다.");
+      notify.success("선택한 Unit이 납품 라인에 연결되었습니다.");
       setPlanIdInput("");
       setLoadedPlan(null);
       setSelectedByDeliveryItem({});
@@ -164,7 +164,7 @@ export function OrderDetailLinkUnitsModal({
       onClose();
     },
     onError: (e: Error) =>
-      toast.error(e.message || "Unit 연결에 실패했습니다."),
+      notify.error(e.message || "Unit 연결에 실패했습니다."),
   });
 
   const toggleUnit = (deliveryItemId: number, unitId: string) => {

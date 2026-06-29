@@ -3,10 +3,8 @@ import { Link, useNavigate } from "react-router";
 import type { CommonCodeItem } from "../../api/commonCode";
 import type {
   ProductionPlanUnit,
-  ProductionPlanUnitListItem,
 } from "../../api/purchaseOrder";
-import { ProductionPlanProcessStageBadge } from "../delivery/ProductionPlanProcessStageBadge";
-import Checkbox from "../form/input/Checkbox";
+import { ProductionPlanProcessStageBadge } from "../production-plan/ProductionPlanProcessStageBadge";
 import Badge from "../ui/badge/Badge";
 import { TableCell, TableRow } from "../ui/table";
 import { formatDateYmd } from "../../lib/format/dateFormat";
@@ -63,11 +61,6 @@ export type ProductionPlanUnitNestedRowProps = {
   pageSize: number;
   unitProcessStepCodes: CommonCodeItem[];
   todayYmd: string;
-  showCheckbox?: boolean;
-  reserveCheckboxColumn?: boolean;
-  checked?: boolean;
-  checkboxDisabled?: boolean;
-  onToggle?: (row: ProductionPlanUnitListItem, checked: boolean) => void;
 };
 
 /** 생산 계획 목록 펼침 — 컴팩트 유닛 행(행 클릭 → 유닛 상세) */
@@ -78,11 +71,6 @@ export function ProductionPlanUnitNestedRow({
   pageSize,
   unitProcessStepCodes,
   todayYmd,
-  showCheckbox = false,
-  reserveCheckboxColumn = false,
-  checked = false,
-  checkboxDisabled = false,
-  onToggle,
 }: ProductionPlanUnitNestedRowProps) {
   const navigate = useNavigate();
   const detailPath = unitDetailPath(row.unitId);
@@ -109,22 +97,6 @@ export function ProductionPlanUnitNestedRow({
       onClick={detailPath ? openUnitDetail : undefined}
       title={detailPath ? "유닛 상세로 이동" : undefined}
     >
-      {reserveCheckboxColumn ? (
-        <TableCell className={`${NESTED_CELL_CENTER} w-8`}>
-          <div onClick={(e: MouseEvent) => e.stopPropagation()}>
-            {showCheckbox ? (
-              <Checkbox
-                checked={checked}
-                disabled={checkboxDisabled}
-                onChange={(next) =>
-                  onToggle?.(row as ProductionPlanUnitListItem, next)
-                }
-                aria-label={`${lotLabel} 선택`}
-              />
-            ) : null}
-          </div>
-        </TableCell>
-      ) : null}
       <TableCell className={`${NESTED_CELL_CENTER} w-9 tabular-nums`}>
         <span
           className={

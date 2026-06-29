@@ -1,21 +1,21 @@
 ﻿import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "react-router";
-import toast from "react-hot-toast";
+import { mutationErrorNotify } from "../lib/api/mutationOnError";
+import { notify } from "../lib/notify";
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import ComponentCard from "../components/common/ComponentCard";
 import ConfirmModal from "../components/common/ConfirmModal";
 import DetailPageState from "../components/common/DetailPageState";
-import Badge from "../components/ui/badge/Badge";
+import ActiveStatusBadge from "../components/common/ActiveStatusBadge";
 import { useAuth } from "../hooks/useAuth";
 import { useProductPermissions } from "../hooks/useProductPermissions";
 import { deleteDetector, getDetector, type DetectorDetail } from "../api/detectors";
 import {
-  COMMON_CODE_GROUP_COUNTRY,
   labelForCommonCode,
 } from "../api/commonCode";
-import { useCommonCodesByGroup } from "../hooks/useCommonCodesByGroup";
+import { useProductCommonCodes } from "../hooks/useProductCommonCodes";
 
 function DetailRow({
   label,
@@ -62,10 +62,9 @@ export default function DetectorDetailPage() {
   const { accessToken, isLoading: isAuthLoading } = useAuth();
   const { canReadProducts, canManageProducts } = useProductPermissions();
 
-  const { data: countryCodes = [] } = useCommonCodesByGroup(
-    COMMON_CODE_GROUP_COUNTRY,
+  const { countryCodes } = useProductCommonCodes(
     accessToken,
-    { enabled: !!accessToken && !isAuthLoading && canReadProducts }
+    !!accessToken && !isAuthLoading && canReadProducts
   );
 
   const {
@@ -86,17 +85,17 @@ export default function DetectorDetailPage() {
   const deleteMutation = useMutation({
     mutationFn: () => deleteDetector(accessToken as string, id),
     onSuccess: () => {
-      toast.success("검출기가 삭제되었습니다.");
+      notify.success("검출기가 삭제되었습니다.");
       void queryClient.invalidateQueries({ queryKey: ["detectors"] });
       void queryClient.removeQueries({ queryKey: ["detector", id] });
       setDeleteOpen(false);
       navigate("/detectors");
     },
-    onError: (e: unknown) => {
-      const message =
-        e instanceof Error ? e.message : "검출기를 삭제하지 못했습니다.";
-      toast.error(message);
-    },
+    onError: (e) =>
+      mutationErrorNotify(e, {
+        forbiddenMessage: "검출기 삭제 권한이 없습니다.",
+        fallbackMessage: "검출기를 삭제하지 못했습니다.",
+      }),
   });
 
   if (!Number.isFinite(id) || id <= 0) {
@@ -222,9 +221,7 @@ export default function DetectorDetailPage() {
           <DetailRow
             label="상태"
             value={
-              <Badge size="sm" color={item.isActive === false ? "error" : "success"}>
-                {item.isActive === false ? "비활성" : "활성"}
-              </Badge>
+              <ActiveStatusBadge active={item.isActive} />
             }
           />
           <DetailRow label="특이 사항" value={textOrDash(item.specialNote)} />

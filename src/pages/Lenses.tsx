@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
-import toast from "react-hot-toast";
+import { mutationErrorNotify } from "../lib/api/mutationOnError";
+import { uploadErrorMessage } from "../lib/api/uploadErrorMessage";
 import { notify } from "../lib/notify";
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
@@ -15,9 +16,16 @@ import FormField from "../components/form/FormField";
 import Toggle from "../components/form/Toggle";
 import FormActionBar from "../components/form/FormActionBar";
 import ConfirmModal from "../components/common/ConfirmModal";
-import Badge from "../components/ui/badge/Badge";
+import ActiveStatusBadge from "../components/common/ActiveStatusBadge";
 import { Modal } from "../components/ui/modal";
 import {
+  DataTable,
+  DataTableBody,
+  DataTableCell,
+  DataTableHeader,
+  DataTableHeaderCell,
+  DataTableHeaderLabel,
+  DataTableRow,
   DataListPrimaryActionButton,
   DataListSearchInput,
   DataListSearchOptionsButton,
@@ -25,13 +33,6 @@ import {
   ListPageToolbarRow,
   TablePagination,
 } from "../components/list";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHeader,
-  TableRow,
-} from "../components/ui/table";
 import { useAuth } from "../hooks/useAuth";
 import { useServerListPagination } from "../hooks/useServerListPagination";
 import {
@@ -77,16 +78,8 @@ export default function Lenses() {
   const [fNumber, setFNumber] = useState("");
   const [focalLength, setFocalLength] = useState("");
   const [pendingFilesForCreate, setPendingFilesForCreate] = useState<File[]>([]);
-  const uploadErrorMessage = (error: unknown) => {
-    const message = error instanceof Error ? error.message : "";
-    if (message.includes("FILE_TARGET_TYPE / LENS")) {
-      return "백엔드 공통코드(FILE_TARGET_TYPE/LENS) 미반영 상태입니다. 시드 반영 후 다시 시도해 주세요.";
-    }
-    if (message.includes("401") || message.toLowerCase().includes("unauthorized")) {
-      return "로그인이 만료되었습니다. 다시 로그인해 주세요.";
-    }
-    return message || "첨부파일 업로드에 실패했습니다.";
-  };
+  const formatUploadError = (error: unknown) =>
+    uploadErrorMessage(error, { fileTargetType: "LENS" });
   const normalizeNumberLike = (raw: string) => {
     const sanitized = raw.replace(/[^\d.]/g, "");
     const [intPart, ...decimalParts] = sanitized.split(".");
@@ -172,7 +165,7 @@ export default function Lenses() {
           failedCount = Math.max(pendingFilesForCreate.length - uploadedCount, 0);
         } catch (error) {
           failedCount = pendingFilesForCreate.length;
-          notify.error(uploadErrorMessage(error));
+          notify.error(formatUploadError(error));
         }
         if (uploadedCount > 0) {
           notify.success(`렌즈와 첨부파일 ${uploadedCount}건을 등록했습니다.`);
@@ -188,7 +181,11 @@ export default function Lenses() {
       resetCreateForm();
       setCreateOpen(false);
     },
-    onError: (e: Error) => notify.error(e.message || "등록에 실패했습니다."),
+    onError: (e) =>
+      mutationErrorNotify(e, {
+        forbiddenMessage: "렌즈 등록 권한이 없습니다.",
+        fallbackMessage: "등록에 실패했습니다.",
+      }),
   });
 
   const handleCreateSubmit = (e: React.FormEvent) => {
@@ -211,7 +208,7 @@ export default function Lenses() {
   const addPendingFilesForCreate = (files: File[]) => {
     if (files.length === 0) return;
     setPendingFilesForCreate((prev) => [...prev, ...files].slice(0, 20));
-    toast.success(`첨부 대기 목록에 ${files.length}건 추가되었습니다.`);
+    notify.success(`첨부 대기 목록에 ${files.length}건 추가되었습니다.`);
   };
   const removePendingCreateFile = (index: number) => {
     setPendingFilesForCreate((prev) => prev.filter((_, i) => i !== index));
@@ -482,85 +479,76 @@ export default function Lenses() {
                 : "렌즈 목록을 불러오지 못했습니다."}
             </p>
           </div>
-        ) : items.length === 0 ? (
-          <div className="flex min-h-[320px] items-center justify-center text-gray-500 dark:text-gray-400">
-            <p className="text-sm">조건에 맞는 렌즈가 없습니다.</p>
-          </div>
         ) : (
-          <Table>
-            <TableHeader className="border-b border-gray-100 dark:border-white/[0.05]">
-              <TableRow>
-                <TableCell
-                  isHeader
-                  className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400"
-                >
-                  제조사
-                </TableCell>
-                <TableCell
-                  isHeader
-                  className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400"
-                >
-                  렌즈명
-                </TableCell>
-                <TableCell
-                  isHeader
-                  className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400"
-                >
-                  F Number
-                </TableCell>
-                <TableCell
-                  isHeader
-                  className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400"
-                >
-                  초점 거리
-                </TableCell>
-                <TableCell
-                  isHeader
-                  className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400"
-                >
-                  상태
-                </TableCell>
-              </TableRow>
-            </TableHeader>
-            <TableBody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
-              {items.map((lens) => (
-                <TableRow
-                  key={lens.id}
-                  className="cursor-pointer hover:bg-gray-50 dark:hover:bg-white/[0.03]"
-                  onClick={() => navigate(`/lenses/${lens.id}`)}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e: React.KeyboardEvent) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      navigate(`/lenses/${lens.id}`);
-                    }
-                  }}
-                >
-                  <TableCell className="px-5 py-4 text-sm text-gray-500 dark:text-gray-400">
-                    {lens.manufacturerName || `업체 #${lens.manufacturerId}`}
-                  </TableCell>
-                  <TableCell className="px-5 py-4 text-sm font-medium text-gray-800 dark:text-white/90">
-                    {lens.lensName?.trim() || "-"}
-                  </TableCell>
-                  <TableCell className="px-5 py-4 text-sm text-gray-500 dark:text-gray-400">
-                    {lens.fNumber || "-"}
-                  </TableCell>
-                  <TableCell className="px-5 py-4 text-sm text-gray-500 dark:text-gray-400">
-                    {lens.focalLength || "-"}
-                  </TableCell>
-                  <TableCell className="px-5 py-4 text-sm">
-                    <Badge
-                      size="sm"
-                      color={lens.isActive === false ? "error" : "success"}
-                    >
-                      {lens.isActive === false ? "비활성" : "활성"}
-                    </Badge>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <DataTable fillWidth>
+            <DataTableHeader>
+              <DataTableHeaderCell colSpan={3} compact sortable={false}>
+                <DataTableHeaderLabel>제조사</DataTableHeaderLabel>
+              </DataTableHeaderCell>
+              <DataTableHeaderCell colSpan={3} compact sortable={false}>
+                <DataTableHeaderLabel>렌즈명</DataTableHeaderLabel>
+              </DataTableHeaderCell>
+              <DataTableHeaderCell colSpan={2} compact sortable={false}>
+                <DataTableHeaderLabel>F Number</DataTableHeaderLabel>
+              </DataTableHeaderCell>
+              <DataTableHeaderCell colSpan={2} compact sortable={false}>
+                <DataTableHeaderLabel>초점 거리</DataTableHeaderLabel>
+              </DataTableHeaderCell>
+              <DataTableHeaderCell
+                colSpan={2}
+                compact
+                sortable={false}
+                className="border-r-0"
+              >
+                <DataTableHeaderLabel>상태</DataTableHeaderLabel>
+              </DataTableHeaderCell>
+            </DataTableHeader>
+            <DataTableBody>
+              {items.length === 0 ? (
+                <DataTableRow>
+                  <DataTableCell
+                    colSpan={12}
+                    compact
+                    className="justify-center border-r-0 py-6"
+                  >
+                    조건에 맞는 렌즈가 없습니다.
+                  </DataTableCell>
+                </DataTableRow>
+              ) : (
+                items.map((lens) => (
+                  <DataTableRow
+                    key={lens.id}
+                    className="cursor-pointer hover:bg-gray-50 dark:hover:bg-white/[0.03]"
+                    onClick={() => navigate(`/lenses/${lens.id}`)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e: React.KeyboardEvent) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        navigate(`/lenses/${lens.id}`);
+                      }
+                    }}
+                  >
+                    <DataTableCell colSpan={3} compact>
+                      {lens.manufacturerName || `업체 #${lens.manufacturerId}`}
+                    </DataTableCell>
+                    <DataTableCell colSpan={3} compact>
+                      {lens.lensName?.trim() || "-"}
+                    </DataTableCell>
+                    <DataTableCell colSpan={2} compact>
+                      {lens.fNumber || "-"}
+                    </DataTableCell>
+                    <DataTableCell colSpan={2} compact>
+                      {lens.focalLength || "-"}
+                    </DataTableCell>
+                    <DataTableCell colSpan={2} compact className="border-r-0">
+                      <ActiveStatusBadge active={lens.isActive} />
+                    </DataTableCell>
+                  </DataTableRow>
+                ))
+              )}
+            </DataTableBody>
+          </DataTable>
         )}
       </ListPageLayout>
     </>

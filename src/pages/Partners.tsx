@@ -1,12 +1,20 @@
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router";
+import { Link, useNavigate } from "react-router";
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import ListPageLoading from "../components/common/ListPageLoading";
 import SegmentedControl from "../components/common/SegmentedControl";
-import Badge from "../components/ui/badge/Badge";
+import ActiveStatusBadge from "../components/common/ActiveStatusBadge";
 import Select from "../components/form/Select";
 import {
+  DataTable,
+  DataTableBody,
+  DataTableCell,
+  DataTableHeader,
+  DataTableHeaderCell,
+  DataTableHeaderLabel,
+  DataTableRow,
+  DATA_TABLE_COMPACT_LINK_CLASS,
   DataListPrimaryActionButton,
   DataListSearchInput,
   DataListSearchOptionsButton,
@@ -14,13 +22,6 @@ import {
   ListPageToolbarRow,
   TablePagination,
 } from "../components/list";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHeader,
-  TableRow,
-} from "../components/ui/table";
 import { useAuth } from "../hooks/useAuth";
 import { useServerListPagination } from "../hooks/useServerListPagination";
 import { usePartnerCommonCodes } from "../hooks/usePartnerCommonCodes";
@@ -244,90 +245,84 @@ export default function Partners() {
                 : "업체 목록을 불러오지 못했습니다."}
             </p>
           </div>
-        ) : pageItems.length === 0 ? (
-          <div className="flex min-h-[320px] items-center justify-center text-gray-500">
-            <p className="text-sm">조건에 맞는 업체가 없습니다.</p>
-          </div>
         ) : (
-          <Table>
-            <TableHeader className="border-b border-gray-100 dark:border-white/[0.05]">
-              <TableRow>
-                <TableCell
-                  isHeader
-                  className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500"
-                >
-                  코드
-                </TableCell>
-                <TableCell
-                  isHeader
-                  className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500"
-                >
-                  업체명
-                </TableCell>
-                <TableCell
-                  isHeader
-                  className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500"
-                >
-                  업체 분류
-                </TableCell>
-                <TableCell
-                  isHeader
-                  className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500"
-                >
-                  국가
-                </TableCell>
-                <TableCell
-                  isHeader
-                  className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500"
-                >
-                  담당자/연락처
-                </TableCell>
-                <TableCell
-                  isHeader
-                  className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500"
-                >
-                  상태
-                </TableCell>
-              </TableRow>
-            </TableHeader>
-            <TableBody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
-              {pageItems.map((p) => (
-                <TableRow
-                  key={p.id}
-                  className="cursor-pointer hover:bg-gray-50 dark:hover:bg-white/[0.03]"
-                  onClick={() => navigate(`/partners/${p.id}`)}
-                >
-                  <TableCell className="px-5 py-4 text-sm font-medium text-gray-800 dark:text-white/90">
-                    {p.code || "-"}
-                  </TableCell>
-                  <TableCell className="px-5 py-4 text-sm text-gray-700 dark:text-gray-300">
-                    {p.name || "-"}
-                  </TableCell>
-                  <TableCell className="px-5 py-4 text-sm text-gray-500 dark:text-gray-400">
-                    {formatPartnerCoreClassificationCell(
-                      p,
-                      partnerTypeCodes,
-                      supplierSegmentCodes
-                    )}
-                  </TableCell>
-                  <TableCell className="px-5 py-4 text-sm text-gray-500 dark:text-gray-400">
-                    <PartnerCountryCell partner={p} countryCodes={countryCodes} />
-                  </TableCell>
-                  <TableCell className="px-5 py-4 text-sm text-gray-500 dark:text-gray-400">
-                    {formatPartnerContactCell(p)}
-                  </TableCell>
-                  <TableCell className="px-5 py-4 text-sm">
-                    <Badge
-                      size="sm"
-                      color={p.isActive === false ? "error" : "success"}
-                    >
-                      {p.isActive === false ? "비활성" : "활성"}
-                    </Badge>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <DataTable fillWidth>
+            <DataTableHeader>
+              <DataTableHeaderCell colSpan={1} compact sortable={false}>
+                <DataTableHeaderLabel>코드</DataTableHeaderLabel>
+              </DataTableHeaderCell>
+              <DataTableHeaderCell colSpan={1} compact sortable={false}>
+                <DataTableHeaderLabel>업체명</DataTableHeaderLabel>
+              </DataTableHeaderCell>
+              <DataTableHeaderCell colSpan={1} compact sortable={false}>
+                <DataTableHeaderLabel>업체 분류</DataTableHeaderLabel>
+              </DataTableHeaderCell>
+              <DataTableHeaderCell colSpan={1} compact sortable={false}>
+                <DataTableHeaderLabel>국가</DataTableHeaderLabel>
+              </DataTableHeaderCell>
+              <DataTableHeaderCell colSpan={1} compact sortable={false}>
+                <DataTableHeaderLabel>담당자/연락처</DataTableHeaderLabel>
+              </DataTableHeaderCell>
+              <DataTableHeaderCell
+                colSpan={1}
+                compact
+                sortable={false}
+                className="border-r-0"
+              >
+                <DataTableHeaderLabel>상태</DataTableHeaderLabel>
+              </DataTableHeaderCell>
+            </DataTableHeader>
+            <DataTableBody>
+              {totalCount === 0 ? (
+                <DataTableRow>
+                  <DataTableCell
+                    colSpan={6}
+                    compact
+                    className="justify-center border-r-0 py-6"
+                  >
+                    조건에 맞는 업체가 없습니다.
+                  </DataTableCell>
+                </DataTableRow>
+              ) : (
+                pageItems.map((p) => (
+                  <DataTableRow key={p.id}>
+                    <DataTableCell colSpan={1} compact>
+                      <Link
+                        to={`/partners/${p.id}`}
+                        className={DATA_TABLE_COMPACT_LINK_CLASS}
+                      >
+                        {p.code || "-"}
+                      </Link>
+                    </DataTableCell>
+                    <DataTableCell colSpan={1} compact>
+                      <Link
+                        to={`/partners/${p.id}`}
+                        className={DATA_TABLE_COMPACT_LINK_CLASS}
+                      >
+                        {p.name || "-"}
+                      </Link>
+                    </DataTableCell>
+                    <DataTableCell colSpan={1} compact>
+                      {formatPartnerCoreClassificationCell(
+                        p,
+                        partnerTypeCodes,
+                        supplierSegmentCodes
+                      )}
+                    </DataTableCell>
+                    <DataTableCell colSpan={1} compact>
+                      <PartnerCountryCell partner={p} countryCodes={countryCodes} />
+                    </DataTableCell>
+                    <DataTableCell colSpan={1} compact>
+                      {formatPartnerContactCell(p)}
+                    </DataTableCell>
+                    <DataTableCell colSpan={1} compact className="border-r-0">
+                      <ActiveStatusBadge active={p.isActive} />
+                    </DataTableCell>
+                  </DataTableRow>
+                ))
+              )}
+            </DataTableBody>
+          </DataTable>
         )}
       </ListPageLayout>
     </>

@@ -134,6 +134,21 @@ export function mapPartnerFromApi(raw: Record<string, unknown>): Partner {
   };
 }
 
+/** GET 목록 등 경량 응답의 `partnerSummary` / `partner_summary` */
+export function mapPartnerSummaryFromApi(
+  raw: unknown
+): PartnerSummary | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const x = raw as Record<string, unknown>;
+  return {
+    id: String(x.id ?? ""),
+    code: String(x.code ?? ""),
+    name: String(x.name ?? ""),
+    countryCode:
+      partnerStr(x.countryCode) ?? partnerStr(x.country_code) ?? null,
+  };
+}
+
 export interface PartnerCreatePayload {
   code: string;
   name: string;
@@ -319,7 +334,8 @@ export interface PurchaseOrderListItem {
   orderNo: string;
   title: string;
   partnerId: string;
-  partner?: Partner;
+  /** `GET /purchase-orders` 목록 — `partner` 대신 요약만 포함 */
+  partnerSummary?: PartnerSummary | null;
   orderDate: string;
   currencyCode?: string | null;
   dueDate?: string | null;
@@ -424,6 +440,8 @@ export interface PurchaseOrderStatusHistoryEntry {
 }
 
 export interface PurchaseOrderDetail extends PurchaseOrderListItem {
+  /** `GET /purchase-orders/:id` 상세 — 전체 거래처 객체 */
+  partner?: Partner;
   requestDeliveryDate?: string | null;
   /** API·DB: requestDepartment — 매퍼에서 requesterDepartment로도 채움 */
   requestDepartment?: string | null;
@@ -2206,10 +2224,11 @@ function mapPurchaseOrderListItem(raw: unknown): PurchaseOrderListItem | null {
   const createdAt =
     typeof createdAtRaw === "string" && createdAtRaw ? createdAtRaw : undefined;
 
-  const partner =
-    x.partner && typeof x.partner === "object"
-      ? mapPartnerFromApi(x.partner as Record<string, unknown>)
-      : undefined;
+  const partnerSummary =
+    mapPartnerSummaryFromApi(x.partnerSummary ?? x.partner_summary) ??
+    (x.partner && typeof x.partner === "object"
+      ? mapPartnerSummaryFromApi(x.partner)
+      : undefined);
 
   const progressRaw = x.progressStatus ?? x.progress_status;
   const progressStatus =
@@ -2224,7 +2243,7 @@ function mapPurchaseOrderListItem(raw: unknown): PurchaseOrderListItem | null {
     orderNo,
     title,
     partnerId,
-    partner,
+    partnerSummary,
     orderDate,
     currencyCode,
     dueDate: dueDateRaw || undefined,

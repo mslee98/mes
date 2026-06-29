@@ -1,11 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router";
+import { mutationErrorNotify } from "../lib/api/mutationOnError";
+import { uploadErrorMessage } from "../lib/api/uploadErrorMessage";
 import { notify } from "../lib/notify";
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import ComponentCard from "../components/common/ComponentCard";
 import DetailPageState from "../components/common/DetailPageState";
+import ConfirmLeaveModal from "../components/common/ConfirmLeaveModal";
 import ConfirmModal from "../components/common/ConfirmModal";
 import FormField from "../components/form/FormField";
 import Label from "../components/form/Label";
@@ -18,6 +21,7 @@ import Toggle from "../components/form/Toggle";
 import FormActionBar from "../components/form/FormActionBar";
 import { TrashBinIcon } from "../icons";
 import { useAuth } from "../hooks/useAuth";
+import { useConfirmLeave } from "../hooks/useConfirmLeave";
 import {
   checkProductBusinessCode,
   createProduct,
@@ -78,16 +82,87 @@ export default function ProductForm() {
   });
   const normalizedBusinessCode = businessCode.trim().toUpperCase();
 
-  const uploadErrorMessage = (error: unknown) => {
-    const message = error instanceof Error ? error.message : "";
-    if (message.includes("FILE_TARGET_TYPE / PRODUCT")) {
-      return "백엔드 공통코드(FILE_TARGET_TYPE/PRODUCT) 미반영 상태입니다. 시드 반영 후 다시 시도해 주세요.";
+  const formatUploadError = (error: unknown) =>
+    uploadErrorMessage(error, {
+      fileTargetType: "PRODUCT",
+      defaultMessage: "첨부파일 처리에 실패했습니다.",
+    });
+
+  const initialSnapshot = useMemo(() => {
+    if (isNew) {
+      return {
+        businessCode: "",
+        businessName: "",
+        productName: "",
+        productType: "ENGINE" as const,
+        arrayType: "" as const,
+        arrayCustomText: "",
+        arrayWidth: "",
+        arrayHeight: "",
+        pixelPitch: "",
+        description: "",
+        isActive: true,
+        pendingFileCount: 0,
+      };
     }
-    if (message.includes("401") || message.toLowerCase().includes("unauthorized")) {
-      return "로그인이 만료되었습니다. 다시 로그인해 주세요.";
-    }
-    return message || "첨부파일 처리에 실패했습니다.";
-  };
+    if (!existing) return null;
+    return {
+      businessCode: String(existing.businessCode ?? "").trim().toUpperCase(),
+      businessName: existing.businessName ?? "",
+      productName: existing.productName ?? "",
+      productType: existing.productType ?? "ENGINE",
+      arrayType: existing.arrayType ?? "",
+      arrayCustomText: existing.arrayCustomText ?? "",
+      arrayWidth:
+        existing.arrayWidth != null ? String(existing.arrayWidth) : "",
+      arrayHeight:
+        existing.arrayHeight != null ? String(existing.arrayHeight) : "",
+      pixelPitch:
+        existing.pixelPitch != null && Number.isFinite(Number(existing.pixelPitch))
+          ? String(Math.trunc(Number(existing.pixelPitch)))
+          : "",
+      description: existing.description ?? "",
+      isActive: existing.isActive !== false,
+      pendingFileCount: 0,
+    };
+  }, [isNew, existing]);
+
+  const isDirty = useMemo(() => {
+    if (!initialSnapshot) return false;
+    return (
+      initialSnapshot.businessCode !== normalizedBusinessCode ||
+      initialSnapshot.businessName !== businessName ||
+      initialSnapshot.productName !== productName ||
+      initialSnapshot.productType !== productType ||
+      initialSnapshot.arrayType !== arrayType ||
+      initialSnapshot.arrayCustomText !== arrayCustomText ||
+      initialSnapshot.arrayWidth !== arrayWidth ||
+      initialSnapshot.arrayHeight !== arrayHeight ||
+      initialSnapshot.pixelPitch !== pixelPitch ||
+      initialSnapshot.description !== description ||
+      initialSnapshot.isActive !== isActive ||
+      (isNew && pendingFilesForCreate.length > initialSnapshot.pendingFileCount)
+    );
+  }, [
+    initialSnapshot,
+    normalizedBusinessCode,
+    businessName,
+    productName,
+    productType,
+    arrayType,
+    arrayCustomText,
+    arrayWidth,
+    arrayHeight,
+    pixelPitch,
+    description,
+    isActive,
+    isNew,
+    pendingFilesForCreate.length,
+  ]);
+
+  const leavePath = isNew ? "/products" : `/products/${id}`;
+  const { leaveModalOpen, onLeaveConfirm, onLeaveCancel, requestLeave } =
+    useConfirmLeave(isDirty, () => navigate(leavePath));
 
   useEffect(() => {
     if (!existing) return;
@@ -132,8 +207,11 @@ export default function ProductForm() {
       notify.success("제품을 수정했습니다.");
       navigate(`/products/${id}`);
     },
-    onError: (e: Error) =>
-      notify.error(e.message || "수정에 실패했습니다."),
+    onError: (e) =>
+      mutationErrorNotify(e, {
+        forbiddenMessage: "제품 수정 권한이 없습니다.",
+        fallbackMessage: "수정에 실패했습니다.",
+      }),
   });
   const createMutation = useMutation({
     mutationFn: () =>
@@ -160,13 +238,17 @@ export default function ProductForm() {
             accessToken as string
           );
         } catch (error) {
-          notify.error(uploadErrorMessage(error));
+          notify.error(formatUploadError(error));
         }
       }
       notify.success("제품을 등록했습니다.");
       navigate(`/products/${created.id}`);
     },
-    onError: (e: Error) => notify.error(e.message || "등록에 실패했습니다."),
+    onError: (e) =>
+      mutationErrorNotify(e, {
+        forbiddenMessage: "제품 등록 권한이 없습니다.",
+        fallbackMessage: "등록에 실패했습니다.",
+      }),
   });
   const fileUploadMutation = useMutation({
     mutationFn: (selectedFiles: File[]) =>
@@ -175,7 +257,11 @@ export default function ProductForm() {
       queryClient.invalidateQueries({ queryKey: ["productFiles", id] });
       notify.success(`첨부파일 ${uploaded.length}건을 업로드했습니다.`);
     },
-    onError: (error: Error) => notify.error(uploadErrorMessage(error)),
+    onError: (error) =>
+      mutationErrorNotify(error, {
+        forbiddenMessage: "제품 첨부파일 업로드 권한이 없습니다.",
+        fallbackMessage: formatUploadError(error),
+      }),
   });
   const fileDeleteMutation = useMutation({
     mutationFn: (fileLinkId: number) =>
@@ -184,7 +270,11 @@ export default function ProductForm() {
       queryClient.invalidateQueries({ queryKey: ["productFiles", id] });
       notify.success("첨부파일을 삭제했습니다.");
     },
-    onError: (error: Error) => notify.error(uploadErrorMessage(error)),
+    onError: (error) =>
+      mutationErrorNotify(error, {
+        forbiddenMessage: "제품 첨부파일 삭제 권한이 없습니다.",
+        fallbackMessage: formatUploadError(error),
+      }),
   });
   const businessCodeCheckMutation = useMutation({
     mutationFn: () =>
@@ -618,7 +708,7 @@ export default function ProductForm() {
             submitLabel={isNew ? "등록" : "저장"}
             isPending={pending}
             submitDisabled={!accessToken}
-            cancelTo={isNew ? "/products" : `/products/${id}`}
+            onCancel={requestLeave}
           />
         </ComponentCard>
       </form>
@@ -636,6 +726,11 @@ export default function ProductForm() {
           onConfirm={confirmDeleteFile}
         />
       ) : null}
+      <ConfirmLeaveModal
+        isOpen={leaveModalOpen}
+        onClose={onLeaveCancel}
+        onConfirm={onLeaveConfirm}
+      />
     </>
   );
 }

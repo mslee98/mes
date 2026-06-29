@@ -35,3 +35,18 @@ export function labelForDeliverPlanSkipReason(reason?: string | null): string {
   const mapped = DELIVER_PLAN_SKIP_REASON_LABELS[raw.toUpperCase()];
   return mapped ?? raw;
 }
+
+const DELIVERY_STATUS_FALLBACK: Record<string, string> = {
+  PENDING: "대기",
+  READY: "준비",
+  COMPLETED: "완료",
+  COMPLETE: "완료",
+  DELAYED: "지연",
+  CANCELLED: "취소",
+  CANCELED: "취소",
+};
+
+/** 납품 status code → 공통코드 name (없으면 폴백·code) */
+export const labelForDeliveryStatus = createStatusLabelFn(
+  DELIVERY_STATUS_FALLBACK
+);

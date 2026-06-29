@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "react-router";
-import toast from "react-hot-toast";
+import { notify } from "../lib/notify";
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import ComponentCard from "../components/common/ComponentCard";
 import ConfirmModal from "../components/common/ConfirmModal";
 import LoadingLottie from "../components/common/LoadingLottie";
-import Badge from "../components/ui/badge/Badge";
+import ActiveStatusBadge from "../components/common/ActiveStatusBadge";
 import { useAuth } from "../hooks/useAuth";
 import { deleteLens, getLens, getLensFiles, type LensItem, type FileLink } from "../api/lenses";
 import { buildAppApiFileUrl } from "../lib/fileDownload";
@@ -73,7 +73,7 @@ export default function LensDetail() {
   const deleteMutation = useMutation({
     mutationFn: () => deleteLens(id, accessToken as string),
     onSuccess: () => {
-      toast.success("렌즈가 삭제되었습니다.");
+      notify.success("렌즈가 삭제되었습니다.");
       void queryClient.invalidateQueries({ queryKey: ["lensList"] });
       void queryClient.removeQueries({ queryKey: ["lens", id] });
       void queryClient.removeQueries({ queryKey: ["lensFiles", id] });
@@ -83,7 +83,7 @@ export default function LensDetail() {
     onError: (e: unknown) => {
       const message =
         e instanceof Error ? e.message : "렌즈를 삭제하지 못했습니다.";
-      toast.error(message);
+      notify.error(message);
     },
   });
 
@@ -163,9 +163,7 @@ export default function LensDetail() {
           <DetailRow
             label="상태"
             value={
-              <Badge size="sm" color={l.isActive === false ? "error" : "success"}>
-                {l.isActive === false ? "비활성" : "활성"}
-              </Badge>
+              <ActiveStatusBadge active={l.isActive} />
             }
           />
           <DetailRow label="등록일시" value={formatIsoDate(l.createdAt)} />
@@ -210,7 +208,7 @@ export default function LensDetail() {
                                 error instanceof Error
                                   ? error.message
                                   : "첨부파일 다운로드에 실패했습니다.";
-                              toast.error(message);
+                              notify.error(message);
                             }
                           }}
                           title="첨부파일 다운로드"

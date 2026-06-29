@@ -6,15 +6,16 @@ import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import SegmentedControl from "../components/common/SegmentedControl";
 import ListPageLoading from "../components/common/ListPageLoading";
 import Select from "../components/form/Select";
-import Badge from "../components/ui/badge/Badge";
+import ActiveStatusBadge from "../components/common/ActiveStatusBadge";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHeader,
-  TableRow,
-} from "../components/ui/table";
-import {
+  DataTable,
+  DataTableBody,
+  DataTableCell,
+  DataTableHeader,
+  DataTableHeaderCell,
+  DataTableHeaderLabel,
+  DataTableRow,
+  DATA_TABLE_COMPACT_LINK_CLASS,
   DataListPrimaryActionButton,
   DataListSearchInput,
   DataListSearchOptionsButton,
@@ -28,11 +29,8 @@ import { usePagination } from "../hooks/usePagination";
 import { useProductPermissions } from "../hooks/useProductPermissions";
 import { getDetectors, type DetectorListItem } from "../api/detectors";
 import { getDetectorSeriesList, type DetectorSeries } from "../api/detectorSeries";
-import {
-  COMMON_CODE_GROUP_COUNTRY,
-  labelForCommonCode,
-} from "../api/commonCode";
-import { useCommonCodesByGroup } from "../hooks/useCommonCodesByGroup";
+import { useProductCommonCodes } from "../hooks/useProductCommonCodes";
+import { labelForCommonCode } from "../api/commonCode";
 import { IDDCA_TYPE_PATH } from "../lib/appRoutes";
 
 const PAGE_SIZE = 10;
@@ -69,10 +67,9 @@ export default function DetectorsPage() {
   const [detectorTab, setDetectorTab] = useState<string>(TAB_ALL);
   const [activeFilter, setActiveFilter] = useState("");
 
-  const { data: countryCodes = [] } = useCommonCodesByGroup(
-    COMMON_CODE_GROUP_COUNTRY,
+  const { countryCodes } = useProductCommonCodes(
     accessToken,
-    { enabled: !!accessToken && !isAuthLoading && canReadProducts }
+    !!accessToken && !isAuthLoading && canReadProducts
   );
 
   const { data: seriesForTabs = [] } = useQuery({
@@ -314,67 +311,51 @@ export default function DetectorsPage() {
             목록을 불러오는 중 오류가 발생했습니다.
           </div>
         ) : (
-          <Table>
-            <TableHeader className="border-b border-gray-100 dark:border-white/[0.05]">
-              <TableRow>
-                <TableCell
-                  isHeader
-                  className="px-5 py-3 text-start text-theme-xs font-medium text-gray-500 dark:text-gray-400"
-                >
-                  시리즈
-                </TableCell>
-                <TableCell
-                  isHeader
-                  className="px-5 py-3 text-start text-theme-xs font-medium text-gray-500 dark:text-gray-400"
-                >
-                  검출기 타입
-                </TableCell>
-                <TableCell
-                  isHeader
-                  className="px-5 py-3 text-start text-theme-xs font-medium text-gray-500 dark:text-gray-400"
-                >
-                  고객
-                </TableCell>
-                <TableCell
-                  isHeader
-                  className="px-5 py-3 text-start text-theme-xs font-medium text-gray-500 dark:text-gray-400"
-                >
-                  국가
-                </TableCell>
-                <TableCell
-                  isHeader
-                  className="px-5 py-3 text-start text-theme-xs font-medium text-gray-500 dark:text-gray-400"
-                >
-                  프로젝트
-                </TableCell>
-                <TableCell
-                  isHeader
-                  className="px-5 py-3 text-center text-theme-xs font-medium text-gray-500 dark:text-gray-400"
-                >
-                  상태
-                </TableCell>
-              </TableRow>
-            </TableHeader>
-            <TableBody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
+          <DataTable minWidth={880}>
+            <DataTableHeader>
+              <DataTableHeaderCell colSpan={2} compact sortable={false}>
+                <DataTableHeaderLabel>시리즈</DataTableHeaderLabel>
+              </DataTableHeaderCell>
+              <DataTableHeaderCell colSpan={2} compact sortable={false}>
+                <DataTableHeaderLabel>검출기 타입</DataTableHeaderLabel>
+              </DataTableHeaderCell>
+              <DataTableHeaderCell colSpan={2} compact sortable={false}>
+                <DataTableHeaderLabel>고객</DataTableHeaderLabel>
+              </DataTableHeaderCell>
+              <DataTableHeaderCell colSpan={1} compact sortable={false}>
+                <DataTableHeaderLabel>국가</DataTableHeaderLabel>
+              </DataTableHeaderCell>
+              <DataTableHeaderCell colSpan={3} compact sortable={false}>
+                <DataTableHeaderLabel>프로젝트</DataTableHeaderLabel>
+              </DataTableHeaderCell>
+              <DataTableHeaderCell
+                colSpan={2}
+                compact
+                sortable={false}
+                align="center"
+                className="border-r-0"
+              >
+                <DataTableHeaderLabel align="center">상태</DataTableHeaderLabel>
+              </DataTableHeaderCell>
+            </DataTableHeader>
+            <DataTableBody>
               {pageList.length === 0 ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={6}
-                    className="px-5 py-12 text-center text-sm text-gray-500 dark:text-gray-400"
+                <DataTableRow>
+                  <DataTableCell
+                    colSpan={12}
+                    compact
+                    align="center"
+                    className="border-r-0 py-6"
                   >
                     등록된 검출기가 없거나 조건에 맞는 항목이 없습니다.
-                  </TableCell>
-                </TableRow>
+                  </DataTableCell>
+                </DataTableRow>
               ) : (
                 pageList.map((row) => (
-                  <TableRow
+                  <DataTableRow
                     key={row.id}
-                    className={
-                      "cursor-pointer hover:bg-gray-50 dark:hover:bg-white/[0.03]"
-                    }
-                    onClick={() => {
-                      navigate(`/detectors/${row.id}`);
-                    }}
+                    className="cursor-pointer hover:bg-gray-50 dark:hover:bg-white/[0.03]"
+                    onClick={() => navigate(`/detectors/${row.id}`)}
                     role="button"
                     tabIndex={0}
                     onKeyDown={(e) => {
@@ -384,44 +365,39 @@ export default function DetectorsPage() {
                       }
                     }}
                   >
-                    <TableCell className="px-5 py-4 text-sm text-gray-700 dark:text-gray-200">
+                    <DataTableCell colSpan={2} compact>
                       {seriesLabel(row)}
-                    </TableCell>
-                    <TableCell className="px-5 py-4 font-mono text-sm font-medium text-gray-900 dark:text-white/90">
+                    </DataTableCell>
+                    <DataTableCell colSpan={2} compact>
                       <Link
                         to={`/detectors/${row.id}`}
-                        className="text-brand-600 hover:underline dark:text-brand-400"
+                        className={`font-mono font-medium ${DATA_TABLE_COMPACT_LINK_CLASS}`}
                         onClick={(e) => e.stopPropagation()}
                       >
                         {row.detectorType || "—"}
                       </Link>
-                    </TableCell>
-                    <TableCell className="px-5 py-4 text-sm text-gray-600 dark:text-gray-300">
+                    </DataTableCell>
+                    <DataTableCell colSpan={2} compact>
                       {row.customerName?.trim() ? row.customerName : "—"}
-                    </TableCell>
-                    <TableCell className="px-5 py-4 text-sm text-gray-600 dark:text-gray-300">
+                    </DataTableCell>
+                    <DataTableCell colSpan={1} compact>
                       {countryLabel(row.countryCode)}
-                    </TableCell>
-                    <TableCell className="max-w-[12rem] px-5 py-4 text-sm text-gray-600 dark:text-gray-300">
+                    </DataTableCell>
+                    <DataTableCell colSpan={3} compact className="min-w-0">
                       <span className="line-clamp-2" title={row.projectCode ?? ""}>
                         {[row.projectName, row.projectCode]
                           .filter(Boolean)
                           .join(" / ") || "—"}
                       </span>
-                    </TableCell>
-                    <TableCell className="px-5 py-4 text-center text-sm">
-                      <Badge
-                        size="sm"
-                        color={row.isActive === false ? "error" : "success"}
-                      >
-                        {row.isActive === false ? "비활성" : "활성"}
-                      </Badge>
-                    </TableCell>
-                  </TableRow>
+                    </DataTableCell>
+                    <DataTableCell colSpan={2} compact align="center" className="border-r-0">
+                      <ActiveStatusBadge active={row.isActive} />
+                    </DataTableCell>
+                  </DataTableRow>
                 ))
               )}
-            </TableBody>
-          </Table>
+            </DataTableBody>
+          </DataTable>
         )}
       </ListPageLayout>
     </>

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useSearchParams } from "react-router";
+import ConfirmLeaveModal from "../components/common/ConfirmLeaveModal";
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import ComponentCard from "../components/common/ComponentCard";
@@ -14,6 +15,7 @@ import FormActionBar from "../components/form/FormActionBar";
 import SerialLotLookupModal from "../components/unit/SerialLotLookupModal";
 import Badge from "../components/ui/badge/Badge";
 import { useAuth } from "../hooks/useAuth";
+import { useConfirmLeave } from "../hooks/useConfirmLeave";
 import { useRmaCommonCodes } from "../hooks/useRmaCommonCodes";
 import { useRmaPermissions } from "../hooks/useRmaPermissions";
 import { commonCodesToSelectOptions, labelForCommonCode } from "../api/commonCode";
@@ -27,6 +29,7 @@ import { getProductionPlanUnitById } from "../api/purchaseOrder";
 import type { ProductionPlanUnitDetail } from "../api/purchaseOrder";
 import { validateRequiredFields } from "../lib/formValidation";
 import { formatDateYmd, localYmdToday } from "../lib/format/dateFormat";
+import { mutationErrorNotify } from "../lib/api/mutationOnError";
 import { notify } from "../lib/notify";
 
 function toText(value: unknown): string {
@@ -113,6 +116,50 @@ export default function RmaRegisterForm() {
     }
   }, [canCreateRma, canReadRma, selectedUnit, presetUnitId]);
 
+  const initialSnapshot = useMemo(
+    () => ({
+      unitId: presetUnitId,
+      receivedAt: localYmdToday(),
+      requestContent: "",
+      rmaCategoryCode: "",
+      asTypeCode: "",
+      symptomCode: "",
+      returnRequiredYn: false,
+      returnType: "",
+      returnExpectedAt: "",
+    }),
+    [presetUnitId]
+  );
+
+  const isDirty = useMemo(() => {
+    const currentUnitId = toText(selectedUnit?.productionPlanUnitId);
+    return (
+      currentUnitId !== initialSnapshot.unitId ||
+      receivedAt !== initialSnapshot.receivedAt ||
+      requestContent.trim() !== initialSnapshot.requestContent ||
+      rmaCategoryCode.trim() !== initialSnapshot.rmaCategoryCode ||
+      asTypeCode.trim() !== initialSnapshot.asTypeCode ||
+      symptomCode.trim() !== initialSnapshot.symptomCode ||
+      returnRequiredYn !== initialSnapshot.returnRequiredYn ||
+      returnType.trim() !== initialSnapshot.returnType ||
+      returnExpectedAt.trim() !== initialSnapshot.returnExpectedAt
+    );
+  }, [
+    initialSnapshot,
+    selectedUnit,
+    receivedAt,
+    requestContent,
+    rmaCategoryCode,
+    asTypeCode,
+    symptomCode,
+    returnRequiredYn,
+    returnType,
+    returnExpectedAt,
+  ]);
+
+  const { leaveModalOpen, onLeaveConfirm, onLeaveCancel, requestLeave } =
+    useConfirmLeave(isDirty, () => navigate("/rma"));
+
   const unitId = toText(selectedUnit?.productionPlanUnitId);
 
   const { data: existingRmaList } = useQuery({
@@ -159,7 +206,11 @@ export default function RmaRegisterForm() {
       }
       navigate("/rma", { replace: true });
     },
-    onError: () => notify.error("RMA 접수 등록에 실패했습니다."),
+    onError: (e) =>
+      mutationErrorNotify(e, {
+        forbiddenMessage: "RMA 접수 등록 권한이 없습니다.",
+        fallbackMessage: "RMA 접수 등록에 실패했습니다.",
+      }),
   });
 
   const handleSubmit = (event: React.FormEvent) => {
@@ -444,7 +495,7 @@ export default function RmaRegisterForm() {
             pendingSubmitLabel="등록 중…"
             isPending={createMutation.isPending}
             submitDisabled={!accessToken || !selectedUnit}
-            cancelTo="/rma"
+            onCancel={requestLeave}
           />
         </ComponentCard>
       </form>
@@ -460,6 +511,12 @@ export default function RmaRegisterForm() {
         context="rma"
         selectionMode="single"
         confirmButtonLabel="선택 제품 반영"
+      />
+
+      <ConfirmLeaveModal
+        isOpen={leaveModalOpen}
+        onClose={onLeaveCancel}
+        onConfirm={onLeaveConfirm}
       />
     </>
   );

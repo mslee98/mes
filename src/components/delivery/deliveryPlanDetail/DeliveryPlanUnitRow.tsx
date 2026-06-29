@@ -12,7 +12,7 @@ import {
   DATA_TABLE_COMPACT_LINK_CLASS,
   DATA_TABLE_COMPACT_MUTED_TEXT_CLASS,
 } from "../../list";
-import { ProductionPlanProcessStageBadge } from "../ProductionPlanProcessStageBadge";
+import { ProductionPlanProcessStageBadge } from "../../production-plan/ProductionPlanProcessStageBadge";
 import {
   DELIVERY_PLAN_DETAIL_TABLE_GRID,
   deliveryPlanUnitProductSerialDisplay,

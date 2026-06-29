@@ -19,6 +19,7 @@ import { Modal } from "../../ui/modal";
 import Button from "../../ui/button/Button";
 import { useAuth } from "../../../hooks/useAuth";
 import { notify } from "../../../lib/notify";
+import { invalidateProductionPlanUnitListQueries } from "../../../domains/production-plan/queries/invalidateUnitListQueries";
 import { invalidateDeliveryPlanListQueries } from "../../../domains/delivery/queries/invalidateDeliveryPlanListQueries";
 import { listUnitLotCode } from "../../../domains/delivery/display/deliveryUnitListDisplay";
 import { DELIVERY_UNIT_ROW_MIN_HEIGHT_CLASS } from "../../../domains/delivery/layout/deliveryUnitDataTableLayout";
@@ -117,7 +118,7 @@ export function DeliveryPlanAddUnitsModal({
       setSelectedIds(new Set());
       queryClient.invalidateQueries({ queryKey: ["deliveryPlan", planId] });
       void invalidateDeliveryPlanListQueries(queryClient);
-      queryClient.invalidateQueries({ queryKey: ["productionPlanUnits"] });
+      void invalidateProductionPlanUnitListQueries(queryClient);
       onClose();
     },
     onError: (e: Error) => {

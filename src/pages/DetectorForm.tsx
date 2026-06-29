@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router";
+import { mutationErrorNotify } from "../lib/api/mutationOnError";
 import { notify } from "../lib/notify";
+import ConfirmLeaveModal from "../components/common/ConfirmLeaveModal";
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import ComponentCard from "../components/common/ComponentCard";
@@ -19,12 +21,11 @@ import { renderPartnerOptionLabel } from "../components/form/PartnerOptionLabel"
 import Toggle from "../components/form/Toggle";
 import FormActionBar from "../components/form/FormActionBar";
 import { useAuth } from "../hooks/useAuth";
+import { useConfirmLeave } from "../hooks/useConfirmLeave";
 import { useProductPermissions } from "../hooks/useProductPermissions";
-import { useCommonCodesByGroup } from "../hooks/useCommonCodesByGroup";
+import { useProductCommonCodes } from "../hooks/useProductCommonCodes";
 import { usePartnersQuery } from "../hooks/usePartnersQuery";
 import {
-  COMMON_CODE_GROUP_COUNTRY,
-  COMMON_CODE_GROUP_DETECTOR_TYPE,
   commonCodesToSelectOptions,
   labelForCommonCode,
 } from "../api/commonCode";
@@ -149,16 +150,9 @@ export default function DetectorForm() {
   const [remark, setRemark] = useState("");
   const [isActive, setIsActive] = useState(true);
 
-  const { data: countryCodes = [] } = useCommonCodesByGroup(
-    COMMON_CODE_GROUP_COUNTRY,
+  const { countryCodes, detectorTypeCodes } = useProductCommonCodes(
     accessToken,
-    { enabled: !!accessToken && !isAuthLoading }
-  );
-
-  const { data: detectorTypeCodes = [] } = useCommonCodesByGroup(
-    COMMON_CODE_GROUP_DETECTOR_TYPE,
-    accessToken,
-    { enabled: !!accessToken && !isAuthLoading }
+    !!accessToken && !isAuthLoading
   );
 
   const detectorTypeSelectOptions = useMemo(() => {
@@ -267,6 +261,140 @@ export default function DetectorForm() {
     queryFn: () => getDetector(accessToken as string, idNum),
     enabled: !isNew && !!accessToken && !isAuthLoading && Number.isFinite(idNum),
   });
+
+  const initialSnapshot = useMemo(() => {
+    if (isNew) {
+      return {
+        detectorSeriesId: "",
+        detectorType: "",
+        countryCode: "",
+        customerPartnerSelectValue: "",
+        customerName: "",
+        arrayType: "QVGA" as const,
+        arrayWidth: ARRAY_TYPE_PRESET.QVGA.width,
+        arrayHeight: ARRAY_TYPE_PRESET.QVGA.height,
+        pitch: "",
+        cooler: "",
+        projectName: "",
+        projectCode: "",
+        fNumber: "",
+        csh: "",
+        feedthruType: "",
+        roicType: "",
+        filterCut: "",
+        specialNote: "",
+        deliveryTypes: [] as string[],
+        isMassProduction: false,
+        remark: "",
+        isActive: true,
+      };
+    }
+    if (!existing) return null;
+    const cc = existing.countryCode?.trim() ?? "";
+    const existingPartnerId = String(existing.partnerId ?? "").trim();
+    const nextArrayType =
+      existing.arrayType === "QVGA" ||
+      existing.arrayType === "VGA" ||
+      existing.arrayType === "SXGA" ||
+      existing.arrayType === "CUSTOM"
+        ? existing.arrayType
+        : "QVGA";
+    return {
+      detectorSeriesId: String(existing.detectorSeriesId ?? ""),
+      detectorType: existing.detectorType ?? "",
+      countryCode: cc ? cc.toUpperCase() : "",
+      customerPartnerSelectValue: existingPartnerId,
+      customerName: existingPartnerId
+        ? existing.partner?.name?.trim() || (existing.customerName ?? "")
+        : (existing.customerName ?? ""),
+      arrayType: nextArrayType,
+      arrayWidth:
+        existing.arrayWidth != null
+          ? String(existing.arrayWidth)
+          : nextArrayType === "CUSTOM"
+            ? ""
+            : ARRAY_TYPE_PRESET[nextArrayType].width,
+      arrayHeight:
+        existing.arrayHeight != null
+          ? String(existing.arrayHeight)
+          : nextArrayType === "CUSTOM"
+            ? ""
+            : ARRAY_TYPE_PRESET[nextArrayType].height,
+      pitch: existing.pitch ?? "",
+      cooler: existing.cooler ?? "",
+      projectName: existing.projectName ?? "",
+      projectCode: existing.projectCode ?? "",
+      fNumber: existing.fNumber ?? "",
+      csh: existing.csh ?? "",
+      feedthruType: existing.feedthruType ?? "",
+      roicType: existing.roicType ?? "",
+      filterCut: existing.filterCut ?? "",
+      specialNote: existing.specialNote ?? "",
+      deliveryTypes: normalizeDeliveryTypes(existing.deliveryType),
+      isMassProduction: Boolean(existing.isMassProduction),
+      remark: existing.remark ?? "",
+      isActive: existing.isActive !== false,
+    };
+  }, [isNew, existing]);
+
+  const isDirty = useMemo(() => {
+    if (!initialSnapshot) return false;
+    const deliveryTypesKey = deliveryTypes.join(",");
+    const snapshotDeliveryTypesKey = initialSnapshot.deliveryTypes.join(",");
+    return (
+      initialSnapshot.detectorSeriesId !== detectorSeriesId ||
+      initialSnapshot.detectorType !== detectorType ||
+      initialSnapshot.countryCode !== countryCode.trim().toUpperCase() ||
+      initialSnapshot.customerPartnerSelectValue !==
+        customerPartnerSelectValue.trim() ||
+      initialSnapshot.customerName !== customerName.trim() ||
+      initialSnapshot.arrayType !== arrayType ||
+      initialSnapshot.arrayWidth !== arrayWidth ||
+      initialSnapshot.arrayHeight !== arrayHeight ||
+      initialSnapshot.pitch !== pitch ||
+      initialSnapshot.cooler !== cooler ||
+      initialSnapshot.projectName !== projectName ||
+      initialSnapshot.projectCode !== projectCode ||
+      initialSnapshot.fNumber !== fNumber ||
+      initialSnapshot.csh !== csh ||
+      initialSnapshot.feedthruType !== feedthruType ||
+      initialSnapshot.roicType !== roicType ||
+      initialSnapshot.filterCut !== filterCut ||
+      initialSnapshot.specialNote !== specialNote ||
+      snapshotDeliveryTypesKey !== deliveryTypesKey ||
+      initialSnapshot.isMassProduction !== isMassProduction ||
+      initialSnapshot.remark !== remark ||
+      initialSnapshot.isActive !== isActive
+    );
+  }, [
+    initialSnapshot,
+    detectorSeriesId,
+    detectorType,
+    countryCode,
+    customerPartnerSelectValue,
+    customerName,
+    arrayType,
+    arrayWidth,
+    arrayHeight,
+    pitch,
+    cooler,
+    projectName,
+    projectCode,
+    fNumber,
+    csh,
+    feedthruType,
+    roicType,
+    filterCut,
+    specialNote,
+    deliveryTypes,
+    isMassProduction,
+    remark,
+    isActive,
+  ]);
+
+  const leavePath = isNew ? "/detectors" : `/detectors/${idNum}`;
+  const { leaveModalOpen, onLeaveConfirm, onLeaveCancel, requestLeave } =
+    useConfirmLeave(isDirty, () => navigate(leavePath));
 
   useEffect(() => {
     if (!existing) return;
@@ -439,10 +567,13 @@ export default function DetectorForm() {
       queryClient.invalidateQueries({ queryKey: ["detector", saved.id] });
       navigate(`/detectors/${saved.id}`, { replace: true });
     },
-    onError: (err: unknown) => {
-      const msg = err instanceof Error ? err.message : "저장에 실패했습니다.";
-      notify.error(msg);
-    },
+    onError: (e) =>
+      mutationErrorNotify(e, {
+        forbiddenMessage: isNew
+          ? "검출기 등록 권한이 없습니다."
+          : "검출기 수정 권한이 없습니다.",
+        fallbackMessage: "저장에 실패했습니다.",
+      }),
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -776,10 +907,16 @@ export default function DetectorForm() {
             submitLabel={isNew ? "등록" : "저장"}
             isPending={pending}
             submitDisabled={!accessToken || (!isNew && isDetailLoading)}
-            cancelTo={isNew ? "/detectors" : `/detectors/${idNum}`}
+            onCancel={requestLeave}
           />
         </ComponentCard>
       </form>
+
+      <ConfirmLeaveModal
+        isOpen={leaveModalOpen}
+        onClose={onLeaveCancel}
+        onConfirm={onLeaveConfirm}
+      />
     </>
   );
 }

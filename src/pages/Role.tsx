@@ -4,22 +4,22 @@ import { getRoles, type RoleItem } from "../api/role";
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import ListPageLoading from "../components/common/ListPageLoading";
-import Badge from "../components/ui/badge/Badge";
+import ActiveStatusBadge from "../components/common/ActiveStatusBadge";
 import Select from "../components/form/Select";
 import {
+  DataTable,
+  DataTableBody,
+  DataTableCell,
+  DataTableHeader,
+  DataTableHeaderCell,
+  DataTableHeaderLabel,
+  DataTableRow,
   DataListSearchInput,
   DataListSearchOptionsButton,
   ListPageLayout,
   ListPageToolbarRow,
   TablePagination,
 } from "../components/list";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHeader,
-  TableRow,
-} from "../components/ui/table";
 import { useAuth } from "../hooks/useAuth";
 import { useClientListPagination } from "../hooks/useClientListPagination";
 
@@ -192,66 +192,60 @@ export default function Role() {
                 : "역할 목록을 불러오지 못했습니다."}
             </p>
           </div>
-        ) : filteredRoles.length === 0 ? (
-          <div className="flex min-h-[320px] items-center justify-center text-gray-500 dark:text-gray-400">
-            <p className="text-sm">조건에 맞는 역할이 없습니다.</p>
-          </div>
         ) : (
-          <Table>
-            <TableHeader className="border-b border-gray-100 dark:border-white/[0.05]">
-              <TableRow>
-                <TableCell
-                  isHeader
-                  className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400"
-                >
-                  이름
-                </TableCell>
-                <TableCell
-                  isHeader
-                  className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400"
-                >
-                  코드
-                </TableCell>
-                <TableCell
-                  isHeader
-                  className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400"
-                >
-                  설명
-                </TableCell>
-                <TableCell
-                  isHeader
-                  className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400"
-                >
-                  상태
-                </TableCell>
-              </TableRow>
-            </TableHeader>
-            <TableBody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
-              {paginatedRoles.map((role, index) => (
-                <TableRow
-                  key={`${getRoleCode(role)}-${pagination.currentPage}-${index}`}
-                >
-                  <TableCell className="px-5 py-4 text-sm text-gray-800 dark:text-white/90">
-                    {getRoleName(role)}
-                  </TableCell>
-                  <TableCell className="px-5 py-4 text-sm text-gray-500 dark:text-gray-400">
-                    <code>{getRoleCode(role)}</code>
-                  </TableCell>
-                  <TableCell className="px-5 py-4 text-sm text-gray-500 dark:text-gray-400">
-                    {getRoleDescription(role)}
-                  </TableCell>
-                  <TableCell className="px-5 py-4 text-sm">
-                    <Badge
-                      size="sm"
-                      color={role.isActive === false ? "error" : "success"}
-                    >
-                      {role.isActive === false ? "비활성" : "활성"}
-                    </Badge>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <DataTable fillWidth>
+            <DataTableHeader>
+              <DataTableHeaderCell colSpan={1} compact sortable={false}>
+                <DataTableHeaderLabel>이름</DataTableHeaderLabel>
+              </DataTableHeaderCell>
+              <DataTableHeaderCell colSpan={1} compact sortable={false}>
+                <DataTableHeaderLabel>코드</DataTableHeaderLabel>
+              </DataTableHeaderCell>
+              <DataTableHeaderCell colSpan={1} compact sortable={false}>
+                <DataTableHeaderLabel>설명</DataTableHeaderLabel>
+              </DataTableHeaderCell>
+              <DataTableHeaderCell
+                colSpan={1}
+                compact
+                sortable={false}
+                className="border-r-0"
+              >
+                <DataTableHeaderLabel>상태</DataTableHeaderLabel>
+              </DataTableHeaderCell>
+            </DataTableHeader>
+            <DataTableBody>
+              {filteredRoles.length === 0 ? (
+                <DataTableRow>
+                  <DataTableCell
+                    colSpan={4}
+                    compact
+                    className="justify-center border-r-0 py-6"
+                  >
+                    조건에 맞는 역할이 없습니다.
+                  </DataTableCell>
+                </DataTableRow>
+              ) : (
+                paginatedRoles.map((role, index) => (
+                  <DataTableRow
+                    key={`${getRoleCode(role)}-${pagination.currentPage}-${index}`}
+                  >
+                    <DataTableCell colSpan={1} compact>
+                      {getRoleName(role)}
+                    </DataTableCell>
+                    <DataTableCell colSpan={1} compact>
+                      <code>{getRoleCode(role)}</code>
+                    </DataTableCell>
+                    <DataTableCell colSpan={1} compact>
+                      {getRoleDescription(role)}
+                    </DataTableCell>
+                    <DataTableCell colSpan={1} compact className="border-r-0">
+                      <ActiveStatusBadge active={role.isActive} />
+                    </DataTableCell>
+                  </DataTableRow>
+                ))
+              )}
+            </DataTableBody>
+          </DataTable>
         )}
       </ListPageLayout>
     </>

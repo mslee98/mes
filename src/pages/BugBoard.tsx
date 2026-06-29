@@ -4,27 +4,27 @@ import { notify } from "../lib/notify";
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import ListPageLoading from "../components/common/ListPageLoading";
-import Badge from "../components/ui/badge/Badge";
 import Select from "../components/form/Select";
 import Input from "../components/form/input/InputField";
 import TextArea from "../components/form/input/TextArea";
 import { Modal } from "../components/ui/modal";
 import ConfirmModal from "../components/common/ConfirmModal";
 import {
+  DataTable,
+  DataTableBody,
+  DataTableCell,
+  DataTableHeader,
+  DataTableHeaderCell,
+  DataTableHeaderLabel,
+  DataTableRow,
   DataListPrimaryActionButton,
   DataListSearchInput,
   DataListSearchOptionsButton,
   ListPageLayout,
   ListPageToolbarRow,
+  StatusBadgeCell,
   TablePagination,
 } from "../components/list";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHeader,
-  TableRow,
-} from "../components/ui/table";
 import { useAuth } from "../hooks/useAuth";
 import { useServerListPagination } from "../hooks/useServerListPagination";
 import {
@@ -43,7 +43,6 @@ import {
   BUG_BOARD_STATUS_FILTER_OPTIONS,
   labelForBugBoardStatus,
   labelForBugPriority,
-  statusBadgeColor,
 } from "../lib/bugBoardDisplay";
 
 type BugBoardFormState = {
@@ -329,80 +328,95 @@ export default function BugBoard() {
               </p>
             </div>
           ) : items.length === 0 ? (
-            <div className="flex min-h-[320px] items-center justify-center text-gray-500 dark:text-gray-400">
-              <p className="text-sm">조건에 맞는 게시글이 없습니다.</p>
-            </div>
+            <DataTable fillWidth>
+              <DataTableHeader>
+                <DataTableHeaderCell colSpan={4} compact sortable={false}>
+                  <DataTableHeaderLabel>제목</DataTableHeaderLabel>
+                </DataTableHeaderCell>
+                <DataTableHeaderCell colSpan={2} compact sortable={false}>
+                  <DataTableHeaderLabel>우선순위</DataTableHeaderLabel>
+                </DataTableHeaderCell>
+                <DataTableHeaderCell colSpan={2} compact sortable={false}>
+                  <DataTableHeaderLabel>상태</DataTableHeaderLabel>
+                </DataTableHeaderCell>
+                <DataTableHeaderCell colSpan={2} compact sortable={false}>
+                  <DataTableHeaderLabel>작성자</DataTableHeaderLabel>
+                </DataTableHeaderCell>
+                <DataTableHeaderCell
+                  colSpan={2}
+                  compact
+                  sortable={false}
+                  className="border-r-0"
+                >
+                  <DataTableHeaderLabel>생성일</DataTableHeaderLabel>
+                </DataTableHeaderCell>
+              </DataTableHeader>
+              <DataTableBody>
+                <DataTableRow>
+                  <DataTableCell
+                    colSpan={12}
+                    compact
+                    className="justify-center border-r-0 py-6"
+                  >
+                    조건에 맞는 게시글이 없습니다.
+                  </DataTableCell>
+                </DataTableRow>
+              </DataTableBody>
+            </DataTable>
           ) : (
-            <Table>
-              <TableHeader className="border-b border-gray-100 dark:border-white/[0.05]">
-                <TableRow>
-                  <TableCell
-                    isHeader
-                    className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400"
-                  >
-                    제목
-                  </TableCell>
-                  <TableCell
-                    isHeader
-                    className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400"
-                  >
-                    우선순위
-                  </TableCell>
-                  <TableCell
-                    isHeader
-                    className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400"
-                  >
-                    상태
-                  </TableCell>
-                  <TableCell
-                    isHeader
-                    className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400"
-                  >
-                    작성자
-                  </TableCell>
-                  <TableCell
-                    isHeader
-                    className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400"
-                  >
-                    생성일
-                  </TableCell>
-                </TableRow>
-              </TableHeader>
-              <TableBody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
+            <DataTable fillWidth>
+              <DataTableHeader>
+                <DataTableHeaderCell colSpan={4} compact sortable={false}>
+                  <DataTableHeaderLabel>제목</DataTableHeaderLabel>
+                </DataTableHeaderCell>
+                <DataTableHeaderCell colSpan={2} compact sortable={false}>
+                  <DataTableHeaderLabel>우선순위</DataTableHeaderLabel>
+                </DataTableHeaderCell>
+                <DataTableHeaderCell colSpan={2} compact sortable={false}>
+                  <DataTableHeaderLabel>상태</DataTableHeaderLabel>
+                </DataTableHeaderCell>
+                <DataTableHeaderCell colSpan={2} compact sortable={false}>
+                  <DataTableHeaderLabel>작성자</DataTableHeaderLabel>
+                </DataTableHeaderCell>
+                <DataTableHeaderCell
+                  colSpan={2}
+                  compact
+                  sortable={false}
+                  className="border-r-0"
+                >
+                  <DataTableHeaderLabel>생성일</DataTableHeaderLabel>
+                </DataTableHeaderCell>
+              </DataTableHeader>
+              <DataTableBody>
                 {items.map((item) => {
                   const isSelected = selectedId === item.id && detailModalOpen;
                   return (
-                    <TableRow
+                    <DataTableRow
                       key={item.id}
-                      className={`cursor-pointer ${
-                        isSelected
-                          ? "bg-brand-50 dark:bg-brand-500/10"
-                          : "hover:bg-gray-50 dark:hover:bg-white/[0.03]"
-                      }`}
+                      selected={isSelected}
+                      className="cursor-pointer hover:bg-gray-50 dark:hover:bg-white/[0.03]"
                       onClick={() => handleRowSelect(item)}
                     >
-                      <TableCell className="px-5 py-4 text-sm font-medium text-gray-800 dark:text-white/90">
+                      <DataTableCell colSpan={4} compact>
                         {item.title}
-                      </TableCell>
-                      <TableCell className="px-5 py-4 text-sm text-gray-600 dark:text-gray-300">
+                      </DataTableCell>
+                      <DataTableCell colSpan={2} compact>
                         {labelForBugPriority(item.priority)}
-                      </TableCell>
-                      <TableCell className="px-5 py-4 text-sm">
-                        <Badge size="sm" color={statusBadgeColor(item.status)}>
-                          {labelForBugBoardStatus(item.status)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="px-5 py-4 text-sm text-gray-500 dark:text-gray-400">
+                      </DataTableCell>
+                      <DataTableCell colSpan={2} compact>
+                        <StatusBadgeCell label={labelForBugBoardStatus(item.status)} />
+                      </DataTableCell>
+                      <DataTableCell colSpan={2} compact>
                         {item.createdByName?.trim() || "-"}
-                      </TableCell>
-                      <TableCell className="px-5 py-4 text-sm text-gray-500 dark:text-gray-400">
+                      </DataTableCell>
+                      <DataTableCell colSpan={2} compact className="border-r-0">
                         {item.createdAt?.slice(0, 10) || "-"}
-                      </TableCell>
-                    </TableRow>
+                      </DataTableCell>
+                    </DataTableRow>
                   );
                 })}
-              </TableBody>
-            </Table>
+              </DataTableBody>
+            </DataTable>
           )}
       </ListPageLayout>
 

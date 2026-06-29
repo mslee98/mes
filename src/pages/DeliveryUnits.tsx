@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { useQueries, useQuery } from "@tanstack/react-query";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import PageMeta from "../components/common/PageMeta";
 import SegmentedControl from "../components/common/SegmentedControl";
@@ -18,37 +17,25 @@ import {
   ListPageLayout,
   ListPageToolbarRow,
   TablePagination,
+  ListTabCountBadge,
 } from "../components/list";
 import ListPageLoading from "../components/common/ListPageLoading";
-import Badge from "../components/ui/badge/Badge";
 import Button from "../components/ui/button/Button";
 import { DeliveryPlanCreateModal } from "../components/delivery/DeliveryPlanCreateModal";
 import { DeliveryUnitListRow } from "../components/production/DeliveryUnitListRow";
 import { useAuth } from "../hooks/useAuth";
-import { useCommonCodesByGroup } from "../hooks/useCommonCodesByGroup";
 import { useDeliveryPermissions } from "../hooks/useDeliveryPermissions";
 import { useDeliveryPlanUnitSelection } from "../hooks/useDeliveryPlanUnitSelection";
-import { useServerListPagination } from "../hooks/useServerListPagination";
 import {
-  COMMON_CODE_GROUP_COUNTRY,
-  COMMON_CODE_GROUP_UNIT_PROCESS_STEP,
-} from "../api/commonCode";
-import { todayYmdInTimeZone } from "../lib/format/dateFormat";
-import { getDueDateRelative } from "../lib/format/dueDateDisplay";
-import {
-  PRODUCTION_PLAN_UNIT_TABS,
-  tabLabel,
   type UnitListMode,
   unitListBreadcrumbTitle,
   unitListMetaDescription,
   unitListPageTitle,
-  perspectiveForUnitListMode,
 } from "../domains/production-plan/helpers/unitListPerspective";
 import {
-  compareUnitsNewestFirst,
-  resolveUnitListSort,
-} from "../domains/production-plan/helpers/unitListSort";
-import { PRODUCTION_PLAN_UNIT_LIST_STALE_TIME_MS } from "../domains/production-plan/queries/unitListQueryOptions";
+  dateBasisLabel,
+  useProductionPlanUnitListPage,
+} from "../domains/production-plan/hooks/useProductionPlanUnitListPage";
 import {
   DELIVERY_UNIT_COLUMN_ALIGN,
   DELIVERY_UNIT_TABLE_MIN_WIDTH_PX,
@@ -56,123 +43,7 @@ import {
   deliveryUnitTableLayout,
   deliveryUnitTableTrackCount,
 } from "../domains/delivery/layout/deliveryUnitDataTableLayout";
-import {
-  getProductionPlanUnitOverview,
-  getProductionPlanUnits,
-  type DeliveryPlanAssignmentFilter,
-  type ProductionPlanUnitCounts,
-  type ProductionPlanUnitDateBasis,
-  type ProductionPlanUnitListParams,
-  type ProductionPlanUnitListResponse,
-  type ProductionPlanUnitPerspective,
-  type ProductionPlanUnitTab,
-} from "../api/purchaseOrder";
-
-const DEFAULT_PAGE_SIZE = 20;
-/** 지연 탭: 서버 `DELAYED` 외 대기·진행 중 달력 지연 유닛 포함 — 소스 탭별 상한(백엔드와 동일 범위·검색 조건) */
-const DELAYED_TAB_SOURCE_PAGE_SIZE = 500;
-
-const DELIVERY_PLAN_ASSIGNMENT_LABELS: Record<
-  DeliveryPlanAssignmentFilter | "all",
-  string
-> = {
-  unassigned: "미배정",
-  assigned: "배정됨",
-  all: "전체",
-};
-
-type ProductionAssignmentView = DeliveryPlanAssignmentFilter | "all";
-
-function normalizeMonthInput(v: string): string {
-  if (!/^\d{4}-\d{2}$/.test(v)) return "";
-  const [yearText, monthText] = v.split("-");
-  const year = Number(yearText);
-  const month = Number(monthText);
-  if (!Number.isFinite(year) || !Number.isFinite(month)) return "";
-  if (month < 1 || month > 12) return "";
-  return `${yearText}-${monthText}`;
-}
-
-type ProductionPlanUnitListRow = ProductionPlanUnitListResponse["items"][number];
-
-function tabBadgeCount(
-  tab: ProductionPlanUnitTab,
-  summary?: ProductionPlanUnitCounts
-): number {
-  if (!summary) return 0;
-  if (tab === "ALL") return Number(summary.all) || Number(summary.total) || 0;
-  if (tab === "WAITING") return Number(summary.waiting) || 0;
-  if (tab === "IN_PROGRESS") return Number(summary.inProgress) || 0;
-  if (tab === "COMPLETED") return Number(summary.completed) || 0;
-  return Number(summary.delayed) || 0;
-}
-
-function tabCountBadge(tab: ProductionPlanUnitTab, count: number) {
-  if (tab === "ALL") {
-    return (
-      <Badge size="sm" variant="solid" color="dark">
-        {count}
-      </Badge>
-    );
-  }
-  if (tab === "WAITING") {
-    return (
-      <Badge size="sm" variant="solid" color="dark">
-        {count}
-      </Badge>
-    );
-  }
-  if (tab === "COMPLETED") {
-    return (
-      <Badge size="sm" color="success">
-        {count}
-      </Badge>
-    );
-  }
-  if (tab === "DELAYED") {
-    return (
-      <Badge size="sm" color="warning">
-        {count}
-      </Badge>
-    );
-  }
-  return (
-    <Badge size="sm" color="primary">
-      {count}
-    </Badge>
-  );
-}
-
-function toDateBasisLabel(v: ProductionPlanUnitDateBasis): string {
-  if (v === "delivery") return "납품일";
-  if (v === "coalesce") return "계획우선(보정)";
-  return "계획일";
-}
-
-/** 서울 달력 기준: 미납품이고 발주 최종 납기가 오늘보다 이전이면 지연 */
-function isRowCalendarDelayed(
-  row: ProductionPlanUnitListRow,
-  todayYmd: string
-): boolean {
-  if (row.isDelivered === true) return false;
-  const rel = getDueDateRelative(row.dueDate, { todayYmd });
-  return rel != null && rel.diff < 0;
-}
-
-function mergeDelayedTabItems(
-  responses: Array<ProductionPlanUnitListResponse | undefined>,
-  todayYmd: string
-): ProductionPlanUnitListRow[] {
-  const byId = new Map<string, ProductionPlanUnitListRow>();
-  for (const res of responses) {
-    for (const item of res?.items ?? []) {
-      byId.set(item.unitId, item);
-    }
-  }
-  const merged = [...byId.values()].filter((row) => isRowCalendarDelayed(row, todayYmd));
-  merged.sort(compareUnitsNewestFirst);
-  return merged;
-}
+import type { ProductionPlanUnitPerspective } from "../api/purchaseOrder";
 
 type DeliveryUnitsProps = {
   /** @deprecated perspective 대신 mode 사용 */
@@ -189,23 +60,9 @@ export default function DeliveryUnits({
   const mode: UnitListMode =
     modeProp ??
     (perspectiveProp === "delivery" ? "delivery" : "overview-units");
-  const perspective = perspectiveForUnitListMode(mode);
-  const isOverviewUnits = mode === "overview-units";
-  const isDelivery = mode === "delivery";
+
   const { accessToken, isLoading: isAuthLoading } = useAuth();
   const { canCreateDelivery } = useDeliveryPermissions();
-
-  const { data: unitProcessStepCodes = [] } = useCommonCodesByGroup(
-    COMMON_CODE_GROUP_UNIT_PROCESS_STEP,
-    accessToken,
-    { enabled: !!accessToken && !isAuthLoading }
-  );
-
-  const { data: countryCodes = [] } = useCommonCodesByGroup(
-    COMMON_CODE_GROUP_COUNTRY,
-    accessToken,
-    { enabled: !!accessToken && !isAuthLoading }
-  );
 
   const {
     selectedItems,
@@ -217,165 +74,47 @@ export default function DeliveryUnits({
     getRowCheckboxOrderMismatchHint,
   } = useDeliveryPlanUnitSelection();
 
-  const [searchOptionsOpen, setSearchOptionsOpen] = useState(false);
-  const [searchKeyword, setSearchKeyword] = useState("");
-  const [tab, setTab] = useState<ProductionPlanUnitTab>("ALL");
-  const [assignmentView, setAssignmentView] =
-    useState<ProductionAssignmentView>("all");
   const [createPlanOpen, setCreatePlanOpen] = useState(false);
-  const [fromMonth, setFromMonth] = useState("");
-  const [toMonth, setToMonth] = useState("");
-  const [dateBasis, setDateBasis] = useState<ProductionPlanUnitDateBasis>("planned");
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
-
-  const safeFromMonth = normalizeMonthInput(fromMonth);
-  const safeToMonth = normalizeMonthInput(toMonth);
-  const hasMonthRange = safeFromMonth !== "" && safeToMonth !== "";
-
-  const assignmentParams = useMemo(
-    () => {
-      if (isOverviewUnits) return {};
-      if (perspective === "production" && assignmentView !== "all") {
-        return { deliveryPlanAssignment: assignmentView };
-      }
-      return {};
-    },
-    [isOverviewUnits, perspective, assignmentView]
-  );
-
-  const overviewParams = useMemo(
-    () => ({
-      perspective,
-      ...assignmentParams,
-      ...(hasMonthRange
-        ? {
-            fromMonth: safeFromMonth,
-            toMonth: safeToMonth,
-          }
-        : {}),
-      dateBasis,
-      tz: "Asia/Seoul",
-    }),
-    [
-      perspective,
-      assignmentParams,
-      hasMonthRange,
-      safeFromMonth,
-      safeToMonth,
-      dateBasis,
-    ]
-  );
-
-  const listParams = useMemo(() => {
-    const sort = resolveUnitListSort(tab);
-    return {
-      ...overviewParams,
-      tab,
-      page,
-      pageSize,
-      q: searchKeyword.trim() || undefined,
-      ...sort,
-    };
-  }, [overviewParams, tab, page, pageSize, searchKeyword]);
-
-  const delayedMergeFetchParams = useMemo((): Omit<ProductionPlanUnitListParams, "tab"> => {
-    const sort = resolveUnitListSort("DELAYED");
-    return {
-      ...overviewParams,
-      page: 1,
-      pageSize: DELAYED_TAB_SOURCE_PAGE_SIZE,
-      q: searchKeyword.trim() || undefined,
-      ...sort,
-    };
-  }, [overviewParams, searchKeyword]);
-
-  const delayedSourceTabs = useMemo(
-    () => ["IN_PROGRESS", "WAITING", "DELAYED"] as const satisfies readonly ProductionPlanUnitTab[],
-    []
-  );
 
   const {
-    data: overviewData,
-    isLoading: isOverviewLoading,
-    error: overviewError,
-  } = useQuery({
-    queryKey: ["productionPlanUnitOverview", overviewParams],
-    queryFn: () => getProductionPlanUnitOverview(accessToken!, overviewParams),
-    enabled: !!accessToken && !isAuthLoading,
-    staleTime: PRODUCTION_PLAN_UNIT_LIST_STALE_TIME_MS,
-  });
-
-  const {
-    data: serverListData,
-    isLoading: isServerListLoading,
-    error: serverListError,
-  } = useQuery({
-    queryKey: ["productionPlanUnits", listParams],
-    queryFn: () => getProductionPlanUnits(accessToken!, listParams),
-    enabled: !!accessToken && !isAuthLoading && tab !== "DELAYED",
-    staleTime: PRODUCTION_PLAN_UNIT_LIST_STALE_TIME_MS,
-  });
-
-  const delayedSourceQueries = useQueries({
-    queries: delayedSourceTabs.map((sourceTab) => ({
-      queryKey: ["productionPlanUnits", "DELAYED_MERGE", sourceTab, delayedMergeFetchParams],
-      queryFn: () =>
-        getProductionPlanUnits(accessToken!, {
-          ...delayedMergeFetchParams,
-          tab: sourceTab,
-        }),
-      enabled: !!accessToken && !isAuthLoading,
-      staleTime: PRODUCTION_PLAN_UNIT_LIST_STALE_TIME_MS,
-    })),
-  });
-
-  const todaySeoulYmd = todayYmdInTimeZone();
-  const delayedMergeReady = delayedSourceQueries.every((q) => q.isFetched);
-
-  const calendarDelayedMerged = useMemo((): ProductionPlanUnitListRow[] | null => {
-    if (!delayedMergeReady) return null;
-    return mergeDelayedTabItems(
-      delayedSourceQueries.map((q) => q.data),
-      todaySeoulYmd
-    );
-  }, [delayedMergeReady, delayedSourceQueries, todaySeoulYmd]);
-
-  const listData = useMemo((): ProductionPlanUnitListResponse | undefined => {
-    if (tab !== "DELAYED") return serverListData;
-    if (calendarDelayedMerged === null) return undefined;
-    const firstMeta = delayedSourceQueries[0]?.data?.meta;
-    const start = (page - 1) * pageSize;
-    return {
-      meta: {
-        tab: "DELAYED",
-        page,
-        pageSize,
-        total: calendarDelayedMerged.length,
-        dateBasis: firstMeta?.dateBasis ?? dateBasis,
-        fromMonth: firstMeta?.fromMonth ?? null,
-        toMonth: firstMeta?.toMonth ?? null,
-      },
-      items: calendarDelayedMerged.slice(start, start + pageSize),
-    };
-  }, [
+    perspective,
+    isOverviewUnits,
+    unitProcessStepCodes,
+    countryCodes,
+    searchOptionsOpen,
+    setSearchOptionsOpen,
+    searchKeyword,
+    setSearchKeyword,
     tab,
-    serverListData,
-    calendarDelayedMerged,
-    delayedSourceQueries,
-    page,
-    pageSize,
+    setTab,
+    assignmentView,
+    setAssignmentView,
+    setFromMonth,
+    setToMonth,
     dateBasis,
-  ]);
+    setDateBasis,
+    page,
+    setPage,
+    safeFromMonth,
+    safeToMonth,
+    hasMonthRange,
+    overviewData,
+    listItems,
+    tabOptions,
+    assignmentOptions,
+    listPagination,
+    isLoading,
+    error,
+    handleSearchReset,
+    showAssignmentFilter,
+    statusSectionTitle,
+  } = useProductionPlanUnitListPage({
+    mode,
+    accessToken,
+    isAuthLoading,
+  });
 
-  const isDelayedSourcesLoading =
-    tab === "DELAYED" &&
-    (delayedSourceQueries.some((q) => q.isLoading) || calendarDelayedMerged === null);
-  const delayedSourcesError = delayedSourceQueries.find((q) => q.error)?.error;
-
-  /** overview-units: 미배정 유닛 선택 → 납품 계획 생성 */
   const reserveCheckboxColumn = isOverviewUnits && canCreateDelivery;
-
   const showCheckboxColumn = reserveCheckboxColumn;
 
   const unitTableLayout = useMemo(
@@ -394,84 +133,31 @@ export default function DeliveryUnits({
     clear();
   }, [assignmentView, tab, perspective, clear]);
 
-  const totalCount = Number(listData?.meta?.total) || 0;
-  const listPagination = useServerListPagination({
-    totalCount,
-    listPage: page,
-    setListPage: setPage,
-    listPageSize: pageSize,
-    setListPageSize: setPageSize,
-    resetPageDeps: [
-      tab,
-      fromMonth,
-      toMonth,
-      dateBasis,
-      searchKeyword,
-      assignmentView,
-      perspective,
-    ],
-  });
-
-  const tabOptions = useMemo(
+  const segmentedTabOptions = useMemo(
     () =>
-      PRODUCTION_PLAN_UNIT_TABS.map((tabValue) => {
-        const badgeCount =
-          tabValue === "DELAYED"
-            ? calendarDelayedMerged !== null
-              ? calendarDelayedMerged.length
-              : Number(overviewData?.summary?.delayed) || 0
-            : tabBadgeCount(tabValue, overviewData?.summary);
-        return {
-          value: tabValue,
-          label: (
-            <span className="inline-flex items-center gap-2">
-              <span>{tabLabel(perspective, tabValue)}</span>
-              {tabCountBadge(tabValue, badgeCount)}
-            </span>
-          ),
-        };
-      }),
-    [overviewData?.summary, calendarDelayedMerged, perspective]
-  );
-
-  const assignmentOptions = useMemo(
-    () =>
-      (["unassigned", "assigned", "all"] as const).map((value) => ({
-        value,
-        label: DELIVERY_PLAN_ASSIGNMENT_LABELS[value],
+      tabOptions.map((option) => ({
+        value: option.value,
+        label: (
+          <span className="inline-flex items-center gap-2">
+            <span>{option.label}</span>
+            <ListTabCountBadge count={option.badgeCount} tone={option.badgeTone} />
+          </span>
+        ),
       })),
-    []
+    [tabOptions]
   );
 
-  const handleSearchReset = () => {
-    setSearchKeyword("");
-    setFromMonth("");
-    setToMonth("");
-    setDateBasis("planned");
-    setTab("ALL");
-    setAssignmentView("all");
-    setPage(1);
+  const onSearchReset = () => {
+    handleSearchReset();
     clear();
   };
-
-  const isLoading =
-    isAuthLoading ||
-    isOverviewLoading ||
-    (tab === "DELAYED" ? isDelayedSourcesLoading : isServerListLoading);
-  const error = overviewError ?? (tab === "DELAYED" ? delayedSourcesError : serverListError);
-
-  const statusSectionTitle = isDelivery ? "납품 상태" : "생산 상태";
 
   const pageDesc = isOverviewUnits
     ? "생산 진행과 납품 등록 상태를 확인하고, 유닛을 선택해 납품 계획을 등록합니다."
     : "납품 계획에 포함된 유닛만 표시됩니다.";
 
-  const listItems = listData?.items ?? [];
-
   const pageTitle = unitListPageTitle(mode);
   const showStatusTabs = true;
-  const showAssignmentFilter =
-    perspective === "production" && !isOverviewUnits;
 
   return (
     <>
@@ -564,14 +250,14 @@ export default function DeliveryUnits({
                 <Select
                   size="sm"
                   options={[
-                    { value: "planned", label: toDateBasisLabel("planned") },
-                    { value: "delivery", label: toDateBasisLabel("delivery") },
-                    { value: "coalesce", label: toDateBasisLabel("coalesce") },
+                    { value: "planned", label: dateBasisLabel("planned") },
+                    { value: "delivery", label: dateBasisLabel("delivery") },
+                    { value: "coalesce", label: dateBasisLabel("coalesce") },
                   ]}
                   placeholder="기준일"
                   defaultValue={dateBasis}
                   onChange={(v) => {
-                    setDateBasis(v as ProductionPlanUnitDateBasis);
+                    setDateBasis(v as typeof dateBasis);
                     setPage(1);
                   }}
                 />
@@ -579,7 +265,7 @@ export default function DeliveryUnits({
               <div className="flex shrink-0 gap-2">
                 <button
                   type="button"
-                  onClick={handleSearchReset}
+                  onClick={onSearchReset}
                   className="h-9 rounded-lg border border-gray-300 bg-white px-4 text-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200"
                 >
                   초기화
@@ -602,7 +288,7 @@ export default function DeliveryUnits({
                         setTab(nextTab);
                         setPage(1);
                       }}
-                      options={tabOptions}
+                      options={segmentedTabOptions}
                       className="min-w-0 flex-1"
                     />
                     {showAssignmentFilter ? (
@@ -633,7 +319,7 @@ export default function DeliveryUnits({
               <p className="text-xs text-gray-500 dark:text-gray-400">
                 조회 범위:{" "}
                 {hasMonthRange ? `${safeFromMonth} ~ ${safeToMonth}` : "전체 기간"} / 기준일:{" "}
-                {toDateBasisLabel(dateBasis)} / 총{" "}
+                {dateBasisLabel(dateBasis)} / 총{" "}
                 {overviewData?.summary?.all ??
                   overviewData?.summary?.total ??
                   0}
@@ -783,7 +469,7 @@ export default function DeliveryUnits({
                       row={row}
                       index={index}
                       page={page}
-                      pageSize={pageSize}
+                      pageSize={listPagination.pageSize}
                       tab={tab}
                       perspective={perspective}
                       mode={mode}

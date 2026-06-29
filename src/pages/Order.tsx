@@ -1,16 +1,14 @@
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { usePartnerListFilter } from "../hooks/usePartnerListFilter";
 import { useServerListPagination } from "../hooks/useServerListPagination";
 import { useOrderCommonCodes } from "../hooks/useOrderCommonCodes";
+import { useListSortState } from "../hooks/useListSortState";
 import { Link, useNavigate } from "react-router";
-import flatpickr from "flatpickr";
-import "flatpickr/dist/flatpickr.css";
-import { Korean } from "flatpickr/dist/l10n/ko.js";
-import { createFlatpickrOverlayHooks } from "../lib/ui/flatpickrOverlay";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import PageMeta from "../components/common/PageMeta";
 import Select from "../components/form/Select";
+import DateRangeFilterInput from "../components/form/DateRangeFilterInput";
 import SearchableSelectWithCreate from "../components/form/SearchableSelectWithCreate";
 import { PartnerCountryCell } from "../components/partner/PartnerCountryCell";
 import {
@@ -29,19 +27,18 @@ import {
   dataListOutlineButtonClassName,
   DATA_TABLE_COMPACT_LINK_CLASS,
   TablePagination,
+  StatusBadgeCell,
 } from "../components/list";
-import Badge from "../components/ui/badge/Badge";
 import { Dropdown } from "../components/ui/dropdown/Dropdown";
 import ListPageLoading from "../components/common/ListPageLoading";
 import { useAuth } from "../hooks/useAuth";
 import {
   getPurchaseOrders,
-  type Partner,
   type PurchaseOrderListParams,
 } from "../api/purchaseOrder";
 import { commonCodesToSelectOptions } from "../api/commonCode";
+import { labelForPurchaseOrderStatus } from "../domains/order/labels/statusLabels";
 import { FileIcon } from "../icons";
-import { badgeColorFromKoStatusLabel } from "../lib/ui/badgeStatusColor";
 // import { formatCurrency } from "../lib/format/formatCurrency";
 
 const DEFAULT_PAGE_SIZE = 10;
@@ -71,11 +68,12 @@ export default function Order() {
   const [searchKey, setSearchKey] = useState(0);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
-  const [sortBy, setSortBy] = useState<PurchaseOrderSortKey>(DEFAULT_ORDER_SORT_KEY);
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">(
-    getDefaultOrderSortOrder(DEFAULT_ORDER_SORT_KEY)
-  );
-  const dateRangeInputRef = useRef<HTMLInputElement>(null);
+  const { sortBy, sortOrder, onToggleSort: handleOrderSortToggle } =
+    useListSortState(
+      DEFAULT_ORDER_SORT_KEY,
+      getDefaultOrderSortOrder,
+      setPage
+    );
   const flatpickrAnchorRef = useRef<HTMLDivElement>(null);
 
   const {
@@ -145,28 +143,6 @@ export default function Order() {
     ],
   });
 
-  useEffect(() => {
-    if (!dateRangeInputRef.current) return;
-    const overlayHooks = createFlatpickrOverlayHooks();
-    const fp = flatpickr(dateRangeInputRef.current, {
-      locale: Korean,
-      mode: "range",
-      dateFormat: "Y-m-d",
-      static: false,
-      monthSelectorType: "static",
-      appendTo: document.body,
-      position: "auto",
-      ...overlayHooks,
-      onChange: (selectedDates: Date[]) => {
-        setDateStart(selectedDates[0] ? selectedDates[0].toISOString().slice(0, 10) : "");
-        setDateEnd(selectedDates[1] ? selectedDates[1].toISOString().slice(0, 10) : "");
-      },
-    });
-    return () => {
-      if (!Array.isArray(fp)) fp.destroy();
-    };
-  }, [searchKey]);
-
   const orderStatusOptions = useMemo(() => {
     const list: { value: string; label: string }[] = [{ value: "", label: "전체" }];
     commonCodesToSelectOptions(orderStatusCodes).forEach((o) => list.push(o));
@@ -186,22 +162,9 @@ export default function Order() {
     setSearchKey((k) => k + 1);
   };
 
-  const getOrderStatusName = (code: string | undefined) => {
-    const c = code?.trim();
-    if (!c) return "미지정";
-    return orderStatusCodes.find((x) => x.code === c)?.name ?? c;
-  };
+  const getOrderStatusName = (code: string | undefined) =>
+    labelForPurchaseOrderStatus(orderStatusCodes, code);
 
-  const handleOrderSortToggle = (nextSortKey: string) => {
-    const normalizedSortKey = nextSortKey as PurchaseOrderSortKey;
-    setPage(1);
-    if (sortBy === normalizedSortKey) {
-      setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
-      return;
-    }
-    setSortBy(normalizedSortKey);
-    setSortOrder(getDefaultOrderSortOrder(normalizedSortKey));
-  };
   return (
     <>
       <PageMeta
@@ -321,20 +284,15 @@ export default function Order() {
               </div>
               <div key={`date-range-${searchKey}`} className="min-w-0 flex-1 sm:max-w-[14rem]">
                 <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">발주 일자</label>
-                <div className="relative">
-                  <input
-                    ref={dateRangeInputRef}
-                    type="text"
-                    readOnly
-                    placeholder="년-월-일 ~ 년-월-일"
-                    className="h-9 w-full rounded-md border border-gray-300 bg-transparent py-2 pl-3 pr-9 text-theme-xs text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
-                  />
-                  <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400">
-                    <svg className="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                  </span>
-                </div>
+                <DateRangeFilterInput
+                  start={dateStart}
+                  end={dateEnd}
+                  resetKey={searchKey}
+                  onChange={(nextStart, nextEnd) => {
+                    setDateStart(nextStart);
+                    setDateEnd(nextEnd);
+                  }}
+                />
               </div>
               <div className="flex shrink-0 gap-2">
                 <button
@@ -448,7 +406,7 @@ export default function Order() {
                       </DataTableCell>
                       <DataTableCell colSpan={2} compact>
                         <PartnerCountryCell
-                          partner={row.partner as Partner | undefined}
+                          partner={row.partnerSummary}
                           countryCodes={countryCodes}
                           variant="orderList"
                         />
@@ -460,9 +418,7 @@ export default function Order() {
                         {row.dueDate?.trim() ? row.dueDate : "-"}
                       </DataTableCell>
                       <DataTableCell colSpan={2} compact className="justify-center">
-                        <Badge size="sm" color={badgeColorFromKoStatusLabel(getOrderStatusName(row.orderStatus))}>
-                          {getOrderStatusName(row.orderStatus)}
-                        </Badge>
+                        <StatusBadgeCell label={getOrderStatusName(row.orderStatus)} />
                       </DataTableCell>
                       <DataTableCell colSpan={1} compact className="justify-center border-r-0">
                         {row.hasAttachments ? (

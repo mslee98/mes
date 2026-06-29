@@ -1,21 +1,32 @@
 import type {
   ProductionPlanUnitListItem,
   ProductionPlanUnitListParams,
+  ProductionPlanUnitPerspective,
   ProductionPlanUnitTab,
 } from "../../../api/purchaseOrder";
-import { ORDER_NEWEST_FIRST_SORT } from "./planListSort";
 
 type UnitListSort = Pick<
   ProductionPlanUnitListParams,
   "sortBy" | "sortOrder"
 >;
 
-/** 생산·납품 품목 목록 — 발주일 최신순(완료 탭은 납품 완료일) */
-export function resolveUnitListSort(tab: ProductionPlanUnitTab): UnitListSort {
+const DUE_DATE_ASC_SORT = {
+  sortBy: "dueDate",
+  sortOrder: "asc",
+} as const satisfies UnitListSort;
+
+/** 생산·납품 품목 목록 — 백엔드 계약 정렬 (docs/domains/DELIVERY.md §2) */
+export function resolveUnitListSort(
+  tab: ProductionPlanUnitTab,
+  perspective: ProductionPlanUnitPerspective
+): UnitListSort {
   if (tab === "COMPLETED") {
+    if (perspective === "production") {
+      return { sortBy: "productionCompletedAt", sortOrder: "desc" };
+    }
     return { sortBy: "deliveredAt", sortOrder: "desc" };
   }
-  return ORDER_NEWEST_FIRST_SORT;
+  return DUE_DATE_ASC_SORT;
 }
 
 function parseSortInstant(value: unknown): number {

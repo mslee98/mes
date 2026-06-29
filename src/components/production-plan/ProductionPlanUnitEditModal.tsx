@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useMutation } from "@tanstack/react-query";
-import toast from "react-hot-toast";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { notify } from "../../lib/notify";
 import FormField from "../form/FormField";
 import Input from "../form/input/InputField";
 import SearchableSelectWithCreate from "../form/SearchableSelectWithCreate";
@@ -15,6 +15,7 @@ import {
   updateProductionPlanUnit,
   type UpdateProductionPlanUnitPayload,
 } from "../../api/purchaseOrder";
+import { invalidateProductionPlanUnitListQueries } from "../../domains/production-plan/queries/invalidateUnitListQueries";
 import type { FlatPlanUnitRow } from "../../domains/production-plan/helpers/detailHelpers";
 import { validateLegacyProductSerialNo } from "../../domains/production-plan/serial/legacyProductSerialNumber";
 import {
@@ -71,6 +72,7 @@ export function ProductionPlanUnitEditModal({
   operatorUserOptions,
   onSaved,
 }: ProductionPlanUnitEditModalProps) {
+  const queryClient = useQueryClient();
   const [unitCode, setUnitCode] = useState("");
   const [operatorSelect, setOperatorSelect] = useState("");
   const [detectorSerialNo, setDetectorSerialNo] = useState("");
@@ -279,13 +281,19 @@ export function ProductionPlanUnitEditModal({
       if (!unit) throw new Error("품목 정보가 없습니다.");
       return updateProductionPlanUnit(unit.id, payload, accessToken);
     },
-    onSuccess: () => {
-      toast.success("품목 정보가 저장되었습니다.");
+    onSuccess: async () => {
+      notify.success("품목 정보가 저장되었습니다.");
+      await invalidateProductionPlanUnitListQueries(queryClient);
+      if (unit?.id) {
+        void queryClient.invalidateQueries({
+          queryKey: ["productionPlanUnit", unit.id],
+        });
+      }
       onSaved();
       onClose();
     },
     onError: (e: Error) => {
-      toast.error(e.message || "품목 정보를 저장하지 못했습니다.");
+      notify.error(e.message || "품목 정보를 저장하지 못했습니다.");
     },
   });
 
@@ -300,7 +308,7 @@ export function ProductionPlanUnitEditModal({
       if (nextCode !== initialSnapshot.unitCode) {
         const lotErr = validateLotUnitCodeInput(nextCode);
         if (lotErr) {
-          toast.error(lotErr);
+          notify.error(lotErr);
           return;
         }
         checks.push(runLotDuplicateCheck(nextCode));
@@ -321,12 +329,12 @@ export function ProductionPlanUnitEditModal({
       const nextDetector = detectorSerialNo.trim();
       if (nextDetector !== initialSnapshot.detectorSerialNo) {
         if (!nextDetector) {
-          toast.error("등록된 검출기 S/N은 비울 수 없습니다.");
+          notify.error("등록된 검출기 S/N은 비울 수 없습니다.");
           return;
         }
         const detErr = validateDetectorSerialInput(nextDetector);
         if (detErr) {
-          toast.error(detErr);
+          notify.error(detErr);
           return;
         }
         checks.push(runDetectorDuplicateCheck(nextDetector));
@@ -338,12 +346,12 @@ export function ProductionPlanUnitEditModal({
       const nextSerial = productSerialNo.trim();
       if (nextSerial !== initialSnapshot.productSerialNo) {
         if (!nextSerial) {
-          toast.error("등록된 제품 S/N은 비울 수 없습니다.");
+          notify.error("등록된 제품 S/N은 비울 수 없습니다.");
           return;
         }
         const serialErr = validateLegacyProductSerialNo(nextSerial);
         if (serialErr) {
-          toast.error(serialErr);
+          notify.error(serialErr);
           return;
         }
         checks.push(runProductSerialDuplicateCheck(nextSerial));
@@ -363,20 +371,20 @@ export function ProductionPlanUnitEditModal({
     }
 
     if (Object.keys(payload).length === 0) {
-      toast.error("변경된 항목이 없습니다.");
+      notify.error("변경된 항목이 없습니다.");
       return;
     }
 
     if (checks.length > 0) {
       const results = await Promise.all(checks);
       if (results.some((ok) => !ok)) {
-        toast.error("중복된 값이 있어 저장할 수 없습니다.");
+        notify.error("중복된 값이 있어 저장할 수 없습니다.");
         return;
       }
     }
 
     if (saveBlockedByDuplicateCheck) {
-      toast.error("중복 확인이 끝난 뒤 저장해 주세요.");
+      notify.error("중복 확인이 끝난 뒤 저장해 주세요.");
       return;
     }
 

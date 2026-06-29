@@ -8,52 +8,48 @@ import Input from "../components/form/input/InputField";
 import SearchableSelectWithCreate from "../components/form/SearchableSelectWithCreate";
 import PartnerQuickCreateModal from "../components/form/PartnerQuickCreateModal";
 import {
+  DataTable,
+  DataTableBody,
+  DataTableCell,
+  DataTableHeader,
+  DataTableHeaderCell,
+  DataTableHeaderLabel,
+  DataTableRow,
   DataListSearchInput,
   DataListPrimaryActionButton,
   DataListSearchOptionsButton,
   ListPageLayout,
   ListPageToolbarRow,
   TablePagination,
+  ListTabCountBadge,
+  StatusBadgeCell,
 } from "../components/list";
 import ListPageLoading from "../components/common/ListPageLoading";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHeader,
-  TableRow,
-} from "../components/ui/table";
-import Badge from "../components/ui/badge/Badge";
 import { useAuth } from "../hooks/useAuth";
-import { useCommonCodesByGroup } from "../hooks/useCommonCodesByGroup";
+import { useRmaCommonCodes } from "../hooks/useRmaCommonCodes";
+import { usePartnerCommonCodes } from "../hooks/usePartnerCommonCodes";
 import { usePartnerListFilter } from "../hooks/usePartnerListFilter";
 import { useRmaPermissions } from "../hooks/useRmaPermissions";
 import { useServerListPagination } from "../hooks/useServerListPagination";
+import { labelForCommonCode } from "../api/commonCode";
 import {
-  COMMON_CODE_GROUP_COUNTRY,
-  COMMON_CODE_GROUP_RMA_STATUS,
-  COMMON_CODE_GROUP_RMA_SYMPTOM,
-  COMMON_CODE_GROUP_RMA_RETURN_STATUS,
-  labelForCommonCode,
-} from "../api/commonCode";
-import { badgeColorByDomain } from "../lib/ui/badgeStatusColor";
+  labelForRmaReturnStatus,
+  labelForRmaStatus,
+} from "../domains/rma/labels/statusLabels";
+import {
+  rmaTabBadgeTone,
+  rmaTabCount,
+} from "../domains/rma/helpers/rmaListTabBadges";
 import {
   getRmaRequests,
   getRmaTabCounts,
   type RmaListFilterParams,
   type RmaListParams,
   type RmaListUiTab,
-  type RmaStatus,
-  type RmaTabCountsResponse,
 } from "../api/rma";
 import { formatDateTimeKo } from "../lib/format/dateFormat";
 
 const DEFAULT_PAGE_SIZE = 20;
-
-/** 발주·생산 목록과 비슷한 행 높이 — RMA만 세로 패딩이 없어 답답해 보이던 문제 */
-const RMA_LIST_HEADER_CELL_CLASS =
-  "px-3 py-2 font-medium text-theme-xs text-gray-500 dark:text-gray-400";
-const RMA_LIST_BODY_CELL_CLASS = "px-3 py-3.5 align-middle text-theme-sm";
 
 type RmaUiTab = RmaListUiTab;
 const DEFAULT_RMA_TAB: RmaUiTab = "ALL";
@@ -69,77 +65,8 @@ const RMA_TABS: Array<{ value: RmaUiTab; label: string }> = [
   { value: "CLOSED", label: "종료" },
 ];
 
-function rmaTabCount(tab: RmaUiTab, counts?: RmaTabCountsResponse): number {
-  if (!counts) return 0;
-  if (tab === "ALL") return Number(counts.all) || 0;
-  if (tab === "RECEIVED") return Number(counts.received) || 0;
-  if (tab === "IN_PROGRESS") return Number(counts.inProgress) || 0;
-  if (tab === "COMPLETED") return Number(counts.completed) || 0;
-  if (tab === "RETURN") return Number(counts.return) || 0;
-  return Number(counts.closed) || 0;
-}
-
-function rmaTabCountBadge(tab: RmaUiTab, count: number) {
-  if (tab === "ALL") {
-    return (
-      <Badge size="sm" variant="solid" color="dark">
-        {count}
-      </Badge>
-    );
-  }
-  if (tab === "COMPLETED") {
-    return (
-      <Badge size="sm" color="success">
-        {count}
-      </Badge>
-    );
-  }
-  if (tab === "CLOSED") {
-    return (
-      <Badge size="sm" color="error">
-        {count}
-      </Badge>
-    );
-  }
-  if (tab === "IN_PROGRESS") {
-    return (
-      <Badge size="sm" color="warning">
-        {count}
-      </Badge>
-    );
-  }
-  return (
-    <Badge size="sm" color="primary">
-      {count}
-    </Badge>
-  );
-}
-
-function statusLabel(code: string | null | undefined, statusCodes: Array<{ code: string; name: string }>) {
-  const statusCode = String(code ?? "").trim();
-  if (!statusCode) return "미지정";
-  const matched = statusCodes.find((item) => String(item.code).trim() === statusCode);
-  return matched?.name || statusCode;
-}
-
 function toText(value: unknown): string {
   return String(value ?? "").trim();
-}
-
-function returnStatusLabel(
-  row: {
-    returnStatus?: string | null;
-    returnRequiredYn?: boolean | null;
-    status?: RmaStatus;
-  },
-  returnStatusCodes: Parameters<typeof labelForCommonCode>[0]
-) {
-  const explicit = toText(row.returnStatus);
-  if (explicit) return labelForCommonCode(returnStatusCodes, explicit);
-  if (row.status === "RETURN_WAITING") return "반송대기";
-  if (row.status === "RETURNED") return "반송완료";
-  if (row.returnRequiredYn) return "반송 필요";
-  return "-";
 }
 
 export default function Rma() {
@@ -155,29 +82,16 @@ export default function Rma() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
 
-  const { data: countryCodes = [] } = useCommonCodesByGroup(
-    COMMON_CODE_GROUP_COUNTRY,
+  const { countryCodes } = usePartnerCommonCodes(
     accessToken,
-    { enabled: !!accessToken && !isAuthLoading }
+    !!accessToken && !isAuthLoading
   );
 
-  const { data: rmaStatusCodes = [] } = useCommonCodesByGroup(
-    COMMON_CODE_GROUP_RMA_STATUS,
-    accessToken,
-    { enabled: !!accessToken && !isAuthLoading }
-  );
-
-  const { data: rmaSymptomCodes = [] } = useCommonCodesByGroup(
-    COMMON_CODE_GROUP_RMA_SYMPTOM,
-    accessToken,
-    { enabled: !!accessToken && !isAuthLoading }
-  );
-
-  const { data: rmaReturnStatusCodes = [] } = useCommonCodesByGroup(
-    COMMON_CODE_GROUP_RMA_RETURN_STATUS,
-    accessToken,
-    { enabled: !!accessToken && !isAuthLoading }
-  );
+  const {
+    rmaStatusCodes,
+    rmaSymptomCodes,
+    rmaReturnStatusCodes,
+  } = useRmaCommonCodes(accessToken, !isAuthLoading);
 
   const {
     partnerId,
@@ -259,7 +173,10 @@ export default function Rma() {
           label: (
             <span className="inline-flex items-center gap-2">
               <span>{tabOption.label}</span>
-              {rmaTabCountBadge(tabOption.value, count)}
+              <ListTabCountBadge
+                count={count}
+                tone={rmaTabBadgeTone(tabOption.value)}
+              />
             </span>
           ),
         };
@@ -429,57 +346,63 @@ export default function Rma() {
               목록을 불러오는 중 오류가 발생했습니다.
             </div>
           ) : (
-            <Table>
-              <TableHeader className="border-b border-gray-100 dark:border-white/[0.05]">
-                <TableRow>
-                  <TableCell isHeader className={`${RMA_LIST_HEADER_CELL_CLASS} text-start`}>
-                    RMA 번호
-                  </TableCell>
-                  <TableCell isHeader className={`${RMA_LIST_HEADER_CELL_CLASS} text-start`}>
-                    LOT
-                  </TableCell>
-                  <TableCell isHeader className={`${RMA_LIST_HEADER_CELL_CLASS} text-start`}>
-                    제품 S/N
-                  </TableCell>
-                  <TableCell isHeader className={`${RMA_LIST_HEADER_CELL_CLASS} text-start`}>
-                    거래처
-                  </TableCell>
-                  <TableCell isHeader className={`${RMA_LIST_HEADER_CELL_CLASS} text-start`}>
-                    증상
-                  </TableCell>
-                  <TableCell isHeader className={`${RMA_LIST_HEADER_CELL_CLASS} text-center`}>
-                    상태
-                  </TableCell>
-                  <TableCell isHeader className={`${RMA_LIST_HEADER_CELL_CLASS} text-start`}>
-                    접수일
-                  </TableCell>
-                  <TableCell isHeader className={`${RMA_LIST_HEADER_CELL_CLASS} text-start`}>
-                    반송 상태
-                  </TableCell>
-                </TableRow>
-              </TableHeader>
-              <TableBody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
+            <DataTable minWidth={960}>
+              <DataTableHeader>
+                <DataTableHeaderCell colSpan={2} compact sortable={false}>
+                  <DataTableHeaderLabel>RMA 번호</DataTableHeaderLabel>
+                </DataTableHeaderCell>
+                <DataTableHeaderCell colSpan={1} compact sortable={false}>
+                  <DataTableHeaderLabel>LOT</DataTableHeaderLabel>
+                </DataTableHeaderCell>
+                <DataTableHeaderCell colSpan={2} compact sortable={false}>
+                  <DataTableHeaderLabel>제품 S/N</DataTableHeaderLabel>
+                </DataTableHeaderCell>
+                <DataTableHeaderCell colSpan={2} compact sortable={false}>
+                  <DataTableHeaderLabel>거래처</DataTableHeaderLabel>
+                </DataTableHeaderCell>
+                <DataTableHeaderCell colSpan={2} compact sortable={false}>
+                  <DataTableHeaderLabel>증상</DataTableHeaderLabel>
+                </DataTableHeaderCell>
+                <DataTableHeaderCell colSpan={1} compact sortable={false} align="center">
+                  <DataTableHeaderLabel align="center">상태</DataTableHeaderLabel>
+                </DataTableHeaderCell>
+                <DataTableHeaderCell colSpan={1} compact sortable={false}>
+                  <DataTableHeaderLabel>접수일</DataTableHeaderLabel>
+                </DataTableHeaderCell>
+                <DataTableHeaderCell
+                  colSpan={1}
+                  compact
+                  sortable={false}
+                  className="border-r-0"
+                >
+                  <DataTableHeaderLabel>반송 상태</DataTableHeaderLabel>
+                </DataTableHeaderCell>
+              </DataTableHeader>
+              <DataTableBody>
                 {rows.length === 0 ? (
-                  <TableRow>
-                    <TableCell
-                      colSpan={8}
-                      className="px-3 py-4 text-center text-theme-sm text-gray-500 dark:text-gray-400"
+                  <DataTableRow>
+                    <DataTableCell
+                      colSpan={12}
+                      compact
+                      align="center"
+                      className="border-r-0 py-4"
                     >
                       조건에 맞는 RMA가 없습니다.
-                    </TableCell>
-                  </TableRow>
+                    </DataTableCell>
+                  </DataTableRow>
                 ) : (
                   rows.map((row) => {
-                    const statusName = statusLabel(row.status, rmaStatusCodes);
+                    const statusName = labelForRmaStatus(rmaStatusCodes, row.status);
                     const rowRmaNo = toText(row.rmaNo) || `#${row.id}`;
-                    const rowUnitCode = toText(row.unitCode) || toText(row.productionPlanUnitId) || "-";
+                    const rowUnitCode =
+                      toText(row.unitCode) || toText(row.productionPlanUnitId) || "-";
                     const rowProductSerial = toText(row.productSerialNoSnapshot) || "-";
                     const rowPartner = toText(row.partnerName) || "-";
                     const rowSymptom = labelForCommonCode(rmaSymptomCodes, row.symptomCode);
-                    const rowReturnStatus = returnStatusLabel(row, rmaReturnStatusCodes);
+                    const rowReturnStatus = labelForRmaReturnStatus(row, rmaReturnStatusCodes);
 
                     return (
-                      <TableRow
+                      <DataTableRow
                         key={row.id}
                         className="cursor-pointer hover:bg-gray-50 dark:hover:bg-white/[0.03]"
                         onClick={() =>
@@ -488,52 +411,38 @@ export default function Rma() {
                           )
                         }
                       >
-                        <TableCell className={`${RMA_LIST_BODY_CELL_CLASS} text-start`}>
+                        <DataTableCell colSpan={2} compact>
                           <span className="font-medium text-gray-800 dark:text-gray-100">
                             {rowRmaNo}
                           </span>
-                        </TableCell>
-                        <TableCell
-                          className={`${RMA_LIST_BODY_CELL_CLASS} text-start font-mono text-gray-700 dark:text-gray-300`}
-                        >
+                        </DataTableCell>
+                        <DataTableCell colSpan={1} compact className="font-mono">
                           {rowUnitCode}
-                        </TableCell>
-                        <TableCell
-                          className={`${RMA_LIST_BODY_CELL_CLASS} text-start font-mono text-gray-700 dark:text-gray-300`}
-                        >
+                        </DataTableCell>
+                        <DataTableCell colSpan={2} compact className="font-mono">
                           {rowProductSerial}
-                        </TableCell>
-                        <TableCell
-                          className={`${RMA_LIST_BODY_CELL_CLASS} text-start text-gray-700 dark:text-gray-300`}
-                        >
+                        </DataTableCell>
+                        <DataTableCell colSpan={2} compact>
                           {rowPartner}
-                        </TableCell>
-                        <TableCell
-                          className={`${RMA_LIST_BODY_CELL_CLASS} text-start text-gray-700 dark:text-gray-300`}
-                        >
+                        </DataTableCell>
+                        <DataTableCell colSpan={2} compact>
                           {rowSymptom}
-                        </TableCell>
-                        <TableCell className={`${RMA_LIST_BODY_CELL_CLASS} text-center`}>
-                          <Badge size="sm" color={badgeColorByDomain("delivery", statusName)}>
-                            {statusName}
-                          </Badge>
-                        </TableCell>
-                        <TableCell
-                          className={`${RMA_LIST_BODY_CELL_CLASS} text-start text-gray-500 dark:text-gray-400`}
-                        >
+                        </DataTableCell>
+                        <DataTableCell colSpan={1} compact align="center">
+                          <StatusBadgeCell label={statusName} />
+                        </DataTableCell>
+                        <DataTableCell colSpan={1} compact>
                           {formatDateTimeKo(row.receivedAt, { emptyFallback: "-" })}
-                        </TableCell>
-                        <TableCell
-                          className={`${RMA_LIST_BODY_CELL_CLASS} text-start text-gray-700 dark:text-gray-300`}
-                        >
+                        </DataTableCell>
+                        <DataTableCell colSpan={1} compact className="border-r-0">
                           {rowReturnStatus}
-                        </TableCell>
-                      </TableRow>
+                        </DataTableCell>
+                      </DataTableRow>
                     );
                   })
                 )}
-              </TableBody>
-            </Table>
+              </DataTableBody>
+            </DataTable>
           )}
         </ListPageLayout>
       </div>

@@ -21,7 +21,7 @@ import {
   type UnitListMode,
 } from "../../domains/production-plan/helpers/unitListPerspective";
 import { formatUnitDeliveryStatus } from "../../domains/production-plan/helpers/deliveryActionCopy";
-import { ProductionPlanProcessStageBadge } from "../delivery/ProductionPlanProcessStageBadge";
+import { ProductionPlanProcessStageBadge } from "../production-plan/ProductionPlanProcessStageBadge";
 import { CopyTextButton } from "../common/CopyTextButton";
 import Checkbox from "../form/input/Checkbox";
 import Badge from "../ui/badge/Badge";

@@ -9,7 +9,7 @@ import type {
 import { useAuth } from "../../../hooks/useAuth";
 import { useCommonCodesByGroup } from "../../../hooks/useCommonCodesByGroup";
 import { DetailSummaryMetric } from "../../common/DetailSummaryMetric";
-import { ProductionPlanProcessStageBadge } from "../../delivery/ProductionPlanProcessStageBadge";
+import { ProductionPlanProcessStageBadge } from "../../production-plan/ProductionPlanProcessStageBadge";
 import Badge from "../../ui/badge/Badge";
 import {
   productionPlanUnitFromDetail,

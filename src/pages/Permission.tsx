@@ -4,22 +4,22 @@ import { getPermissions, type PermissionItem } from "../api/permission";
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import ListPageLoading from "../components/common/ListPageLoading";
-import Badge from "../components/ui/badge/Badge";
+import ActiveStatusBadge from "../components/common/ActiveStatusBadge";
 import Select from "../components/form/Select";
 import {
+  DataTable,
+  DataTableBody,
+  DataTableCell,
+  DataTableHeader,
+  DataTableHeaderCell,
+  DataTableHeaderLabel,
+  DataTableRow,
   DataListSearchInput,
   DataListSearchOptionsButton,
   ListPageLayout,
   ListPageToolbarRow,
   TablePagination,
 } from "../components/list";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHeader,
-  TableRow,
-} from "../components/ui/table";
 import { useAuth } from "../hooks/useAuth";
 import { useClientListPagination } from "../hooks/useClientListPagination";
 
@@ -195,66 +195,60 @@ export default function Permission() {
                 : "권한 목록을 불러오지 못했습니다."}
             </p>
           </div>
-        ) : filteredPermissions.length === 0 ? (
-          <div className="flex min-h-[320px] items-center justify-center text-gray-500 dark:text-gray-400">
-            <p className="text-sm">조건에 맞는 권한이 없습니다.</p>
-          </div>
         ) : (
-          <Table>
-            <TableHeader className="border-b border-gray-100 dark:border-white/[0.05]">
-              <TableRow>
-                <TableCell
-                  isHeader
-                  className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400"
-                >
-                  이름
-                </TableCell>
-                <TableCell
-                  isHeader
-                  className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400"
-                >
-                  코드
-                </TableCell>
-                <TableCell
-                  isHeader
-                  className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400"
-                >
-                  설명
-                </TableCell>
-                <TableCell
-                  isHeader
-                  className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400"
-                >
-                  상태
-                </TableCell>
-              </TableRow>
-            </TableHeader>
-            <TableBody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
-              {paginatedPermissions.map((permission, index) => (
-                <TableRow
-                  key={`${getPermissionCode(permission)}-${pagination.currentPage}-${index}`}
-                >
-                  <TableCell className="px-5 py-4 text-sm text-gray-800 dark:text-white/90">
-                    {getPermissionName(permission)}
-                  </TableCell>
-                  <TableCell className="px-5 py-4 text-sm text-gray-500 dark:text-gray-400">
-                    <code>{getPermissionCode(permission)}</code>
-                  </TableCell>
-                  <TableCell className="px-5 py-4 text-sm text-gray-500 dark:text-gray-400">
-                    {getPermissionDescription(permission)}
-                  </TableCell>
-                  <TableCell className="px-5 py-4 text-sm">
-                    <Badge
-                      size="sm"
-                      color={permission.isActive === false ? "error" : "success"}
-                    >
-                      {permission.isActive === false ? "비활성" : "활성"}
-                    </Badge>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <DataTable fillWidth>
+            <DataTableHeader>
+              <DataTableHeaderCell colSpan={1} compact sortable={false}>
+                <DataTableHeaderLabel>이름</DataTableHeaderLabel>
+              </DataTableHeaderCell>
+              <DataTableHeaderCell colSpan={1} compact sortable={false}>
+                <DataTableHeaderLabel>코드</DataTableHeaderLabel>
+              </DataTableHeaderCell>
+              <DataTableHeaderCell colSpan={1} compact sortable={false}>
+                <DataTableHeaderLabel>설명</DataTableHeaderLabel>
+              </DataTableHeaderCell>
+              <DataTableHeaderCell
+                colSpan={1}
+                compact
+                sortable={false}
+                className="border-r-0"
+              >
+                <DataTableHeaderLabel>상태</DataTableHeaderLabel>
+              </DataTableHeaderCell>
+            </DataTableHeader>
+            <DataTableBody>
+              {filteredPermissions.length === 0 ? (
+                <DataTableRow>
+                  <DataTableCell
+                    colSpan={4}
+                    compact
+                    className="justify-center border-r-0 py-6"
+                  >
+                    조건에 맞는 권한이 없습니다.
+                  </DataTableCell>
+                </DataTableRow>
+              ) : (
+                paginatedPermissions.map((permission, index) => (
+                  <DataTableRow
+                    key={`${getPermissionCode(permission)}-${pagination.currentPage}-${index}`}
+                  >
+                    <DataTableCell colSpan={1} compact>
+                      {getPermissionName(permission)}
+                    </DataTableCell>
+                    <DataTableCell colSpan={1} compact>
+                      <code>{getPermissionCode(permission)}</code>
+                    </DataTableCell>
+                    <DataTableCell colSpan={1} compact>
+                      {getPermissionDescription(permission)}
+                    </DataTableCell>
+                    <DataTableCell colSpan={1} compact className="border-r-0">
+                      <ActiveStatusBadge active={permission.isActive} />
+                    </DataTableCell>
+                  </DataTableRow>
+                ))
+              )}
+            </DataTableBody>
+          </DataTable>
         )}
       </ListPageLayout>
     </>

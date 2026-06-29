@@ -1,10 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router";
+import { mutationErrorNotify } from "../lib/api/mutationOnError";
 import { notify } from "../lib/notify";
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import ComponentCard from "../components/common/ComponentCard";
+import ConfirmLeaveModal from "../components/common/ConfirmLeaveModal";
 import ConfirmModal from "../components/common/ConfirmModal";
 import DetailPageState from "../components/common/DetailPageState";
 import Label from "../components/form/Label";
@@ -13,6 +15,7 @@ import TextArea from "../components/form/input/TextArea";
 import Toggle from "../components/form/Toggle";
 import FormActionBar from "../components/form/FormActionBar";
 import { useAuth } from "../hooks/useAuth";
+import { useConfirmLeave } from "../hooks/useConfirmLeave";
 import { useProductPermissions } from "../hooks/useProductPermissions";
 import {
   createDetectorSeries,
@@ -47,6 +50,40 @@ export default function DetectorSeriesForm() {
   const existing = !isNew
     ? seriesList.find((s) => s.id === idNum)
     : undefined;
+
+  const initialSnapshot = useMemo(() => {
+    if (isNew) {
+      return {
+        code: "",
+        name: "",
+        description: "",
+        sortOrder: "0",
+        isActive: true,
+      };
+    }
+    if (!existing) return null;
+    return {
+      code: existing.code ?? "",
+      name: existing.name ?? "",
+      description: existing.description ?? "",
+      sortOrder: String(existing.sortOrder ?? 0),
+      isActive: existing.isActive !== false,
+    };
+  }, [isNew, existing]);
+
+  const isDirty = useMemo(() => {
+    if (!initialSnapshot) return false;
+    return (
+      initialSnapshot.code !== code ||
+      initialSnapshot.name !== name ||
+      initialSnapshot.description !== description ||
+      initialSnapshot.sortOrder !== sortOrder ||
+      initialSnapshot.isActive !== isActive
+    );
+  }, [initialSnapshot, code, name, description, sortOrder, isActive]);
+
+  const { leaveModalOpen, onLeaveConfirm, onLeaveCancel, requestLeave } =
+    useConfirmLeave(isDirty, () => navigate("/detectors"));
 
   useEffect(() => {
     if (!existing) return;
@@ -88,10 +125,13 @@ export default function DetectorSeriesForm() {
       }
       navigate(`/detector-series/${saved.id}/edit`, { replace: true });
     },
-    onError: (err: unknown) => {
-      const msg = err instanceof Error ? err.message : "저장에 실패했습니다.";
-      notify.error(msg);
-    },
+    onError: (e) =>
+      mutationErrorNotify(e, {
+        forbiddenMessage: isNew
+          ? "검출기 시리즈 등록 권한이 없습니다."
+          : "검출기 시리즈 수정 권한이 없습니다.",
+        fallbackMessage: "저장에 실패했습니다.",
+      }),
   });
 
   const deleteMutation = useMutation({
@@ -103,11 +143,11 @@ export default function DetectorSeriesForm() {
       setDeleteOpen(false);
       navigate("/detectors");
     },
-    onError: (err: unknown) => {
-      const msg =
-        err instanceof Error ? err.message : "시리즈를 삭제하지 못했습니다.";
-      notify.error(msg);
-    },
+    onError: (e) =>
+      mutationErrorNotify(e, {
+        forbiddenMessage: "검출기 시리즈 삭제 권한이 없습니다.",
+        fallbackMessage: "시리즈를 삭제하지 못했습니다.",
+      }),
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -237,7 +277,7 @@ export default function DetectorSeriesForm() {
             submitDisabled={
               !accessToken || isListLoading || deleteMutation.isPending
             }
-            cancelTo="/detectors"
+            onCancel={requestLeave}
           />
         </ComponentCard>
       </form>
@@ -257,6 +297,12 @@ export default function DetectorSeriesForm() {
           onConfirm={() => deleteMutation.mutate()}
         />
       ) : null}
+
+      <ConfirmLeaveModal
+        isOpen={leaveModalOpen}
+        onClose={onLeaveCancel}
+        onConfirm={onLeaveConfirm}
+      />
     </>
   );
 }

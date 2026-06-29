@@ -24,6 +24,7 @@ import {
 } from "../list";
 import { useAuth } from "../../hooks/useAuth";
 import { notify } from "../../lib/notify";
+import { invalidateProductionPlanUnitListQueries } from "../../domains/production-plan/queries/invalidateUnitListQueries";
 import { invalidateDeliveryPlanListQueries } from "../../domains/delivery/queries/invalidateDeliveryPlanListQueries";
 import { validateDeliveryPlanUnitSelection } from "../../domains/delivery/helpers/deliveryPlanUnitSelection";
 import { listUnitLotCode } from "../../domains/delivery/display/deliveryUnitListDisplay";
@@ -130,8 +131,7 @@ export function DeliveryPlanCreateModal({
       onClose();
       resetForm();
       onSuccess?.();
-      queryClient.invalidateQueries({ queryKey: ["productionPlanUnits"] });
-      queryClient.invalidateQueries({ queryKey: ["productionPlanUnitOverview"] });
+      void invalidateProductionPlanUnitListQueries(queryClient);
       queryClient.invalidateQueries({ queryKey: ["purchaseOrderDeliveryPlans"] });
       void invalidateDeliveryPlanListQueries(queryClient);
       const planId = String(plan.id ?? "").trim();

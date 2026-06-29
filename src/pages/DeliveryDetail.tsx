@@ -6,6 +6,7 @@ import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import LoadingLottie from "../components/common/LoadingLottie";
 import SegmentedControl from "../components/common/SegmentedControl";
 import { useAuth } from "../hooks/useAuth";
+import { useDeliveryCommonCodes } from "../hooks/useDeliveryCommonCodes";
 import { useCommonCodesByGroup } from "../hooks/useCommonCodesByGroup";
 import {
   getDeliveryById,
@@ -18,8 +19,6 @@ import {
   sortDeliveryStatusCodes,
 } from "../components/delivery/deliveryStepperUtils";
 import {
-  COMMON_CODE_GROUP_DELIVERY_STATUS,
-  COMMON_CODE_GROUP_COUNTRY,
   labelForCommonCode,
 } from "../api/commonCode";
 import { partnerSelectLabel } from "../domains/partner/display/partnerDisplay";
@@ -76,11 +75,10 @@ export default function DeliveryDetail() {
   const order = delivery?.order;
 
   const {
-    data: deliveryStatusCodes = [],
-    isLoading: deliveryStatusCodesLoading,
-  } = useCommonCodesByGroup(COMMON_CODE_GROUP_DELIVERY_STATUS, accessToken, {
-    enabled: !!accessToken && !isAuthLoading,
-  });
+    countryCodes,
+    deliveryStatusCodes,
+    isDeliveryStatusLoading: deliveryStatusCodesLoading,
+  } = useDeliveryCommonCodes(accessToken, !!accessToken && !isAuthLoading);
 
   const sortedDeliveryStatusCodes = useMemo(
     () => sortDeliveryStatusCodes(deliveryStatusCodes),
@@ -110,12 +108,6 @@ export default function DeliveryDetail() {
       /* ignore */
     }
   }, [deliveryStatusSimCode, id, idOk]);
-
-  const { data: countryCodes = [] } = useCommonCodesByGroup(
-    COMMON_CODE_GROUP_COUNTRY,
-    accessToken,
-    { enabled: !!accessToken && !isAuthLoading }
-  );
 
   const { data: unitCodes = [] } = useCommonCodesByGroup(
     COMMON_CODE_GROUP_UNIT,

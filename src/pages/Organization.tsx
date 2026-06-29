@@ -9,6 +9,7 @@ import { getOrganizationTree, type OrganizationUnitNode } from "../api/organizat
 import OrganizationTreeNode from "../components/organization/OrganizationTreeNode";
 import { useAuth } from "../hooks/useAuth";
 import { COMMON_CODE_GROUP_ORG_TYPE } from "../api/commonCode";
+import { buildOrgTypeLabelMap } from "../domains/organization/labels/orgTypeLabels";
 
 export default function Organization() {
   const { accessToken, isLoading: isAuthLoading } = useAuth();
@@ -29,15 +30,10 @@ export default function Organization() {
     { enabled: !!accessToken && !isAuthLoading }
   );
 
-  const orgTypeLabels = useMemo(() => {
-    const m: Record<string, string> = {};
-    for (const c of orgTypeCodes) {
-      if (c.isActive !== false) {
-        m[c.code] = (c.name ?? "").trim() || c.code;
-      }
-    }
-    return m;
-  }, [orgTypeCodes]);
+  const orgTypeLabels = useMemo(
+    () => buildOrgTypeLabelMap(orgTypeCodes),
+    [orgTypeCodes]
+  );
 
   return (
     <>

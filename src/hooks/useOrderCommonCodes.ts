@@ -1,19 +1,15 @@
 import {
-  COMMON_CODE_GROUP_COUNTRY,
   COMMON_CODE_GROUP_PURCHASE_ORDER_STATUS,
   COMMON_CODE_GROUP_PURCHASE_ORDER_TYPE,
 } from "../api/commonCode";
 import { useCommonCodesByGroup } from "./useCommonCodesByGroup";
+import { useCountryCodes } from "./useCountryCodes";
 
 export function useOrderCommonCodes(
   accessToken: string | null | undefined,
   enabled: boolean
 ) {
-  const { data: countryCodes = [] } = useCommonCodesByGroup(
-    COMMON_CODE_GROUP_COUNTRY,
-    accessToken,
-    { enabled }
-  );
+  const { countryCodes } = useCountryCodes(accessToken, enabled);
   const { data: currencyCodes = [] } = useCommonCodesByGroup(
     "CURRENCY",
     accessToken,

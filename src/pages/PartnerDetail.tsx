@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "react-router";
-import toast from "react-hot-toast";
+import { notify } from "../lib/notify";
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import ComponentCard from "../components/common/ComponentCard";
 import ConfirmModal from "../components/common/ConfirmModal";
 import LoadingLottie from "../components/common/LoadingLottie";
-import Badge from "../components/ui/badge/Badge";
+import ActiveStatusBadge from "../components/common/ActiveStatusBadge";
 import { ReactComponent as PageIcon } from "../icons/page.svg?react";
 import { useAuth } from "../hooks/useAuth";
 import {
@@ -16,13 +16,10 @@ import {
   type Partner,
 } from "../api/purchaseOrder";
 import {
-  COMMON_CODE_GROUP_COUNTRY,
-  COMMON_CODE_GROUP_PARTNER_SUPPLIER_SEGMENT,
-  COMMON_CODE_GROUP_PARTNER_TYPE,
   type CommonCodeItem,
   labelForCommonCode,
 } from "../api/commonCode";
-import { useCommonCodesByGroup } from "../hooks/useCommonCodesByGroup";
+import { usePartnerCommonCodes } from "../hooks/usePartnerCommonCodes";
 import { partnerCountryFlagUrl } from "../domains/partner/helpers/partnerCountryOptions";
 
 function DetailRow({
@@ -125,7 +122,7 @@ export default function PartnerDetail() {
   const deleteMutation = useMutation({
     mutationFn: () => deletePartner(id, accessToken as string),
     onSuccess: () => {
-      toast.success("거래처가 삭제되었습니다.");
+      notify.success("거래처가 삭제되었습니다.");
       void queryClient.invalidateQueries({ queryKey: ["partners"] });
       void queryClient.removeQueries({ queryKey: ["partner", id] });
       setDeleteOpen(false);
@@ -134,7 +131,7 @@ export default function PartnerDetail() {
     onError: (e: unknown) => {
       const message =
         e instanceof Error ? e.message : "거래처를 삭제하지 못했습니다.";
-      toast.error(message);
+      notify.error(message);
     },
   });
 
@@ -147,21 +144,11 @@ export default function PartnerDetail() {
     queryFn: () => getPartner(id, accessToken as string),
     enabled: !!accessToken && !isAuthLoading && id !== "",
   });
-  const { data: countryCodes = [] } = useCommonCodesByGroup(
-    COMMON_CODE_GROUP_COUNTRY,
-    accessToken,
-    { enabled: !!accessToken && !isAuthLoading }
-  );
-  const { data: partnerTypeCodes = [] } = useCommonCodesByGroup(
-    COMMON_CODE_GROUP_PARTNER_TYPE,
-    accessToken,
-    { enabled: !!accessToken && !isAuthLoading }
-  );
-  const { data: supplierSegmentCodes = [] } = useCommonCodesByGroup(
-    COMMON_CODE_GROUP_PARTNER_SUPPLIER_SEGMENT,
-    accessToken,
-    { enabled: !!accessToken && !isAuthLoading }
-  );
+  const {
+    countryCodes,
+    partnerTypeCodes,
+    supplierSegmentCodes,
+  } = usePartnerCommonCodes(accessToken, !!accessToken && !isAuthLoading);
 
   const pageTitle = useMemo(() => {
     if (!partner) return "업체 상세";
@@ -257,9 +244,7 @@ export default function PartnerDetail() {
           <DetailRow
             label="상태"
             value={
-              <Badge size="sm" color={p.isActive === false ? "error" : "success"}>
-                {p.isActive === false ? "비활성" : "활성"}
-              </Badge>
+              <ActiveStatusBadge active={p.isActive} />
             }
           />
           {p.createdAt ? (

@@ -5,6 +5,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { Link, useParams } from "react-router";
+import { mutationErrorNotify } from "../lib/api/mutationOnError";
 import { notify } from "../lib/notify";
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
@@ -143,11 +144,11 @@ export default function UserDetail() {
         queryKey: ["userRoles", numericUserId],
       });
     },
-    onError: (error) => {
-      notify.error(
-        error instanceof Error ? error.message : "역할 부여에 실패했습니다."
-      );
-    },
+    onError: (error) =>
+      mutationErrorNotify(error, {
+        forbiddenMessage: "사용자 역할 부여 권한이 없습니다.",
+        fallbackMessage: "역할 부여에 실패했습니다.",
+      }),
   });
 
   const updateMutation = useMutation({
@@ -166,11 +167,11 @@ export default function UserDetail() {
         queryKey: ["userRoles", numericUserId],
       });
     },
-    onError: (error) => {
-      notify.error(
-        error instanceof Error ? error.message : "역할 수정에 실패했습니다."
-      );
-    },
+    onError: (error) =>
+      mutationErrorNotify(error, {
+        forbiddenMessage: "사용자 역할 수정 권한이 없습니다.",
+        fallbackMessage: "역할 수정에 실패했습니다.",
+      }),
   });
 
   const deleteMutation = useMutation({
@@ -182,11 +183,11 @@ export default function UserDetail() {
         queryKey: ["userRoles", numericUserId],
       });
     },
-    onError: (error) => {
-      notify.error(
-        error instanceof Error ? error.message : "역할 삭제에 실패했습니다."
-      );
-    },
+    onError: (error) =>
+      mutationErrorNotify(error, {
+        forbiddenMessage: "사용자 역할 삭제 권한이 없습니다.",
+        fallbackMessage: "역할 삭제에 실패했습니다.",
+      }),
   });
 
   const isLoading = isAuthLoading || isUsersLoading || isRolesLoading;

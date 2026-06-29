@@ -2,23 +2,26 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   getCommonCodeGroups,
-  getCommonCodesByGroup,
   type CommonCodeGroup,
   type CommonCodeItem,
 } from "../api/commonCode";
+import { useCommonCodesByGroup } from "../hooks/useCommonCodesByGroup";
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import ComponentCard from "../components/common/ComponentCard";
 import LoadingLottie from "../components/common/LoadingLottie";
+import ActiveStatusBadge from "../components/common/ActiveStatusBadge";
 import Input from "../components/form/input/InputField";
 import Badge from "../components/ui/badge/Badge";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHeader,
-  TableRow,
-} from "../components/ui/table";
+  DataTable,
+  DataTableBody,
+  DataTableCell,
+  DataTableHeader,
+  DataTableHeaderCell,
+  DataTableHeaderLabel,
+  DataTableRow,
+} from "../components/list";
 import { useAuth } from "../hooks/useAuth";
 
 const EMPTY_GROUPS: CommonCodeGroup[] = [];
@@ -81,16 +84,12 @@ export default function CommonCode() {
     filteredGroups.find((group) => group.code === selectedGroupCode) ?? null;
 
   const {
-    data: codesData,
+    data: codes = EMPTY_CODES,
     isLoading: isCodesLoading,
     error: codesError,
-  } = useQuery({
-    queryKey: ["commonCodeGroups", selectedGroupCode, "codes"],
-    queryFn: () => getCommonCodesByGroup(selectedGroupCode as string, accessToken as string),
+  } = useCommonCodesByGroup(selectedGroupCode ?? "", accessToken, {
     enabled: !!selectedGroupCode && !!accessToken && !isAuthLoading,
   });
-
-  const codes = codesData ?? EMPTY_CODES;
   const filteredCodes = useMemo(() => {
     const keyword = codeKeyword.trim().toLowerCase();
 
@@ -254,68 +253,51 @@ export default function CommonCode() {
               ) : filteredCodes.length === 0 ? (
                 <EmptyState message="조건에 맞는 공통 코드가 없습니다." />
               ) : (
-                <Table>
-                  <TableHeader className="border-b border-gray-100 dark:border-white/[0.05]">
-                    <TableRow>
-                      <TableCell
-                        isHeader
-                        className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400"
-                      >
-                        코드
-                      </TableCell>
-                      <TableCell
-                        isHeader
-                        className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400"
-                      >
-                        이름
-                      </TableCell>
-                      <TableCell
-                        isHeader
-                        className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400"
-                      >
-                        설명
-                      </TableCell>
-                      <TableCell
-                        isHeader
-                        className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400"
-                      >
-                        정렬
-                      </TableCell>
-                      <TableCell
-                        isHeader
-                        className="px-5 py-3 text-left text-theme-xs font-medium text-gray-500 dark:text-gray-400"
-                      >
-                        상태
-                      </TableCell>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
+                <DataTable fillWidth>
+                  <DataTableHeader>
+                    <DataTableHeaderCell colSpan={2} compact sortable={false}>
+                      <DataTableHeaderLabel>코드</DataTableHeaderLabel>
+                    </DataTableHeaderCell>
+                    <DataTableHeaderCell colSpan={3} compact sortable={false}>
+                      <DataTableHeaderLabel>이름</DataTableHeaderLabel>
+                    </DataTableHeaderCell>
+                    <DataTableHeaderCell colSpan={4} compact sortable={false}>
+                      <DataTableHeaderLabel>설명</DataTableHeaderLabel>
+                    </DataTableHeaderCell>
+                    <DataTableHeaderCell colSpan={1} compact sortable={false} align="center">
+                      <DataTableHeaderLabel align="center">정렬</DataTableHeaderLabel>
+                    </DataTableHeaderCell>
+                    <DataTableHeaderCell
+                      colSpan={2}
+                      compact
+                      sortable={false}
+                      className="border-r-0"
+                    >
+                      <DataTableHeaderLabel>상태</DataTableHeaderLabel>
+                    </DataTableHeaderCell>
+                  </DataTableHeader>
+                  <DataTableBody>
                     {filteredCodes.map((code) => (
-                      <TableRow key={`${code.groupCode}-${code.code}`}>
-                        <TableCell className="px-5 py-4 text-sm text-gray-500 dark:text-gray-400">
+                      <DataTableRow key={`${code.groupCode}-${code.code}`}>
+                        <DataTableCell colSpan={2} compact>
                           <code>{code.code}</code>
-                        </TableCell>
-                        <TableCell className="px-5 py-4 text-sm text-gray-800 dark:text-white/90">
+                        </DataTableCell>
+                        <DataTableCell colSpan={3} compact>
                           {code.name}
-                        </TableCell>
-                        <TableCell className="px-5 py-4 text-sm text-gray-500 dark:text-gray-400">
+                        </DataTableCell>
+                        <DataTableCell colSpan={4} compact className="min-w-0">
                           {code.description || "-"}
-                        </TableCell>
-                        <TableCell className="px-5 py-4 text-sm text-gray-500 dark:text-gray-400">
+                        </DataTableCell>
+                        <DataTableCell colSpan={1} compact align="center">
                           {code.sortOrder}
-                        </TableCell>
-                        <TableCell className="px-5 py-4 text-sm">
-                          <Badge
-                            size="sm"
-                            color={code.isActive ? "success" : "error"}
-                          >
-                            {code.isActive ? "활성" : "비활성"}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
+                        </DataTableCell>
+                        <DataTableCell colSpan={2} compact className="border-r-0">
+                          <ActiveStatusBadge active={code.isActive} />
+                        </DataTableCell>
+                      </DataTableRow>
                     ))}
-                  </TableBody>
-                </Table>
+                  </DataTableBody>
+                </DataTable>
               )}
             </div>
           </ComponentCard>

@@ -17,13 +17,9 @@ import Badge from "../ui/badge/Badge";
 import { ProductionPlanListRowCells } from "./ProductionPlanListRow";
 import { ProductionPlanUnitsPanel } from "./ProductionPlanUnitsPanel";
 import { useAuth } from "../../hooks/useAuth";
-import { useCommonCodesByGroup } from "../../hooks/useCommonCodesByGroup";
+import { useProductionPlanCommonCodes } from "../../hooks/useProductionPlanCommonCodes";
 import { useDeliveryPermissions } from "../../hooks/useDeliveryPermissions";
 import { useServerListPagination } from "../../hooks/useServerListPagination";
-import {
-  COMMON_CODE_GROUP_COUNTRY,
-  COMMON_CODE_GROUP_UNIT_PROCESS_STEP,
-} from "../../api/commonCode";
 import {
   getProductionPlanCoverageCounts,
   getProductionPlans,
@@ -58,16 +54,9 @@ export function ProductionPlanListView() {
   const { accessToken, isLoading: isAuthLoading } = useAuth();
   const { canReadDelivery } = useDeliveryPermissions();
 
-  const { data: countryCodes = [] } = useCommonCodesByGroup(
-    COMMON_CODE_GROUP_COUNTRY,
+  const { countryCodes, unitProcessStepCodes } = useProductionPlanCommonCodes(
     accessToken,
-    { enabled: !!accessToken && !isAuthLoading }
-  );
-
-  const { data: unitProcessStepCodes = [] } = useCommonCodesByGroup(
-    COMMON_CODE_GROUP_UNIT_PROCESS_STEP,
-    accessToken,
-    { enabled: !!accessToken && !isAuthLoading }
+    !!accessToken && !isAuthLoading
   );
 
   const [searchOptionsOpen, setSearchOptionsOpen] = useState(false);

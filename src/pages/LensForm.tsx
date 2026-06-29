@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router";
+import { mutationErrorNotify } from "../lib/api/mutationOnError";
+import { uploadErrorMessage } from "../lib/api/uploadErrorMessage";
 import { notify } from "../lib/notify";
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import ComponentCard from "../components/common/ComponentCard";
 import DetailPageState from "../components/common/DetailPageState";
+import ConfirmLeaveModal from "../components/common/ConfirmLeaveModal";
 import ConfirmModal from "../components/common/ConfirmModal";
 import FormField from "../components/form/FormField";
 import Label from "../components/form/Label";
@@ -18,6 +21,7 @@ import SearchableSelectWithCreate from "../components/form/SearchableSelectWithC
 import { renderPartnerOptionLabel } from "../components/form/PartnerOptionLabel";
 import { TrashBinIcon } from "../icons";
 import { useAuth } from "../hooks/useAuth";
+import { useConfirmLeave } from "../hooks/useConfirmLeave";
 import { usePartnerCommonCodes } from "../hooks/usePartnerCommonCodes";
 import { usePartnersQuery } from "../hooks/usePartnersQuery";
 import {
@@ -84,16 +88,59 @@ export default function LensForm() {
     enabled: !isNew && !!accessToken && !isAuthLoading && id !== "",
   });
 
-  const uploadErrorMessage = (error: unknown) => {
-    const message = error instanceof Error ? error.message : "";
-    if (message.includes("FILE_TARGET_TYPE / LENS")) {
-      return "백엔드 공통코드(FILE_TARGET_TYPE/LENS) 미반영 상태입니다. 시드 반영 후 다시 시도해 주세요.";
+  const formatUploadError = (error: unknown) =>
+    uploadErrorMessage(error, {
+      fileTargetType: "LENS",
+      defaultMessage: "첨부파일 처리에 실패했습니다.",
+    });
+
+  const initialSnapshot = useMemo(() => {
+    if (isNew) {
+      return {
+        manufacturerId: "",
+        lensName: "",
+        fNumber: "",
+        focalLength: "",
+        isActive: true,
+        pendingFileCount: 0,
+      };
     }
-    if (message.includes("401") || message.toLowerCase().includes("unauthorized")) {
-      return "로그인이 만료되었습니다. 다시 로그인해 주세요.";
-    }
-    return message || "첨부파일 처리에 실패했습니다.";
-  };
+    if (!existing) return null;
+    return {
+      manufacturerId:
+        existing.manufacturerId != null ? String(existing.manufacturerId) : "",
+      lensName: existing.lensName?.trim() || "",
+      fNumber: existing.fNumber ?? "",
+      focalLength: existing.focalLength ?? "",
+      isActive: existing.isActive !== false,
+      pendingFileCount: 0,
+    };
+  }, [isNew, existing]);
+
+  const isDirty = useMemo(() => {
+    if (!initialSnapshot) return false;
+    return (
+      initialSnapshot.manufacturerId !== manufacturerId.trim() ||
+      initialSnapshot.lensName !== lensName.trim() ||
+      initialSnapshot.fNumber !== fNumber.trim() ||
+      initialSnapshot.focalLength !== focalLength.trim() ||
+      initialSnapshot.isActive !== isActive ||
+      (isNew && pendingFilesForCreate.length > initialSnapshot.pendingFileCount)
+    );
+  }, [
+    initialSnapshot,
+    manufacturerId,
+    lensName,
+    fNumber,
+    focalLength,
+    isActive,
+    isNew,
+    pendingFilesForCreate.length,
+  ]);
+
+  const leavePath = isNew ? "/lenses" : `/lenses/${id}`;
+  const { leaveModalOpen, onLeaveConfirm, onLeaveCancel, requestLeave } =
+    useConfirmLeave(isDirty, () => navigate(leavePath));
 
   useEffect(() => {
     if (!existing) return;
@@ -130,13 +177,17 @@ export default function LensForm() {
             accessToken as string
           );
         } catch (error) {
-          notify.error(uploadErrorMessage(error));
+          notify.error(formatUploadError(error));
         }
       }
       notify.success("렌즈를 등록했습니다.");
       navigate(`/lenses/${created.id}`);
     },
-    onError: (e: Error) => notify.error(e.message || "등록에 실패했습니다."),
+    onError: (e) =>
+      mutationErrorNotify(e, {
+        forbiddenMessage: "렌즈 등록 권한이 없습니다.",
+        fallbackMessage: "등록에 실패했습니다.",
+      }),
   });
 
   const updateMutation = useMutation({
@@ -154,7 +205,11 @@ export default function LensForm() {
       notify.success("렌즈를 수정했습니다.");
       navigate(`/lenses/${id}`);
     },
-    onError: (e: Error) => notify.error(e.message || "수정에 실패했습니다."),
+    onError: (e) =>
+      mutationErrorNotify(e, {
+        forbiddenMessage: "렌즈 수정 권한이 없습니다.",
+        fallbackMessage: "수정에 실패했습니다.",
+      }),
   });
   const fileUploadMutation = useMutation({
     mutationFn: (selectedFiles: File[]) =>
@@ -163,7 +218,11 @@ export default function LensForm() {
       queryClient.invalidateQueries({ queryKey: ["lensFiles", id] });
       notify.success(`첨부파일 ${uploaded.length}건을 업로드했습니다.`);
     },
-    onError: (error: Error) => notify.error(uploadErrorMessage(error)),
+    onError: (error) =>
+      mutationErrorNotify(error, {
+        forbiddenMessage: "렌즈 첨부파일 업로드 권한이 없습니다.",
+        fallbackMessage: formatUploadError(error),
+      }),
   });
   const fileDeleteMutation = useMutation({
     mutationFn: (fileLinkId: number) =>
@@ -172,7 +231,11 @@ export default function LensForm() {
       queryClient.invalidateQueries({ queryKey: ["lensFiles", id] });
       notify.success("첨부파일을 삭제했습니다.");
     },
-    onError: (error: Error) => notify.error(uploadErrorMessage(error)),
+    onError: (error) =>
+      mutationErrorNotify(error, {
+        forbiddenMessage: "렌즈 첨부파일 삭제 권한이 없습니다.",
+        fallbackMessage: formatUploadError(error),
+      }),
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -444,7 +507,7 @@ export default function LensForm() {
             submitLabel={isNew ? "등록" : "저장"}
             isPending={pending}
             submitDisabled={!accessToken}
-            cancelTo={isNew ? "/lenses" : `/lenses/${id}`}
+            onCancel={requestLeave}
           />
         </ComponentCard>
       </form>
@@ -470,6 +533,11 @@ export default function LensForm() {
           }}
         />
       ) : null}
+      <ConfirmLeaveModal
+        isOpen={leaveModalOpen}
+        onClose={onLeaveCancel}
+        onConfirm={onLeaveConfirm}
+      />
     </>
   );
 }

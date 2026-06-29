@@ -7,7 +7,13 @@ export const ORDER_NEWEST_FIRST_SORT = {
   sortOrder: "desc",
 } as const satisfies PlanListSort;
 
-/** 생산 계획 목록 — 연결 발주일(orderedAt) 최신순 */
+/** 생산 계획 목록 — 계획 생성일(createdAt) 최신순 */
+export const PLAN_CREATED_NEWEST_FIRST_SORT = {
+  sortBy: "createdAt",
+  sortOrder: "desc",
+} as const satisfies PlanListSort;
+
+/** 생산 계획 목록 기본 정렬 */
 export function resolveProductionPlanListSort(): PlanListSort {
-  return ORDER_NEWEST_FIRST_SORT;
+  return PLAN_CREATED_NEWEST_FIRST_SORT;
 }

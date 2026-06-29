@@ -6,7 +6,7 @@ import {
   useRef,
   useState,
 } from "react";
-import toast from "react-hot-toast";
+import { notify } from "../../lib/notify";
 import type { ProductionPlanUnit, UnitProcessRecord } from "../../api/purchaseOrder";
 import { UNIT_PROCESS_STEP_CODE_WAIT_DETECTOR_INCOMING } from "../../api/commonCode";
 import Badge from "../ui/badge/Badge";
@@ -301,7 +301,7 @@ export function UnitProcessRecordsTimeline({
                                 // 에러 토스트는 상위 mutation에서 처리합니다.
                               }
                             }}
-                            onError={(message) => toast.error(message)}
+                            onError={(message) => notify.error(message)}
                             disabled={uploadingRecordKey != null}
                             buttonLabel={isUploadingThis ? "업로드 중…" : "파일 선택"}
                             uploadGuideText="이 공정 이력에 첨부할 파일을 선택하세요."

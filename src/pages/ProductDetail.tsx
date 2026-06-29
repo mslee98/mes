@@ -1,13 +1,13 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
-import toast from "react-hot-toast";
+import { notify } from "../lib/notify";
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import PageNotice from "../components/common/PageNotice";
 import ComponentCard from "../components/common/ComponentCard";
 import LoadingLottie from "../components/common/LoadingLottie";
-import Badge from "../components/ui/badge/Badge";
+import ActiveStatusBadge from "../components/common/ActiveStatusBadge";
 import { useAuth } from "../hooks/useAuth";
 import ConfirmModal from "../components/common/ConfirmModal";
 import {
@@ -92,7 +92,7 @@ export default function ProductDetail() {
   const deleteMutation = useMutation({
     mutationFn: () => deleteProduct(id, accessToken as string),
     onSuccess: () => {
-      toast.success("대표 제품이 삭제되었습니다.");
+      notify.success("대표 제품이 삭제되었습니다.");
       void queryClient.invalidateQueries({ queryKey: ["productList"] });
       void queryClient.removeQueries({ queryKey: ["product", id] });
       void queryClient.removeQueries({ queryKey: ["productFiles", id] });
@@ -102,7 +102,7 @@ export default function ProductDetail() {
     onError: (e: unknown) => {
       const message =
         e instanceof Error ? e.message : "대표 제품을 삭제하지 못했습니다.";
-      toast.error(message);
+      notify.error(message);
     },
   });
 
@@ -237,12 +237,7 @@ export default function ProductDetail() {
               <DetailRow
                 label="상태"
                 value={
-                  <Badge
-                    size="sm"
-                    color={p.isActive === false ? "error" : "success"}
-                  >
-                    {p.isActive === false ? "비활성" : "활성"}
-                  </Badge>
+                  <ActiveStatusBadge active={p.isActive} />
                 }
               />
               <DetailRow
@@ -296,7 +291,7 @@ export default function ProductDetail() {
                                     error instanceof Error
                                       ? error.message
                                       : "첨부파일 다운로드에 실패했습니다.";
-                                  toast.error(message);
+                                  notify.error(message);
                                 }
                               }}
                               title="첨부파일 다운로드"
