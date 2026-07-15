@@ -21,7 +21,8 @@ export default function ConfirmLeaveModal({
   return (
     <ConfirmModal
       isOpen={isOpen}
-      title="취소 확인"
+      headerLabel="취소 확인"
+      title="저장하지 않고 나가시겠습니까?"
       message={message}
       confirmText="취소하고 나가기"
       cancelText="계속 편집"

@@ -13,6 +13,7 @@ import { getProductionPlan } from "../../api/purchaseOrder";
 import { flattenPlanUnits } from "../../domains/production-plan/helpers/detailHelpers";
 import { mapPlanDetailUnitsToListItems } from "../../domains/production-plan/mappers/listMappers";
 import { ProductionPlanUnitNestedRow } from "./ProductionPlanUnitNestedRow";
+import type { DeliveryUnitListRow } from "../../domains/delivery/display/deliveryUnitListDisplay";
 import { DATA_TABLE_HEADER_LABEL_CLASS } from "../list/DataTable/dataTableStyles";
 
 const NESTED_UNITS_DEFAULT_LIMIT = 5;
@@ -40,6 +41,11 @@ type ProductionPlanUnitsPanelProps = {
   enabled: boolean;
   unitProcessStepCodes: CommonCodeItem[];
   todayYmd: string;
+  unitSelectionEnabled?: boolean;
+  isUnitSelected?: (unitId: string) => boolean;
+  isUnitCheckboxDisabled?: (row: DeliveryUnitListRow) => boolean;
+  getUnitCheckboxOrderMismatchHint?: (row: DeliveryUnitListRow) => string | null;
+  onUnitToggle?: (row: DeliveryUnitListRow, checked: boolean) => void;
 };
 
 export function ProductionPlanUnitsPanel({
@@ -50,6 +56,11 @@ export function ProductionPlanUnitsPanel({
   enabled,
   unitProcessStepCodes,
   todayYmd,
+  unitSelectionEnabled = false,
+  isUnitSelected,
+  isUnitCheckboxDisabled,
+  getUnitCheckboxOrderMismatchHint,
+  onUnitToggle,
 }: ProductionPlanUnitsPanelProps) {
   const [visibleLimit, setVisibleLimit] = useState<UnitVisibleLimit>(
     NESTED_UNITS_DEFAULT_LIMIT
@@ -131,6 +142,11 @@ export function ProductionPlanUnitsPanel({
         <Table className="min-w-[40rem]">
           <TableHeader className="border-b border-gray-200 bg-gray-100/90 dark:border-white/[0.08] dark:bg-white/[0.05]">
             <TableRow className="hover:bg-transparent">
+              {unitSelectionEnabled ? (
+                <TableCell isHeader className={`${NESTED_HEADER_CENTER} w-9`}>
+                  <span className="sr-only">선택</span>
+                </TableCell>
+              ) : null}
               <TableCell isHeader className={`${NESTED_HEADER_CENTER} w-9`}>
                 No.
               </TableCell>
@@ -182,7 +198,9 @@ export function ProductionPlanUnitsPanel({
             </TableRow>
           </TableHeader>
           <TableBody className="divide-y divide-gray-200/80 dark:divide-white/[0.06]">
-            {visibleRows.map((row, index) => (
+            {visibleRows.map((row, index) => {
+              const unitId = String(row.unitId ?? "").trim();
+              return (
               <ProductionPlanUnitNestedRow
                 key={row.unitId?.trim() || `unit-row-${index}`}
                 row={row}
@@ -191,8 +209,16 @@ export function ProductionPlanUnitsPanel({
                 pageSize={visibleRows.length}
                 unitProcessStepCodes={unitProcessStepCodes}
                 todayYmd={todayYmd}
+                showCheckbox={unitSelectionEnabled}
+                checked={unitId ? (isUnitSelected?.(unitId) ?? false) : false}
+                checkboxDisabled={isUnitCheckboxDisabled?.(row) ?? false}
+                checkboxOrderMismatchHint={
+                  getUnitCheckboxOrderMismatchHint?.(row) ?? null
+                }
+                onToggle={onUnitToggle}
               />
-            ))}
+            );
+            })}
           </TableBody>
         </Table>
       </div>

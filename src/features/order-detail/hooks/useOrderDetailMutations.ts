@@ -4,7 +4,7 @@ import {
   createProductionPlan,
   getProductionPlan,
   issueProductionPlanLotUnits,
-  updatePurchaseOrder,
+  receivePurchaseOrder,
   type Delivery,
   type DeliveryCreatePayload,
   type IssueLotUnitsPayload,
@@ -60,16 +60,14 @@ export function useOrderDetailMutations({
 
   const receiveMutation = useMutation({
     mutationFn: async () =>
-      updatePurchaseOrder(
+      receivePurchaseOrder(
         orderId,
-        {
-          status: "PO_CLOSED",
-          statusChangeComment: "발주 접수로 인한 종결 처리",
-        },
+        { comment: "발주 접수로 인한 종결 처리" },
         accessToken!
       ),
-    onSuccess: () => {
+    onSuccess: (updated) => {
       notify.success("접수되어 발주가 종결되었습니다.");
+      queryClient.setQueryData(["purchaseOrder", orderId], updated);
       queryClient.invalidateQueries({ queryKey: ["purchaseOrder", orderId] });
       queryClient.invalidateQueries({ queryKey: ["purchaseOrders"] });
       onReceiveSuccess?.();

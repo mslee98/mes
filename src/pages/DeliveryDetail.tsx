@@ -21,7 +21,7 @@ import {
 import {
   labelForCommonCode,
 } from "../api/commonCode";
-import { partnerSelectLabel } from "../domains/partner/display/partnerDisplay";
+import { partnerSelectLabel, resolvePartnerForDisplay } from "../domains/partner/display/partnerDisplay";
 import { partnerCountryFlagUrl } from "../domains/partner/helpers/partnerCountryOptions";
 import {
   DELIVERY_DETAIL_TAB_OPTIONS,
@@ -210,7 +210,10 @@ export default function DeliveryDetail() {
 
   const d = delivery!;
   const title = d.deliveryNo?.trim() || `#${d.id}`;
-  const partner: Partner | undefined = order?.partner ?? d.partner;
+  const partner: Partner | undefined =
+    resolvePartnerForDisplay(order?.partner, order?.partnerSummary) ??
+    d.partner ??
+    undefined;
   const partnerLabelText = partner ? partnerSelectLabel(partner, countryCodes) : "—";
   const partnerFlagUrl = partnerCountryFlagUrl(
     String(partner?.countryCode ?? "")

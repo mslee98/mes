@@ -21,7 +21,7 @@ import SearchableSelectWithCreate from "../components/form/SearchableSelectWithC
 import { renderPartnerOptionLabel } from "../components/form/PartnerOptionLabel";
 import { TrashBinIcon } from "../icons";
 import { useAuth } from "../hooks/useAuth";
-import { useConfirmLeave } from "../hooks/useConfirmLeave";
+import { useConfirmLeaveWithGoBack } from "../hooks/useConfirmLeave";
 import { usePartnerCommonCodes } from "../hooks/usePartnerCommonCodes";
 import { usePartnersQuery } from "../hooks/usePartnersQuery";
 import {
@@ -138,9 +138,12 @@ export default function LensForm() {
     pendingFilesForCreate.length,
   ]);
 
-  const leavePath = isNew ? "/lenses" : `/lenses/${id}`;
+  const leaveConfirm = useConfirmLeaveWithGoBack(
+    isDirty,
+    isNew ? "/lenses" : `/lenses/${id}`
+  );
   const { leaveModalOpen, onLeaveConfirm, onLeaveCancel, requestLeave } =
-    useConfirmLeave(isDirty, () => navigate(leavePath));
+    leaveConfirm;
 
   useEffect(() => {
     if (!existing) return;

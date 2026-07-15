@@ -11,12 +11,10 @@ import {
   parseRequesterEmployeeNoFromSelect,
   parseRequesterNameFromSelect,
 } from "../../../domains/order/helpers/orderRequesterSelect";
+import { buildOrderLineRequestPayload } from "../../../domains/order/helpers/buildOrderLineRequestPayload";
 import { resolveOrderLineDetectorPayload } from "../../../domains/order/helpers/orderLineDetectorFields";
 import type { EmployeeDirectoryItem } from "../../../api/user";
-import type {
-  PurchaseOrderDetail,
-  PurchaseOrderItemPayload,
-} from "../../../api/purchaseOrder";
+import type { PurchaseOrderDetail } from "../../../api/purchaseOrder";
 import type { RepresentativeProduct } from "../../../api/products";
 import {
   buildCreatePayload,
@@ -88,16 +86,11 @@ export function useOrderFormSubmit({
 
     if (!row.lineId) {
       if (isNew) return;
-      const createPayload: PurchaseOrderItemPayload = {
-        productId: row.productId,
-        lensId: row.lensId.trim() ? row.lensId.trim() : null,
-        ...detectorPayload,
-        qty: row.qty,
+      const createPayload = buildOrderLineRequestPayload({
+        row,
+        product: form.productById.get(row.productId.trim()),
         unitPrice,
-        unit: row.unitCode.trim() || null,
-        currencyCode: normalizeCurrencyCode(row.currencyCode),
-        remark: row.remark.trim() || null,
-      };
+      });
       mutations.lineCreateMutation.mutate(
         { index, payload: createPayload },
         {
@@ -107,19 +100,16 @@ export function useOrderFormSubmit({
       return;
     }
 
+    const patchPayload = buildOrderLineRequestPayload({
+      row,
+      product: form.productById.get(row.productId.trim()),
+      unitPrice,
+    });
+
     mutations.lineUpdateMutation.mutate(
       {
         lineId: row.lineId,
-        payload: {
-          productId: row.productId,
-          lensId: row.lensId.trim() ? row.lensId.trim() : null,
-          ...detectorPayload,
-          qty: row.qty,
-          unit: row.unitCode.trim() || null,
-          unitPrice,
-          currencyCode: normalizeCurrencyCode(row.currencyCode),
-          remark: row.remark.trim() || null,
-        },
+        payload: patchPayload,
       },
       {
         onSuccess: () => {
@@ -278,7 +268,6 @@ export function useOrderFormSubmit({
         vendorRequest: form.vendorRequest,
         specialNote: form.specialNote,
         effectiveOrderTypeCode: form.effectiveOrderTypeCode,
-        effectiveOrderStatusCode: form.effectiveOrderStatusCode,
         headerCurrency,
         supplyAmount,
         exchangeRate: parseOptionalExchangeRate(form.exchangeRateInput),

@@ -2,6 +2,7 @@ import type {
   ProductionPlan,
   ProductionPlanUnitListItem,
 } from "../../../api/purchaseOrder";
+import { resolvePartnerForDisplay } from "../../partner/display/partnerDisplay";
 import type { FlatPlanUnitRow } from "../helpers/detailHelpers";
 
 export function mapPlanDetailUnitsToListItems(
@@ -12,8 +13,10 @@ export function mapPlanDetailUnitsToListItems(
     plan.purchaseOrderId ?? plan.purchaseOrder?.id ?? ""
   );
   const orderNo = plan.purchaseOrder?.orderNo ?? null;
-  const partner =
-    plan.purchaseOrder?.partner ?? plan.purchaseOrder?.partnerSummary ?? null;
+  const partner = resolvePartnerForDisplay(
+    plan.purchaseOrder?.partner,
+    plan.purchaseOrder?.partnerSummary
+  );
   const partnerName = partner?.name ?? null;
   const partnerCountryCode = partner?.countryCode ?? null;
   const dueDate =
@@ -22,6 +25,10 @@ export function mapPlanDetailUnitsToListItems(
     null;
   const plannedDate =
     plan.plannedDeliveryDate ?? plan.plannedDate ?? plan.deliveryDate ?? null;
+  const orderId = Number.isFinite(purchaseOrderId)
+    ? String(purchaseOrderId)
+    : String(plan.purchaseOrderId ?? plan.purchaseOrder?.id ?? "").trim() ||
+      null;
 
   return rows.map((row) => {
     const u = row.unit;
@@ -49,8 +56,16 @@ export function mapPlanDetailUnitsToListItems(
       partnerName,
       partnerCountryCode,
       dueDate,
+      order: orderId
+        ? {
+            orderId,
+            orderNo,
+            partnerName,
+            partnerCountryCode,
+          }
+        : null,
       plan: {
-        id: plan.id,
+        planId: plan.id,
         planNo: plan.planNo ?? null,
         planSeq: plan.planSeq ?? null,
         plannedDate,

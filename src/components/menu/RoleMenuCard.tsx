@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useNavigate } from "react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { notify } from "../../lib/notify";
 import { getRoles, type RoleItem } from "../../api/role";
@@ -11,7 +10,7 @@ import {
   assignMenuToRole,
   type RoleMenuAssignment,
 } from "../../api/menu";
-import { flattenMenuTree } from "./menuTreeUtils";
+import { useGoBack } from "../../hooks/useGoBack";
 import ComponentCard from "../common/ComponentCard";
 import Checkbox from "../form/input/Checkbox";
 import ConfirmModal from "../common/ConfirmModal";
@@ -25,13 +24,14 @@ import {
   TableHeader,
   TableRow,
 } from "../ui/table";
+import { flattenMenuTree } from "./menuTreeUtils";
 
 export interface RoleMenuCardProps {
   accessToken: string | null;
 }
 
 export default function RoleMenuCard({ accessToken }: RoleMenuCardProps) {
-  const navigate = useNavigate();
+  const goBack = useGoBack("/");
   const queryClient = useQueryClient();
   const [selectedRoleId, setSelectedRoleId] = useState<number | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<RoleMenuAssignment | null>(null);
@@ -327,7 +327,7 @@ export default function RoleMenuCard({ accessToken }: RoleMenuCardProps) {
         onClose={() => setDeleteTarget(null)}
         onCloseButtonClick={() => {
           setDeleteTarget(null);
-          navigate(-1);
+          goBack();
         }}
         onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
         title="연결 삭제"

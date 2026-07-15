@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import AlertModal from "../components/common/AlertModal";
+import { useGoBack } from "../hooks/useGoBack";
 import { registerApiErrorHandler } from "../lib/queryClient";
 import type { ApiError } from "../lib/api/apiError";
 
@@ -10,6 +11,7 @@ export default function ApiFeedbackProvider({
   children: React.ReactNode;
 }) {
   const navigate = useNavigate();
+  const goBack = useGoBack("/");
   const [forbiddenError, setForbiddenError] = useState<ApiError | null>(null);
 
   const handleApiError = useCallback((error: ApiError) => {
@@ -30,14 +32,8 @@ export default function ApiFeedbackProvider({
 
   const handleGoBack = useCallback(() => {
     closeModal();
-
-    if (window.history.length > 1) {
-      navigate(-1);
-      return;
-    }
-
-    navigate("/", { replace: true });
-  }, [closeModal, navigate]);
+    goBack();
+  }, [closeModal, goBack]);
 
   const handleGoHome = useCallback(() => {
     closeModal();

@@ -1,12 +1,9 @@
 import type {
   PurchaseOrderCreatePayload,
-  PurchaseOrderItemPayload,
   PurchaseOrderUpdatePayload,
 } from "../../../api/purchaseOrder";
 import type { RepresentativeProduct } from "../../../api/products";
-import { normalizeCurrencyCode } from "../../../lib/format/formatCurrency";
-import { resolveOrderLineDetectorPayload } from "../../../domains/order/helpers/orderLineDetectorFields";
-import { parseLineUnitPrice } from "../../../lib/format/priceInput";
+import { buildOrderLineRequestPayload } from "../../../domains/order/helpers/buildOrderLineRequestPayload";
 import type { ItemRow } from "../types";
 
 type BuildCreatePayloadParams = {
@@ -51,25 +48,12 @@ export function buildCreatePayload({
   validItems,
   productById,
 }: BuildCreatePayloadParams): PurchaseOrderCreatePayload {
-  const lines = validItems.map((row): PurchaseOrderItemPayload => {
-    const detector = resolveOrderLineDetectorPayload(
+  const lines = validItems.map((row) =>
+    buildOrderLineRequestPayload({
       row,
-      productById.get(row.productId.trim())
-    );
-    if (!detector) {
-      throw new Error("검출기·소자·파장 정보를 확인하세요.");
-    }
-    return {
-      productId: row.productId.trim(),
-      lensId: row.lensId.trim() ? row.lensId.trim() : null,
-      ...detector,
-      qty: row.qty,
-      unitPrice: parseLineUnitPrice(row.unitPrice),
-      unit: row.unitCode.trim() || null,
-      currencyCode: normalizeCurrencyCode(row.currencyCode),
-      remark: row.remark.trim() || null,
-    };
-  });
+      product: productById.get(row.productId.trim()),
+    })
+  );
   return {
     title: title.trim(),
     partnerId: partnerId.trim(),
@@ -108,7 +92,6 @@ type BuildUpdatePayloadParams = {
   vendorRequest: string;
   specialNote: string;
   effectiveOrderTypeCode: string;
-  effectiveOrderStatusCode: string;
   headerCurrency: string;
   supplyAmount: number;
   exchangeRate: number | null;
@@ -130,7 +113,6 @@ export function buildUpdatePayload({
   vendorRequest,
   specialNote,
   effectiveOrderTypeCode,
-  effectiveOrderStatusCode,
   headerCurrency,
   supplyAmount,
   exchangeRate,
@@ -138,25 +120,12 @@ export function buildUpdatePayload({
   productById,
 }: BuildUpdatePayloadParams): PurchaseOrderUpdatePayload {
   const lines =
-    validItems?.map((row): PurchaseOrderItemPayload => {
-      const detector = resolveOrderLineDetectorPayload(
+    validItems?.map((row) =>
+      buildOrderLineRequestPayload({
         row,
-        productById?.get(row.productId.trim())
-      );
-      if (!detector) {
-        throw new Error("검출기·소자·파장 정보를 확인하세요.");
-      }
-      return {
-        productId: row.productId.trim(),
-        lensId: row.lensId.trim() ? row.lensId.trim() : null,
-        ...detector,
-        qty: row.qty,
-        unitPrice: parseLineUnitPrice(row.unitPrice),
-        unit: row.unitCode.trim() || null,
-        currencyCode: normalizeCurrencyCode(row.currencyCode),
-        remark: row.remark.trim() || null,
-      };
-    }) ?? undefined;
+        product: productById?.get(row.productId.trim()),
+      })
+    ) ?? undefined;
 
   return {
     title: title.trim(),
@@ -174,7 +143,6 @@ export function buildUpdatePayload({
     vendorRequest: vendorRequest.trim() || null,
     specialNote: specialNote.trim() || null,
     orderType: effectiveOrderTypeCode.trim() || null,
-    status: effectiveOrderStatusCode.trim() || null,
     supplyAmount,
     exchangeRate,
     exchangeRateDate: orderDate || null,

@@ -1,6 +1,6 @@
 import { Link } from "react-router";
 import { ChevronLeftIcon } from "../../icons";
-import useGoBack from "../../hooks/useGoBack";
+import { useGoBack } from "../../hooks/useGoBack";
 
 interface BreadcrumbProps {
   pageTitle: string;

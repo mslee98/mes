@@ -1,5 +1,6 @@
 import { useRef, useEffect, type ReactNode } from "react";
-
+import { createPortal } from "react-dom";
+import { guardAppScroll, releaseAppScrollGuard } from "../../../lib/ui/overlayScrollGuard";
 interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -50,26 +51,10 @@ export const Modal: React.FC<ModalProps> = ({
   }, [isOpen, onClose, strictClose]);
 
   useEffect(() => {
-    const mainScroll = document.querySelector<HTMLElement>("[data-app-main-scroll]");
+    if (!isOpen) return;
 
-    if (isOpen) {
-      document.body.style.overflow = "hidden";
-      if (mainScroll) {
-        mainScroll.style.overflow = "hidden";
-      }
-    } else {
-      document.body.style.overflow = "unset";
-      if (mainScroll) {
-        mainScroll.style.overflow = "";
-      }
-    }
-
-    return () => {
-      document.body.style.overflow = "unset";
-      if (mainScroll) {
-        mainScroll.style.overflow = "";
-      }
-    };
+    guardAppScroll();
+    return () => releaseAppScrollGuard();
   }, [isOpen]);
 
   if (!isOpen) return null;
@@ -78,11 +63,10 @@ export const Modal: React.FC<ModalProps> = ({
 
   const contentClasses = isFullscreen
     ? "flex h-full w-full min-h-0 flex-col"
-    : "relative flex min-h-0 w-full flex-col rounded-3xl border border-gray-200 bg-white shadow-theme-lg dark:border-gray-800 dark:bg-gray-900";
-
+    : "relative flex max-h-[min(90vh,calc(100vh-2rem))] min-h-0 w-full flex-col overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-theme-lg dark:border-gray-800 dark:bg-gray-900";
   const showHeaderBar = showCloseButton || header != null;
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-99999 flex items-center justify-center overflow-hidden p-4 modal">
       {!isFullscreen && (
         <div
@@ -93,7 +77,7 @@ export const Modal: React.FC<ModalProps> = ({
       )}
       <div
         ref={modalRef}
-        className={`${contentClasses} ${className}`}
+        className={`${contentClasses} ${className ?? ""}`}
         onClick={(e) => e.stopPropagation()}
       >
         {showHeaderBar ? (
@@ -127,11 +111,14 @@ export const Modal: React.FC<ModalProps> = ({
           </div>
         ) : null}
         <div
-          className={`flex min-h-0 min-w-0 flex-1 flex-col ${showHeaderBar ? "pt-4" : ""}`}
+          className={`custom-scrollbar flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overscroll-contain ${
+            showHeaderBar ? "pt-4" : ""
+          }`}
         >
           {children}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

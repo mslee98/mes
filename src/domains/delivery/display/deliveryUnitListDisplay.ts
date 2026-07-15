@@ -18,12 +18,6 @@ export function unitDetailPath(
   return id ? `/delivery/units/${encodeURIComponent(id)}` : null;
 }
 
-export function deliveryUnitRowClassName(index: number): string {
-  return index % 2 === 0
-    ? "bg-white transition-colors hover:bg-gray-50 dark:bg-transparent dark:hover:bg-white/[0.03]"
-    : "bg-gray-50/70 transition-colors hover:bg-gray-100/70 dark:bg-white/[0.02] dark:hover:bg-white/[0.05]";
-}
-
 export function isUnitAssignedToDeliveryPlan(
   row: Pick<
     DeliveryUnitListRow,
@@ -36,7 +30,7 @@ export function isUnitAssignedToDeliveryPlan(
 
 /** 생산 품목 — 납품 계획 배정 완료 행 (선택 불가·시각적 구분) */
 export function deliveryUnitAssignedRowClassName(): string {
-  return "bg-gray-100/90 dark:bg-white/[0.04] [&_.font-semibold]:text-gray-600 dark:[&_.font-semibold]:text-gray-400 [&_.text-gray-900]:text-gray-600 dark:[&_.text-gray-900]:text-gray-400 [&_.text-gray-800]:text-gray-500 dark:[&_.text-gray-800]:text-gray-500 [&_.text-brand-600]:text-brand-500/80 dark:[&_.text-brand-600]:text-brand-400/70";
+  return "bg-gray-200/95 dark:bg-gray-800/90 [&_.font-semibold]:text-gray-700 dark:[&_.font-semibold]:text-gray-300 [&_.text-gray-900]:text-gray-700 dark:[&_.text-gray-900]:text-gray-300 [&_.text-gray-800]:text-gray-600 dark:[&_.text-gray-800]:text-gray-400 [&_.text-brand-600]:text-brand-600/90 dark:[&_.text-brand-600]:text-brand-400/85";
 }
 
 export function listUnitLotCode(row: DeliveryUnitListRow): string {

@@ -7,16 +7,32 @@ export type DeliveryPlanUnitSelectionValidationResult =
 export function isUnitSelectableForDeliveryPlan(
   row: Pick<
     ProductionPlanUnitListItem,
-    "isInDeliveryPlan" | "isDelivered"
+    "isInDeliveryPlan" | "isDelivered" | "productionCompletedAt"
   >
 ): boolean {
   if (row.isDelivered === true) return false;
   if (row.isInDeliveryPlan === true) return false;
+  if (String(row.productionCompletedAt ?? "").trim()) return false;
   return true;
 }
 
+/** 체크박스 비활성 사유 (툴팁·title용) */
+export function getUnitCheckboxDisabledReason(
+  row: Pick<
+    ProductionPlanUnitListItem,
+    "isInDeliveryPlan" | "isDelivered" | "productionCompletedAt"
+  >
+): string | null {
+  if (row.isDelivered === true) return "납품 완료된 품목입니다.";
+  if (row.isInDeliveryPlan === true) return "이미 납품 계획에 배정된 품목입니다.";
+  if (String(row.productionCompletedAt ?? "").trim()) return "생산이 완료된 품목입니다.";
+  return null;
+}
+
 export function getUnitOrderId(row: ProductionPlanUnitListItem): string | null {
-  const id = String(row.order?.orderId ?? "").trim();
+  const id = String(
+    row.order?.orderId ?? row.purchaseOrderId ?? ""
+  ).trim();
   return id || null;
 }
 

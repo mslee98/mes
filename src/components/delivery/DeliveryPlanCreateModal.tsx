@@ -148,7 +148,7 @@ export function DeliveryPlanCreateModal({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      className="mx-4 max-h-[90vh] max-w-3xl overflow-y-auto p-6"
+      className="mx-4 max-w-3xl p-6"
       header={
         <>
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">

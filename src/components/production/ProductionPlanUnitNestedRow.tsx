@@ -4,8 +4,10 @@ import type { CommonCodeItem } from "../../api/commonCode";
 import type {
   ProductionPlanUnit,
 } from "../../api/purchaseOrder";
+import { getUnitCheckboxDisabledReason } from "../../domains/delivery/helpers/deliveryPlanUnitSelection";
 import { ProductionPlanProcessStageBadge } from "../production-plan/ProductionPlanProcessStageBadge";
 import Badge from "../ui/badge/Badge";
+import Checkbox from "../form/input/Checkbox";
 import { TableCell, TableRow } from "../ui/table";
 import { formatDateYmd } from "../../lib/format/dateFormat";
 import {
@@ -16,7 +18,6 @@ import { isUnitDeliveryOrProductionFinished } from "../../domains/production-pla
 import { formatUnitDeliveryStatus } from "../../domains/production-plan/helpers/deliveryActionCopy";
 import {
   currentProcessDisplay,
-  deliveryUnitRowClassName,
   listDetectorSerialDisplay,
   listOperatorDisplay,
   listProductSerialDisplay,
@@ -24,6 +25,8 @@ import {
   listUnitLotOrDetailLabel,
   listUnitLotCode,
   unitDetailPath,
+  deliveryUnitAssignedRowClassName,
+  isUnitAssignedToDeliveryPlan,
   type DeliveryUnitListRow as DeliveryUnitListRowData,
 } from "../../domains/delivery/display/deliveryUnitListDisplay";
 import {
@@ -61,6 +64,12 @@ export type ProductionPlanUnitNestedRowProps = {
   pageSize: number;
   unitProcessStepCodes: CommonCodeItem[];
   todayYmd: string;
+  showCheckbox?: boolean;
+  checked?: boolean;
+  checkboxDisabled?: boolean;
+  checkboxDisabledReason?: string | null;
+  checkboxOrderMismatchHint?: string | null;
+  onToggle?: (row: DeliveryUnitListRowData, checked: boolean) => void;
 };
 
 /** 생산 계획 목록 펼침 — 컴팩트 유닛 행(행 클릭 → 유닛 상세) */
@@ -71,6 +80,12 @@ export function ProductionPlanUnitNestedRow({
   pageSize,
   unitProcessStepCodes,
   todayYmd,
+  showCheckbox = false,
+  checked = false,
+  checkboxDisabled = false,
+  checkboxDisabledReason = null,
+  checkboxOrderMismatchHint = null,
+  onToggle,
 }: ProductionPlanUnitNestedRowProps) {
   const navigate = useNavigate();
   const detailPath = unitDetailPath(row.unitId);
@@ -84,6 +99,11 @@ export function ProductionPlanUnitNestedRow({
     ? null
     : getDueDateRelative(row.dueDate, { todayYmd });
   const deliveryStatus = formatUnitDeliveryStatus(row);
+  const isAssignedToDeliveryPlan = isUnitAssignedToDeliveryPlan(row);
+  const resolvedDisabledReason =
+    checkboxDisabledReason ?? getUnitCheckboxDisabledReason(row);
+  const checkboxTitle =
+    checkboxOrderMismatchHint ?? resolvedDisabledReason ?? undefined;
 
   const openUnitDetail = () => {
     if (detailPath) navigate(detailPath);
@@ -91,12 +111,25 @@ export function ProductionPlanUnitNestedRow({
 
   return (
     <TableRow
-      className={`${deliveryUnitRowClassName(index)} ${
-        detailPath ? "cursor-pointer" : ""
+      className={`${detailPath ? "cursor-pointer" : ""}${
+        isAssignedToDeliveryPlan ? ` ${deliveryUnitAssignedRowClassName()}` : ""
       }`}
       onClick={detailPath ? openUnitDetail : undefined}
       title={detailPath ? "유닛 상세로 이동" : undefined}
     >
+      {showCheckbox ? (
+        <TableCell
+          className={`${NESTED_CELL_CENTER} w-9`}
+          onClick={(e: MouseEvent) => e.stopPropagation()}
+          title={checkboxTitle}
+        >
+          <Checkbox
+            checked={checked}
+            disabled={checkboxDisabled}
+            onChange={(next) => onToggle?.(row, next)}
+          />
+        </TableCell>
+      ) : null}
       <TableCell className={`${NESTED_CELL_CENTER} w-9 tabular-nums`}>
         <span
           className={

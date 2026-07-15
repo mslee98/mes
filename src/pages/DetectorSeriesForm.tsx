@@ -15,7 +15,8 @@ import TextArea from "../components/form/input/TextArea";
 import Toggle from "../components/form/Toggle";
 import FormActionBar from "../components/form/FormActionBar";
 import { useAuth } from "../hooks/useAuth";
-import { useConfirmLeave } from "../hooks/useConfirmLeave";
+import { useConfirmLeaveWithGoBack } from "../hooks/useConfirmLeave";
+import { useGoBack } from "../hooks/useGoBack";
 import { useProductPermissions } from "../hooks/useProductPermissions";
 import {
   createDetectorSeries,
@@ -82,8 +83,9 @@ export default function DetectorSeriesForm() {
     );
   }, [initialSnapshot, code, name, description, sortOrder, isActive]);
 
+  const goBack = useGoBack("/detectors");
   const { leaveModalOpen, onLeaveConfirm, onLeaveCancel, requestLeave } =
-    useConfirmLeave(isDirty, () => navigate("/detectors"));
+    useConfirmLeaveWithGoBack(isDirty, "/detectors");
 
   useEffect(() => {
     if (!existing) return;
@@ -141,7 +143,7 @@ export default function DetectorSeriesForm() {
       void queryClient.invalidateQueries({ queryKey: ["detectorSeries"] });
       void queryClient.invalidateQueries({ queryKey: ["detectors"] });
       setDeleteOpen(false);
-      navigate("/detectors");
+      goBack();
     },
     onError: (e) =>
       mutationErrorNotify(e, {

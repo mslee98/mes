@@ -11,13 +11,11 @@ import { getUsers } from "../api/user";
 import {
   getProductionPlan,
   getProductionPlanUnitProcessRecords,
-  type Partner,
   type ProductionPlanUnit,
 } from "../api/purchaseOrder";
 import {
-  partnerFromSummary,
   partnerSelectLabel,
-  partnerSummaryHasDisplayableFields,
+  resolvePartnerForDisplay,
 } from "../domains/partner/display/partnerDisplay";
 import { partnerCountryFlagUrl } from "../domains/partner/helpers/partnerCountryOptions";
 import { flattenPlanUnits } from "../domains/production-plan/helpers/detailHelpers";
@@ -127,9 +125,10 @@ export default function ProductionPlanDetail() {
   );
 
   const planPartnerCode =
-    plan?.purchaseOrder?.partner?.code?.trim() ||
-    plan?.purchaseOrder?.partnerSummary?.code?.trim() ||
-    "";
+    resolvePartnerForDisplay(
+      plan?.purchaseOrder?.partner,
+      plan?.purchaseOrder?.partnerSummary
+    )?.code?.trim() ?? "";
 
   const planDeliveryDate =
     plan?.deliveryDate?.trim() ||
@@ -263,13 +262,11 @@ export default function ProductionPlanDetail() {
   }
 
   const purchaseOrderRaw = plan.purchaseOrder ?? undefined;
-  const partner = purchaseOrderRaw?.partner ?? undefined;
-  const partnerSummary = purchaseOrderRaw?.partnerSummary;
-  const partnerForDisplay: Partner | undefined =
-    partnerSummary != null &&
-    partnerSummaryHasDisplayableFields(partnerSummary)
-      ? partnerFromSummary(partnerSummary)
-      : partner;
+  const partnerForDisplay =
+    resolvePartnerForDisplay(
+      purchaseOrderRaw?.partner,
+      purchaseOrderRaw?.partnerSummary
+    ) ?? undefined;
   const orderNoFromPlan = purchaseOrderRaw?.orderNo?.trim();
   const partnerLabelText = partnerForDisplay
     ? partnerSelectLabel(partnerForDisplay, countryCodes)

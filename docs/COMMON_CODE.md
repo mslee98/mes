@@ -77,7 +77,16 @@
 
 ### `GET /common-codes/groups/:groupCode/codes`
 
-특정 그룹의 활성 코드 목록을 반환합니다.
+특정 그룹의 **활성** 코드 목록을 반환합니다.
+
+| 상황 | HTTP | 본문 |
+|------|------|------|
+| 그룹 코드 없음 (미시드·오타) | `200` | `[]` |
+| 그룹 있음, 활성 코드 0건 | `200` | `[]` |
+| 그룹 있음, 코드 있음 | `200` | `[...]` |
+| DB/서버 오류 | `5xx` | 오류 본문 |
+
+> **404는 단건·액션 API에만 사용**합니다 (발주 상세, 추후 코드 id 단건 등). 목록 조회에서 그룹 없음은 **빈 배열**이 표준입니다.
 
 ### `GET /code-groups/:groupCode/codes` (별칭)
 
@@ -190,6 +199,9 @@
 - 그룹별 코드 목록 API: `GET /common-codes/groups/:groupCode/codes` (**표준**)
 - 동일 데이터가 필요하고 그룹 목록이 없을 때: `GET /code-groups/:groupCode/codes` (**별칭**, `purchaseOrder.ts`의 `getCodeGroupCodes`)
 - 활성 그룹과 활성 코드만 조회하는 읽기 중심 화면
+- 그룹별 코드 목록: `data ?? []` 기본값 사용. **에러 UI·404 토스트 불필요** (그룹 없음 = `200 []`)
+- `statusLabels.ts` 등 **fallback 라벨**은 공통코드 미등록 시에도 표시용으로 유지 (예: `PRODUCTION_PLAN_STATUS`)
+- 상세 API 404(발주·납품 등)와 라우트 `NotFound`는 메시지를 분리
 
 관련 파일:
 

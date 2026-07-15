@@ -13,7 +13,7 @@ import {
   deletePurchaseOrderLine,
   type PurchaseOrderCreatePayload,
   type PurchaseOrderUpdatePayload,
-  type PurchaseOrderItemPayload,
+  type PurchaseOrderLineRequestPayload,
   type PurchaseOrderLinePatchPayload,
   type PurchaseOrderItem,
 } from "../../../api/purchaseOrder";
@@ -31,6 +31,8 @@ type UseOrderFormMutationsParams = {
   pendingFilesForCreate: File[];
   setPendingFilesForCreate: Dispatch<SetStateAction<File[]>>;
   setItems: Dispatch<SetStateAction<ItemRow[]>>;
+  /** 저장 성공 후 상세 등으로 이동할 때 이탈 가드 우회 */
+  allowNextNavigation?: () => void;
 };
 
 export function useOrderFormMutations({
@@ -41,6 +43,7 @@ export function useOrderFormMutations({
   pendingFilesForCreate,
   setPendingFilesForCreate,
   setItems,
+  allowNextNavigation,
 }: UseOrderFormMutationsParams) {
   const id = orderId;
   const navigate = useNavigate();
@@ -80,6 +83,7 @@ export function useOrderFormMutations({
       } else {
         notify.success("발주가 등록되었습니다.");
       }
+      allowNextNavigation?.();
       navigate(`/order/${data.id}`);
     },
     onError: (error) =>
@@ -93,6 +97,7 @@ export function useOrderFormMutations({
       notify.success("발주가 수정되었습니다.");
       queryClient.invalidateQueries({ queryKey: ["purchaseOrders"] });
       queryClient.invalidateQueries({ queryKey: ["purchaseOrder", id] });
+      allowNextNavigation?.();
       navigate(`/order/${id}`);
     },
     onError: (error) =>
@@ -123,7 +128,7 @@ export function useOrderFormMutations({
       payload,
     }: {
       index: number;
-      payload: PurchaseOrderItemPayload;
+      payload: PurchaseOrderLineRequestPayload;
     }) => createPurchaseOrderLine(id, payload, accessToken!),
     onSuccess: (created, { index }) => {
       notify.success("발주 라인이 추가되었습니다.");

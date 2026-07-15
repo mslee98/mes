@@ -1,9 +1,8 @@
 import {
-  BrowserRouter,
+  createBrowserRouter,
   Navigate,
   Outlet,
-  Route,
-  Routes,
+  RouterProvider,
   useLocation,
 } from "react-router";
 import { useEffect, useRef } from "react";
@@ -54,9 +53,6 @@ import DetectorSeriesForm from "./pages/DetectorSeriesForm";
 import DetectorDetail from "./pages/DetectorDetail";
 import Detectors from "./pages/Detectors";
 import DetectorForm from "./pages/DetectorForm";
-// import DashboardMaterial from "./pages/DashboardMaterial";
-// import DashboardExecutive from "./pages/DashboardExecutive";
-// import DashboardTeamLead from "./pages/DashboardTeamLead";
 
 function RequireAuth() {
   const { isLoggedIn, isLoading } = useAuth();
@@ -105,124 +101,158 @@ function RequireAuth() {
   return <Outlet />;
 }
 
-function App() {
+function AppShell() {
   return (
-    <BrowserRouter>
-      <ApiFeedbackProvider>
-        <ScrollToTop />
-        <Routes>
-          <Route element={<RequireAuth />}>
-            <Route path="/" element={<AppLayout />}>
-              <Route index element={<Home />} />
-              <Route path="dashboard" element={<Home />} />
-              {/* <Route path="dashboard/material" element={<DashboardMaterial />} />
-              <Route path="dashboard/executive" element={<DashboardExecutive />} />
-              <Route path="dashboard/team-lead" element={<DashboardTeamLead />} /> */}
-
-              <Route
-                path="products/:productId/edit"
-                element={<ProductForm />}
-              />
-              <Route path="products/new" element={<ProductForm />} />
-              <Route path="products/:productId" element={<ProductDetail />} />
-              <Route path="products" element={<Products />} />
-
-              <Route path="detector-series/new" element={<DetectorSeriesForm />} />
-              <Route
-                path="detector-series-form"
-                element={<Navigate to="/detector-series/new" replace />}
-              />
-              <Route
-                path="detector-series/:seriesId/edit"
-                element={<DetectorSeriesForm />}
-              />
-              <Route
-                path="detector-series"
-                element={<Navigate to="/detectors" replace />}
-              />
-
-              <Route path="detectors/new" element={<DetectorForm />} />
-              <Route
-                path="detector-form"
-                element={<Navigate to="/detectors/new" replace />}
-              />
-              <Route path="detectors/:detectorId/edit" element={<DetectorForm />} />
-              <Route path="detectors/:detectorId" element={<DetectorDetail />} />
-              <Route path="detectors" element={<Detectors />} />
-              <Route path="iddca-type" element={<IddcaTypeTable />} />
-              <Route
-                path="iddca-type-table"
-                element={<Navigate to="/iddca-type" replace />}
-              />
-              
-
-
-              <Route path="lenses/:lensId/edit" element={<LensForm />} />
-              <Route path="lenses/new" element={<LensForm />} />
-              <Route path="lenses/:lensId" element={<LensDetail />} />
-              <Route path="lenses" element={<Lenses />} />
-              <Route path="partners" element={<Partners />} />
-              <Route path="partners/new" element={<PartnerForm />} />
-              <Route path="partners/:partnerId" element={<PartnerDetail />} />
-              <Route path="partners/:partnerId/edit" element={<PartnerForm />} />
-
-              <Route path="order" element={<Order />} />
-              <Route path="order/new" element={<OrderForm />} />
-              <Route path="order/:orderId" element={<OrderDetail />} />
-              <Route
-                path="order/:orderId/plan/:planId"
-                element={<ProductionPlanDetail />}
-              />
-              <Route path="order/:orderId/edit" element={<OrderForm />} />
-
-              <Route path="production/plans" element={<ProductionPlans />} />
-              <Route path="production/units" element={<ProductionUnits />} />
-              <Route
-                path="production/overview"
-                element={<Navigate to="/production/plans" replace />}
-              />
-              <Route
-                path="delivery/preparation"
-                element={<Navigate to="/production/units" replace />}
-              />
-              <Route
-                path="delivery/units"
-                element={<DeliveryUnits perspective="delivery" />}
-              />
-              <Route
-                path="delivery"
-                element={<Navigate to="/delivery/plans" replace />}
-              />
-              <Route path="delivery/units/:unitId" element={<UnitDetail />} />
-              <Route path="delivery/plans" element={<DeliveryPlans />} />
-              <Route path="delivery/plans/:planId" element={<DeliveryPlanDetail />} />
-              <Route path="delivery/:deliveryId" element={<DeliveryDetail />} />
-              <Route path="bug-board" element={<BugBoard />} />
-
-              <Route path="rma/new" element={<RmaRegisterForm />} />
-              <Route path="rma" element={<Rma />} />
-
-              <Route path="organization" element={<Organization />} />
-              <Route path="role" element={<Role />} />
-              <Route path="permission" element={<Permission />} />
-              <Route path="common-code" element={<CommonCode />} />
-              <Route path="menu" element={<Menu />} />
-
-              <Route path="user" element={<User />} />
-              <Route path="user/:userId" element={<UserDetail />} />
-              <Route path="profile" element={<UserProfiles />} />
-              <Route path="ui" element={<UIPlayground />} />
-            </Route>
-          </Route>
-
-          <Route path="/signin" element={<AuthEntry />} />
-          <Route path="/signup" element={<Navigate to="/signin" replace />} />
-
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </ApiFeedbackProvider>
-    </BrowserRouter>
+    <ApiFeedbackProvider>
+      <ScrollToTop />
+      <Outlet />
+    </ApiFeedbackProvider>
   );
+}
+
+const router = createBrowserRouter([
+  {
+    element: <AppShell />,
+    children: [
+      {
+        element: <RequireAuth />,
+        children: [
+          {
+            path: "/",
+            element: <AppLayout />,
+            children: [
+              { index: true, element: <Home /> },
+              { path: "dashboard", element: <Home /> },
+
+              {
+                path: "products/:productId/edit",
+                element: <ProductForm />,
+              },
+              { path: "products/new", element: <ProductForm /> },
+              { path: "products/:productId", element: <ProductDetail /> },
+              { path: "products", element: <Products /> },
+
+              {
+                path: "detector-series/new",
+                element: <DetectorSeriesForm />,
+              },
+              {
+                path: "detector-series-form",
+                element: <Navigate to="/detector-series/new" replace />,
+              },
+              {
+                path: "detector-series/:seriesId/edit",
+                element: <DetectorSeriesForm />,
+              },
+              {
+                path: "detector-series",
+                element: <Navigate to="/detectors" replace />,
+              },
+
+              { path: "detectors/new", element: <DetectorForm /> },
+              {
+                path: "detector-form",
+                element: <Navigate to="/detectors/new" replace />,
+              },
+              {
+                path: "detectors/:detectorId/edit",
+                element: <DetectorForm />,
+              },
+              {
+                path: "detectors/:detectorId",
+                element: <DetectorDetail />,
+              },
+              { path: "detectors", element: <Detectors /> },
+              { path: "iddca-type", element: <IddcaTypeTable /> },
+              {
+                path: "iddca-type-table",
+                element: <Navigate to="/iddca-type" replace />,
+              },
+
+              { path: "lenses/:lensId/edit", element: <LensForm /> },
+              { path: "lenses/new", element: <LensForm /> },
+              { path: "lenses/:lensId", element: <LensDetail /> },
+              { path: "lenses", element: <Lenses /> },
+              { path: "partners", element: <Partners /> },
+              { path: "partners/new", element: <PartnerForm /> },
+              {
+                path: "partners/:partnerId",
+                element: <PartnerDetail />,
+              },
+              {
+                path: "partners/:partnerId/edit",
+                element: <PartnerForm />,
+              },
+
+              { path: "order", element: <Order /> },
+              { path: "order/new", element: <OrderForm /> },
+              { path: "order/:orderId", element: <OrderDetail /> },
+              {
+                path: "order/:orderId/plan/:planId",
+                element: <ProductionPlanDetail />,
+              },
+              { path: "order/:orderId/edit", element: <OrderForm /> },
+
+              { path: "production/plans", element: <ProductionPlans /> },
+              { path: "production/units", element: <ProductionUnits /> },
+              {
+                path: "production/overview",
+                element: <Navigate to="/production/plans" replace />,
+              },
+              {
+                path: "delivery/preparation",
+                element: <Navigate to="/production/units" replace />,
+              },
+              {
+                path: "delivery/units",
+                element: <DeliveryUnits perspective="delivery" />,
+              },
+              {
+                path: "delivery",
+                element: <Navigate to="/delivery/plans" replace />,
+              },
+              {
+                path: "delivery/units/:unitId",
+                element: <UnitDetail />,
+              },
+              { path: "delivery/plans", element: <DeliveryPlans /> },
+              {
+                path: "delivery/plans/:planId",
+                element: <DeliveryPlanDetail />,
+              },
+              {
+                path: "delivery/:deliveryId",
+                element: <DeliveryDetail />,
+              },
+              { path: "bug-board", element: <BugBoard /> },
+
+              { path: "rma/new", element: <RmaRegisterForm /> },
+              { path: "rma", element: <Rma /> },
+
+              { path: "organization", element: <Organization /> },
+              { path: "role", element: <Role /> },
+              { path: "permission", element: <Permission /> },
+              { path: "common-code", element: <CommonCode /> },
+              { path: "menu", element: <Menu /> },
+
+              { path: "user", element: <User /> },
+              { path: "user/:userId", element: <UserDetail /> },
+              { path: "profile", element: <UserProfiles /> },
+              { path: "ui", element: <UIPlayground /> },
+            ],
+          },
+        ],
+      },
+
+      { path: "/signin", element: <AuthEntry /> },
+      { path: "/signup", element: <Navigate to="/signin" replace /> },
+      { path: "*", element: <NotFound /> },
+    ],
+  },
+]);
+
+function App() {
+  return <RouterProvider router={router} />;
 }
 
 export default App;

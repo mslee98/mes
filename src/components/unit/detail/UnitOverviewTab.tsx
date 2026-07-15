@@ -10,6 +10,7 @@ import {
   COMMON_CODE_GROUP_WAVELENGTH,
   labelForCommonCode,
 } from "../../../api/commonCode";
+import { resolvePartnerForDisplay } from "../../../domains/partner/display/partnerDisplay";
 import type {
   ProductionPlanUnitDetail,
   PurchaseOrderDetail,
@@ -112,22 +113,34 @@ export function UnitOverviewTab({
       .slice(0, 4);
   }, [records]);
 
-  const partnerForDisplay: PartnerSummary | null =
-    purchaseOrder?.partner ??
-    (unit.partner?.name || unit.partner?.countryCode
-      ? {
-          id: String(unit.partner?.id ?? unit.order?.partnerId ?? ""),
-          code: unit.partner?.code ?? undefined,
-          name: unit.partner?.name ?? unit.order?.partnerName ?? undefined,
-          countryCode:
-            unit.partner?.countryCode ?? unit.order?.partnerCountryCode ?? undefined,
-        }
-      : null);
+  const partnerForDisplay: PartnerSummary | null = (() => {
+    const fromPo = resolvePartnerForDisplay(
+      purchaseOrder?.partner,
+      purchaseOrder?.partnerSummary
+    );
+    if (fromPo) {
+      return {
+        id: fromPo.id,
+        code: fromPo.code,
+        name: fromPo.name,
+        countryCode: fromPo.countryCode ?? null,
+      };
+    }
+    if (unit.partner?.name || unit.partner?.countryCode) {
+      return {
+        id: String(unit.partner?.id ?? unit.order?.partnerId ?? ""),
+        code: unit.partner?.code ?? undefined,
+        name: unit.partner?.name ?? unit.order?.partnerName ?? undefined,
+        countryCode:
+          unit.partner?.countryCode ?? unit.order?.partnerCountryCode ?? undefined,
+      };
+    }
+    return null;
+  })();
 
   const partnerName =
-    String(unit.partner?.name ?? "").trim() ||
+    String(partnerForDisplay?.name ?? "").trim() ||
     String(unit.order?.partnerName ?? "").trim() ||
-    String(purchaseOrder?.partner?.name ?? "").trim() ||
     "—";
 
   const orderNo =

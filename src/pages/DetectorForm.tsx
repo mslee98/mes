@@ -21,7 +21,7 @@ import { renderPartnerOptionLabel } from "../components/form/PartnerOptionLabel"
 import Toggle from "../components/form/Toggle";
 import FormActionBar from "../components/form/FormActionBar";
 import { useAuth } from "../hooks/useAuth";
-import { useConfirmLeave } from "../hooks/useConfirmLeave";
+import { useConfirmLeaveWithGoBack } from "../hooks/useConfirmLeave";
 import { useProductPermissions } from "../hooks/useProductPermissions";
 import { useProductCommonCodes } from "../hooks/useProductCommonCodes";
 import { usePartnersQuery } from "../hooks/usePartnersQuery";
@@ -392,9 +392,12 @@ export default function DetectorForm() {
     isActive,
   ]);
 
-  const leavePath = isNew ? "/detectors" : `/detectors/${idNum}`;
+  const leaveConfirm = useConfirmLeaveWithGoBack(
+    isDirty,
+    isNew ? "/detectors" : `/detectors/${idNum}`
+  );
   const { leaveModalOpen, onLeaveConfirm, onLeaveCancel, requestLeave } =
-    useConfirmLeave(isDirty, () => navigate(leavePath));
+    leaveConfirm;
 
   useEffect(() => {
     if (!existing) return;

@@ -1,3 +1,4 @@
+import { ArrowTopRightOnSquareIcon } from "../../icons";
 import { useCallback, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import SegmentedControl from "../common/SegmentedControl";
@@ -16,10 +17,14 @@ import { TableCell, TableRow } from "../ui/table";
 import Badge from "../ui/badge/Badge";
 import { ProductionPlanListRowCells } from "./ProductionPlanListRow";
 import { ProductionPlanUnitsPanel } from "./ProductionPlanUnitsPanel";
+import { ProductionPlanUnitSelectionFooter } from "./ProductionPlanUnitSelectionFooter";
+import { DeliveryPlanCreateModal } from "../delivery/DeliveryPlanCreateModal";
 import { useAuth } from "../../hooks/useAuth";
 import { useProductionPlanCommonCodes } from "../../hooks/useProductionPlanCommonCodes";
 import { useDeliveryPermissions } from "../../hooks/useDeliveryPermissions";
+import { useDeliveryPlanUnitSelection } from "../../hooks/useDeliveryPlanUnitSelection";
 import { useServerListPagination } from "../../hooks/useServerListPagination";
+import { ENABLE_PRODUCTION_PLAN_NESTED_UNIT_SELECTION } from "../../domains/production-plan/helpers/productionPlanUnitSelectionFeature";
 import {
   getProductionPlanCoverageCounts,
   getProductionPlans,
@@ -52,7 +57,22 @@ function toDateBasisLabel(v: ProductionPlanUnitDateBasis): string {
 
 export function ProductionPlanListView() {
   const { accessToken, isLoading: isAuthLoading } = useAuth();
-  const { canReadDelivery } = useDeliveryPermissions();
+  const { canReadDelivery, canCreateDelivery } = useDeliveryPermissions();
+
+  const unitSelectionEnabled =
+    ENABLE_PRODUCTION_PLAN_NESTED_UNIT_SELECTION && canCreateDelivery;
+
+  const {
+    selectedItems,
+    selectedCount,
+    toggle: toggleUnitSelection,
+    clear: clearUnitSelection,
+    isSelected: isUnitSelected,
+    isRowCheckboxDisabled,
+    getRowCheckboxOrderMismatchHint,
+  } = useDeliveryPlanUnitSelection();
+
+  const [createPlanOpen, setCreatePlanOpen] = useState(false);
 
   const { countryCodes, unitProcessStepCodes } = useProductionPlanCommonCodes(
     accessToken,
@@ -184,6 +204,9 @@ export function ProductionPlanListView() {
     setCoverageTab(DEFAULT_COVERAGE_TAB);
     setPage(1);
     setExpandedIds(new Set());
+    if (unitSelectionEnabled) {
+      clearUnitSelection();
+    }
   };
 
   const isLoading =
@@ -204,6 +227,7 @@ export function ProductionPlanListView() {
   }
 
   return (
+    <>
     <ListPageLayout
       title="생산 계획"
       desc="생산 진행과 남은 납품 업무를 확인합니다."
@@ -317,6 +341,7 @@ export function ProductionPlanListView() {
         !isLoading && !error ? <TablePagination {...listPagination} /> : null
       }
     >
+      <div className={unitSelectionEnabled && selectedCount > 0 ? "pb-20" : ""}>
       {isLoading ? (
         <ListPageLoading
           message="생산 계획 목록을 불러오는 중입니다."
@@ -387,9 +412,13 @@ export function ProductionPlanListView() {
               </TableCell>
               <TableCell
                 isHeader
-                className="min-w-[8.5rem] px-2 py-2 text-center font-medium text-gray-500 text-theme-xs dark:text-gray-400"
+                className="w-11 px-1 py-2 text-center font-medium text-gray-500 text-theme-xs dark:text-gray-400"
               >
-                Action
+                <span className="sr-only">열기</span>
+                <ArrowTopRightOnSquareIcon
+                  className="mx-auto size-4 text-gray-400 dark:text-gray-500"
+                  aria-hidden
+                />
               </TableCell>
             </TableRow>
           }
@@ -411,11 +440,39 @@ export function ProductionPlanListView() {
                 enabled={expandedIds.has(item.planId)}
                 unitProcessStepCodes={unitProcessStepCodes}
                 todayYmd={todaySeoulYmd}
+                unitSelectionEnabled={unitSelectionEnabled}
+                isUnitSelected={isUnitSelected}
+                isUnitCheckboxDisabled={isRowCheckboxDisabled}
+                getUnitCheckboxOrderMismatchHint={getRowCheckboxOrderMismatchHint}
+                onUnitToggle={toggleUnitSelection}
               />
             ) : null
           }
         />
       )}
+      </div>
     </ListPageLayout>
+
+    {unitSelectionEnabled ? (
+      <>
+        <ProductionPlanUnitSelectionFooter
+          visible={selectedCount > 0}
+          selectedCount={selectedCount}
+          canCreateDelivery={canCreateDelivery}
+          onCreatePlan={() => setCreatePlanOpen(true)}
+          onClear={clearUnitSelection}
+        />
+        <DeliveryPlanCreateModal
+          isOpen={createPlanOpen}
+          onClose={() => setCreatePlanOpen(false)}
+          selectedUnits={selectedItems}
+          onSuccess={() => {
+            clearUnitSelection();
+            setCreatePlanOpen(false);
+          }}
+        />
+      </>
+    ) : null}
+    </>
   );
 }

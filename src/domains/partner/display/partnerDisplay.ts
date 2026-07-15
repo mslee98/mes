@@ -36,3 +36,30 @@ export function partnerSummaryHasDisplayableFields(
     String(s.countryCode ?? "").trim() !== ""
   );
 }
+
+/**
+ * 표시·국기 URL용 — API별 계약:
+ * - 발주: `partnerSummary` (목록·상세)
+ * - 생산/납품 목록·계획: `partner` (id·code·name·countryCode 4필드)
+ * - 중첩 `purchaseOrder`: `partnerSummary` 보장 (BE)
+ * - Unit: 확장 `partner` — P1에서 `partnerSummary` 통일 예정
+ */
+export function resolvePartnerForDisplay(
+  partner?: Partner | null,
+  partnerSummary?: PartnerSummary | null
+): Partner | null {
+  if (
+    partnerSummary != null &&
+    partnerSummaryHasDisplayableFields(partnerSummary)
+  ) {
+    return partnerFromSummary(partnerSummary);
+  }
+  if (partner != null && typeof partner === "object") {
+    const hasFields =
+      String(partner.name ?? "").trim() !== "" ||
+      String(partner.code ?? "").trim() !== "" ||
+      String(partner.countryCode ?? "").trim() !== "";
+    return hasFields ? partner : null;
+  }
+  return null;
+}

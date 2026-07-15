@@ -133,7 +133,7 @@ export default function Products() {
               </p>
               <Select
                 options={STATUS_FILTER_OPTIONS}
-                defaultValue={statusFilter}
+                value={statusFilter}
                 onChange={setStatusFilter}
                 size="md"
               />
@@ -191,21 +191,21 @@ export default function Products() {
             </p>
           </div>
         ) : (
-          <DataTable fillWidth>
+          <DataTable fillWidth minWidth={0}>
             <DataTableHeader>
               <DataTableHeaderCell colSpan={1} compact sortable={false}>
                 <DataTableHeaderLabel>사업코드</DataTableHeaderLabel>
               </DataTableHeaderCell>
-              <DataTableHeaderCell colSpan={1} compact sortable={false}>
+              <DataTableHeaderCell colSpan={2} compact sortable={false}>
                 <DataTableHeaderLabel>사업명</DataTableHeaderLabel>
               </DataTableHeaderCell>
-              <DataTableHeaderCell colSpan={1} compact sortable={false}>
+              <DataTableHeaderCell colSpan={2} compact sortable={false}>
                 <DataTableHeaderLabel>제품명</DataTableHeaderLabel>
               </DataTableHeaderCell>
-              <DataTableHeaderCell colSpan={1} compact sortable={false}>
+              <DataTableHeaderCell colSpan={2} compact sortable={false}>
                 <DataTableHeaderLabel>타입/해상도</DataTableHeaderLabel>
               </DataTableHeaderCell>
-              <DataTableHeaderCell colSpan={1} compact sortable={false}>
+              <DataTableHeaderCell colSpan={4} compact sortable={false}>
                 <DataTableHeaderLabel>설명</DataTableHeaderLabel>
               </DataTableHeaderCell>
               <DataTableHeaderCell
@@ -221,7 +221,7 @@ export default function Products() {
               {items.length === 0 ? (
                 <DataTableRow>
                   <DataTableCell
-                    colSpan={6}
+                    colSpan={12}
                     compact
                     className="justify-center border-r-0 py-6"
                   >
@@ -230,22 +230,35 @@ export default function Products() {
                 </DataTableRow>
               ) : (
                 items.map((p: ProductListItemDto) => (
-                  <DataTableRow key={p.id}>
+                  <DataTableRow
+                    key={p.id}
+                    className="cursor-pointer hover:bg-gray-50 dark:hover:bg-white/[0.03]"
+                    onClick={() => navigate(`/products/${p.id}`)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e: React.KeyboardEvent) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        navigate(`/products/${p.id}`);
+                      }
+                    }}
+                  >
                     <DataTableCell colSpan={1} compact>
                       <code>{String(p.businessCode ?? "").trim() || "-"}</code>
                     </DataTableCell>
-                    <DataTableCell colSpan={1} compact>
+                    <DataTableCell colSpan={2} compact>
                       {p.businessName || "-"}
                     </DataTableCell>
-                    <DataTableCell colSpan={1} compact>
+                    <DataTableCell colSpan={2} compact>
                       <Link
                         to={`/products/${p.id}`}
                         className={DATA_TABLE_COMPACT_LINK_CLASS}
+                        onClick={(e) => e.stopPropagation()}
                       >
                         {p.productName || "-"}
                       </Link>
                     </DataTableCell>
-                    <DataTableCell colSpan={1} compact>
+                    <DataTableCell colSpan={2} compact>
                       <code>
                         {(() => {
                           const productType =
@@ -267,7 +280,7 @@ export default function Products() {
                         })()}
                       </code>
                     </DataTableCell>
-                    <DataTableCell colSpan={1} compact className="min-w-0">
+                    <DataTableCell colSpan={4} compact className="min-w-0">
                       <span
                         className="block truncate"
                         title={

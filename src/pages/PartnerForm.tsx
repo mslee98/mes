@@ -1,4 +1,4 @@
-import { useNavigate, useParams } from "react-router";
+import { useParams } from "react-router";
 import { notify } from "../lib/notify";
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
@@ -7,7 +7,7 @@ import DetailPageState from "../components/common/DetailPageState";
 import FormActionBar from "../components/form/FormActionBar";
 import ConfirmLeaveModal from "../components/common/ConfirmLeaveModal";
 import { useAuth } from "../hooks/useAuth";
-import { useConfirmLeave } from "../hooks/useConfirmLeave";
+import { useConfirmLeaveWithGoBack } from "../hooks/useConfirmLeave";
 import { usePartnerCommonCodes } from "../hooks/usePartnerCommonCodes";
 import { PartnerBasicInfoSection } from "../features/partner-form/sections/PartnerBasicInfoSection";
 import { PartnerContactSection } from "../features/partner-form/sections/PartnerContactSection";
@@ -21,7 +21,6 @@ export default function PartnerForm() {
   const { partnerId } = useParams();
   const isNew = !partnerId;
   const id = String(partnerId ?? "").trim();
-  const navigate = useNavigate();
   const { accessToken, isLoading: isAuthLoading } = useAuth();
 
   const form = usePartnerFormState({
@@ -52,7 +51,7 @@ export default function PartnerForm() {
   });
 
   const { leaveModalOpen, onLeaveConfirm, onLeaveCancel, requestLeave } =
-    useConfirmLeave(form.isDirty, () => navigate(form.leavePath));
+    useConfirmLeaveWithGoBack(form.isDirty, form.leavePath);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

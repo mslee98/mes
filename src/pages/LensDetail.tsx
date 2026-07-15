@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useNavigate, useParams } from "react-router";
+import { Link, useParams } from "react-router";
 import { notify } from "../lib/notify";
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
@@ -9,6 +9,7 @@ import ConfirmModal from "../components/common/ConfirmModal";
 import LoadingLottie from "../components/common/LoadingLottie";
 import ActiveStatusBadge from "../components/common/ActiveStatusBadge";
 import { useAuth } from "../hooks/useAuth";
+import { useGoBack } from "../hooks/useGoBack";
 import { deleteLens, getLens, getLensFiles, type LensItem, type FileLink } from "../api/lenses";
 import { buildAppApiFileUrl } from "../lib/fileDownload";
 import { fileTypeIconSrc } from "../lib/ui/fileTypeIcon";
@@ -65,7 +66,7 @@ function DetailRow({
 export default function LensDetail() {
   const { lensId } = useParams();
   const id = String(lensId ?? "").trim();
-  const navigate = useNavigate();
+  const goBack = useGoBack("/lenses");
   const queryClient = useQueryClient();
   const [deleteOpen, setDeleteOpen] = useState(false);
   const { accessToken, isLoading: isAuthLoading } = useAuth();
@@ -78,7 +79,7 @@ export default function LensDetail() {
       void queryClient.removeQueries({ queryKey: ["lens", id] });
       void queryClient.removeQueries({ queryKey: ["lensFiles", id] });
       setDeleteOpen(false);
-      navigate("/lenses");
+      goBack();
     },
     onError: (e: unknown) => {
       const message =

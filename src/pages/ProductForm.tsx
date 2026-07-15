@@ -21,7 +21,7 @@ import Toggle from "../components/form/Toggle";
 import FormActionBar from "../components/form/FormActionBar";
 import { TrashBinIcon } from "../icons";
 import { useAuth } from "../hooks/useAuth";
-import { useConfirmLeave } from "../hooks/useConfirmLeave";
+import { useConfirmLeaveWithGoBack } from "../hooks/useConfirmLeave";
 import {
   checkProductBusinessCode,
   createProduct,
@@ -160,9 +160,12 @@ export default function ProductForm() {
     pendingFilesForCreate.length,
   ]);
 
-  const leavePath = isNew ? "/products" : `/products/${id}`;
+  const leaveConfirm = useConfirmLeaveWithGoBack(
+    isDirty,
+    isNew ? "/products" : `/products/${id}`
+  );
   const { leaveModalOpen, onLeaveConfirm, onLeaveCancel, requestLeave } =
-    useConfirmLeave(isDirty, () => navigate(leavePath));
+    leaveConfirm;
 
   useEffect(() => {
     if (!existing) return;

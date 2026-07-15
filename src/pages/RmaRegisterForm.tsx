@@ -15,7 +15,7 @@ import FormActionBar from "../components/form/FormActionBar";
 import SerialLotLookupModal from "../components/unit/SerialLotLookupModal";
 import Badge from "../components/ui/badge/Badge";
 import { useAuth } from "../hooks/useAuth";
-import { useConfirmLeave } from "../hooks/useConfirmLeave";
+import { useConfirmLeaveWithGoBack } from "../hooks/useConfirmLeave";
 import { useRmaCommonCodes } from "../hooks/useRmaCommonCodes";
 import { useRmaPermissions } from "../hooks/useRmaPermissions";
 import { commonCodesToSelectOptions, labelForCommonCode } from "../api/commonCode";
@@ -158,7 +158,7 @@ export default function RmaRegisterForm() {
   ]);
 
   const { leaveModalOpen, onLeaveConfirm, onLeaveCancel, requestLeave } =
-    useConfirmLeave(isDirty, () => navigate("/rma"));
+    useConfirmLeaveWithGoBack(isDirty, "/rma");
 
   const unitId = toText(selectedUnit?.productionPlanUnitId);
 

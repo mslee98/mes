@@ -1,4 +1,10 @@
-import type { FC, ReactNode, HTMLAttributes } from "react";
+import type {
+  FC,
+  ReactNode,
+  HTMLAttributes,
+  TdHTMLAttributes,
+  ThHTMLAttributes,
+} from "react";
 export { SortableHeaderCell } from "./SortableHeaderCell";
 export type {
   SortableHeaderCellProps,
@@ -30,12 +36,14 @@ interface TableRowProps extends HTMLAttributes<HTMLTableRowElement> {
 }
 
 // Props for TableCell
-interface TableCellProps {
-  children: ReactNode; // Cell content
-  isHeader?: boolean; // If true, renders as <th>, otherwise <td>
-  className?: string; // Optional className for styling
-  colSpan?: number;
-}
+type TableCellProps = {
+  children: ReactNode;
+  isHeader?: boolean;
+  className?: string;
+} & (
+  | ({ isHeader?: false } & TdHTMLAttributes<HTMLTableCellElement>)
+  | ({ isHeader: true } & ThHTMLAttributes<HTMLTableCellElement>)
+);
 
 // Table Component
 const Table: FC<TableProps> = ({ children, className }) => {
@@ -66,11 +74,11 @@ const TableCell: FC<TableCellProps> = ({
   children,
   isHeader = false,
   className,
-  colSpan,
+  ...rest
 }) => {
   const CellTag = isHeader ? "th" : "td";
   return (
-    <CellTag className={` ${className}`} colSpan={colSpan}>
+    <CellTag className={` ${className ?? ""}`} {...rest}>
       {children}
     </CellTag>
   );

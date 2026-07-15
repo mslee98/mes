@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useNavigate } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { getMenus } from "../api/menu";
 import PageMeta from "../components/common/PageMeta";
@@ -12,12 +11,13 @@ import MenuDetailPanel from "../components/menu/MenuDetailPanel";
 import MenuTree from "../components/menu/MenuTree";
 import RoleMenuCard from "../components/menu/RoleMenuCard";
 import { useAuth } from "../hooks/useAuth";
+import { useGoBack } from "../hooks/useGoBack";
 import { useMenuTreeState } from "../hooks/useMenuTreeState";
 
 const EMPTY_MENUS: never[] = [];
 
 export default function Menu() {
-  const navigate = useNavigate();
+  const goBack = useGoBack("/");
   const { accessToken, isLoading: isAuthLoading } = useAuth();
   const [menuActiveTab, setMenuActiveTab] = useState<"tree" | "roleMenus">("tree");
 
@@ -150,7 +150,7 @@ export default function Menu() {
         onClose={() => tree.setIsDeleteModalOpen(false)}
         onCloseButtonClick={() => {
           tree.setIsDeleteModalOpen(false);
-          navigate(-1);
+          goBack();
         }}
         onConfirm={tree.handleConfirmDelete}
         title="메뉴 삭제"

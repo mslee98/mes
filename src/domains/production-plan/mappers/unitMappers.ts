@@ -4,6 +4,7 @@ import type {
   PurchaseOrderDetail,
   PurchaseOrderItem,
 } from "../../../api/purchaseOrder";
+import { resolvePartnerForDisplay } from "../../partner/display/partnerDisplay";
 import {
   detectorElementCodeForApi,
   lineCodeFromOrderLine,
@@ -70,7 +71,12 @@ export function customerCodeForUnitDetail(
 ): string {
   return (
     String(detail.partner?.code ?? "").trim() ||
-    String(purchaseOrder?.partner?.code ?? "").trim() ||
+    String(
+      resolvePartnerForDisplay(
+        purchaseOrder?.partner,
+        purchaseOrder?.partnerSummary
+      )?.code ?? ""
+    ).trim() ||
     ""
   );
 }

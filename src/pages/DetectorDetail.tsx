@@ -1,6 +1,6 @@
 ﻿import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useNavigate, useParams } from "react-router";
+import { Link, useParams } from "react-router";
 import { mutationErrorNotify } from "../lib/api/mutationOnError";
 import { notify } from "../lib/notify";
 import PageMeta from "../components/common/PageMeta";
@@ -10,6 +10,7 @@ import ConfirmModal from "../components/common/ConfirmModal";
 import DetailPageState from "../components/common/DetailPageState";
 import ActiveStatusBadge from "../components/common/ActiveStatusBadge";
 import { useAuth } from "../hooks/useAuth";
+import { useGoBack } from "../hooks/useGoBack";
 import { useProductPermissions } from "../hooks/useProductPermissions";
 import { deleteDetector, getDetector, type DetectorDetail } from "../api/detectors";
 import {
@@ -56,7 +57,7 @@ function textListOrDash(value: string[] | null | undefined): string {
 export default function DetectorDetailPage() {
   const { detectorId } = useParams();
   const id = Number(String(detectorId ?? "").trim());
-  const navigate = useNavigate();
+  const goBack = useGoBack("/detectors");
   const queryClient = useQueryClient();
   const [deleteOpen, setDeleteOpen] = useState(false);
   const { accessToken, isLoading: isAuthLoading } = useAuth();
@@ -89,7 +90,7 @@ export default function DetectorDetailPage() {
       void queryClient.invalidateQueries({ queryKey: ["detectors"] });
       void queryClient.removeQueries({ queryKey: ["detector", id] });
       setDeleteOpen(false);
-      navigate("/detectors");
+      goBack();
     },
     onError: (e) =>
       mutationErrorNotify(e, {

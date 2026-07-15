@@ -47,7 +47,6 @@ import {
 import {
   currentProcessDisplay,
   deliveryUnitAssignedRowClassName,
-  deliveryUnitRowClassName,
   isUnitAssignedToDeliveryPlan,
   listDetectorSerialDisplay,
   listOperatorDisplay,
@@ -57,6 +56,8 @@ import {
   partnerCountrySubline,
   type DeliveryUnitListRow as DeliveryUnitListRowData,
 } from "../../domains/delivery/display/deliveryUnitListDisplay";
+import { resolvePartnerForDisplay } from "../../domains/partner/display/partnerDisplay";
+import type { Partner } from "../../api/purchaseOrder";
 import type { DeliveryUnitTableLayout } from "../../domains/delivery/layout/deliveryUnitDataTableLayout";
 import {
   DELIVERY_UNIT_COLUMN_ALIGN,
@@ -202,10 +203,14 @@ export const DeliveryUnitListRow = memo(function DeliveryUnitListRow({
   const business = row.item?.businessNameSnapshot?.trim();
   const product = row.item?.productNameSnapshot?.trim();
   const detectorSn = listDetectorSerialDisplay(row);
+  const partnerForRow = resolvePartnerForDisplay(
+    row.partner as Partner | undefined,
+    null
+  );
   const partnerName =
-    row.partner?.name?.trim() || row.order?.partnerName?.trim() || "-";
+    partnerForRow?.name?.trim() || row.order?.partnerName?.trim() || "-";
   const countryCode =
-    row.partner?.countryCode ?? row.order?.partnerCountryCode;
+    partnerForRow?.countryCode ?? row.order?.partnerCountryCode;
   const countryLine = partnerCountrySubline(countryCode, countryCodes);
   const delayDays = unitListDelayDays(row);
   const lotCode = listUnitLotCode(row);
@@ -222,7 +227,7 @@ export const DeliveryUnitListRow = memo(function DeliveryUnitListRow({
       ref={rowRef}
       selected={showCheckbox && checked}
       gridTemplateColumns={gridTemplateColumns}
-      className={`group ${deliveryUnitRowClassName(index)} ${DELIVERY_UNIT_ROW_MIN_HEIGHT_CLASS}${
+      className={`group ${DELIVERY_UNIT_ROW_MIN_HEIGHT_CLASS}${
         dimAssignedRow ? ` ${deliveryUnitAssignedRowClassName()}` : ""
       }${checkboxOrderMismatchHint ? " cursor-not-allowed" : ""}`}
       onMouseEnter={handleRowMouseEnter}

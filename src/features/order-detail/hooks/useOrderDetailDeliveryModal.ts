@@ -3,14 +3,11 @@ import {
   useMemo,
   useCallback,
   useEffect,
-  useRef,
   startTransition,
 } from "react";
 import { useNavigate } from "react-router";
 import { notify } from "../../../lib/notify";
 import {
-  getPurchaseOrderLotPreview,
-  getPurchaseOrderSerialMaxSequence,
   getPurchaseOrderRequestDepartmentLabel,
   type PurchaseOrderDetail,
   type PurchaseOrderItem,
@@ -20,108 +17,26 @@ import {
   type ProductionPlan,
 } from "../../../api/purchaseOrder";
 import {
-  LEGACY_USER_PREFIX,
   legacyDeptValue,
   tryDecodeLegacyDept,
   tryDecodeLegacyUser,
 } from "../../../lib/legacySelectValue";
-import {
-  buildLtSerialNo,
-  ltSerialSequenceKey,
-} from "../../../lib/format/ltSerialFormat";
-import { yearCodeFromOrderDate } from "../../../lib/format/lotUnitCodeFormat";
 import { distributeProductionPlanItems } from "../../../domains/production-plan/helpers/distributeItems";
-import {
-  resolveOrderLineDetectorElementInitial,
-  resolveOrderLineDetectorId,
-  resolveOrderLineWavelengthCode,
-} from "../../../domains/production-plan/helpers/serialFromOrderLine";
-import { compactYmd } from "../../../lib/format/dateFormat";
 import type { CommonCodeItem } from "../../../api/commonCode";
 import type { UserItem } from "../../../api/user";
 import type { UseMutationResult } from "@tanstack/react-query";
 import type {
   OrderDetailDeliveryMutationVars,
-  OrderDetailDeliveryLotPreviewRow,
 } from "./useOrderDetailMutations";
+import {
+  buildProductionPlanAutoTitle,
+  deliveryManagerUserIdFromSelect,
+  parseThisProductionQtyInput,
+} from "./orderDetailDeliveryModalHelpers";
+import { useDeliverySerialPreview } from "./useDeliverySerialPreview";
+import { useDeliveryLotPreview } from "./useDeliveryLotPreview";
 
-export type DeliverySerialPreviewRow = {
-  key: string;
-  orderItemId: number;
-  lineLabel: string;
-  serialNo: string;
-  sequenceKey: string;
-  detectorElementCode: string;
-  wavelengthCode: string;
-  detectorId: number;
-  serialSnapshot?: Record<string, unknown>;
-};
-
-const SERIAL_PREVIEW_DEBOUNCE_MS = 280;
-const LOT_PREVIEW_DEBOUNCE_MS = 280;
-
-function deliveryManagerUserIdFromSelect(selectValue: string): number | null {
-  const t = selectValue.trim();
-  if (!t || t.startsWith(LEGACY_USER_PREFIX)) return null;
-  const n = Number(t);
-  return Number.isFinite(n) ? n : null;
-}
-
-function parseThisProductionQtyInput(raw: string): number {
-  const trimmed = raw.trim();
-  const n = Number(trimmed);
-  if (!trimmed || !Number.isFinite(n) || n <= 0 || !Number.isInteger(n)) {
-    return 0;
-  }
-  return n;
-}
-
-function firstLineProductWithBusiness(
-  line: PurchaseOrderItem | undefined
-): string {
-  if (!line) return "-";
-  const baseLabel =
-    line.itemName?.trim() ||
-    line.productNameSnapshot?.trim() ||
-    line.definitionNameSnapshot?.trim() ||
-    (line.productId != null && String(line.productId).trim() !== ""
-      ? `제품 #${line.productId}`
-      : `라인 #${line.id}`);
-  const lineCode =
-    line.businessName?.trim() ||
-    line.businessNameSnapshot?.trim() ||
-    line.versionSnapshot?.trim() ||
-    "";
-  if (
-    !lineCode ||
-    baseLabel.includes(`(${lineCode})`) ||
-    baseLabel.startsWith("제품 #") ||
-    baseLabel.startsWith("라인 #")
-  ) {
-    return baseLabel;
-  }
-  return `${baseLabel} (${lineCode})`;
-}
-
-function buildProductionPlanAutoTitle(opts: {
-  plannedDeliveryDate: string;
-  deliveryDate: string;
-  lines: PurchaseOrderItem[];
-  nextPlanSeq: number;
-}): string {
-  const plannedOrDelivery =
-    opts.plannedDeliveryDate.trim() || opts.deliveryDate.trim();
-  const compact =
-    compactYmd(plannedOrDelivery) ||
-    compactYmd(new Date().toISOString()) ||
-    "";
-  const productSeg = firstLineProductWithBusiness(opts.lines[0]);
-  const totalQty = opts.lines.reduce(
-    (s, l) => s + (Number(l.qty) || 0),
-    0
-  );
-  return `${compact}-${productSeg}-${totalQty} ${opts.nextPlanSeq}차 생산계획`;
-}
+export type { DeliverySerialPreviewRow } from "./orderDetailDeliveryModalHelpers";
 
 type DeliveryMutation = UseMutationResult<
   ProductionPlan | Delivery,
@@ -185,19 +100,45 @@ export function useOrderDetailDeliveryModal({
     useState("");
   const [deliverySerialQtyInput, setDeliverySerialQtyInput] = useState("");
   const [isSerialRulePopoverOpen, setIsSerialRulePopoverOpen] = useState(false);
-  const [deliverySerialPreviewRows, setDeliverySerialPreviewRows] = useState<
-    DeliverySerialPreviewRow[]
-  >([]);
-  const [deliveryLotPreviewRows, setDeliveryLotPreviewRows] = useState<
-    OrderDetailDeliveryLotPreviewRow[]
-  >([]);
-  const [isLotBulkOperatorPopoverOpen, setIsLotBulkOperatorPopoverOpen] =
-    useState(false);
   const [isLotRulePopoverOpen, setIsLotRulePopoverOpen] = useState(false);
 
-  const serialPreviewGenRequestRef = useRef(0);
-  const lotPreviewGenRequestRef = useRef(0);
-  const lotBulkOperatorPopoverRef = useRef<HTMLDivElement | null>(null);
+  const {
+    deliverySerialPreviewRows,
+    setDeliverySerialPreviewRows,
+    clearSerialPreview,
+    updateDeliverySerialPreviewSerialNo,
+  } = useDeliverySerialPreview({
+    deliveryModalOpen,
+    deliveryModalPurpose,
+    order,
+    accessToken,
+    orderId: id,
+    deliverySerialQtyInput,
+    deliveryDate,
+    deliveredByOrderItemId,
+    lotYearCodes,
+  });
+
+  const {
+    deliveryLotPreviewRows,
+    setDeliveryLotPreviewRows,
+    clearLotPreview,
+    isLotBulkOperatorPopoverOpen,
+    setIsLotBulkOperatorPopoverOpen,
+    lotBulkOperatorPopoverRef,
+    updateDeliveryLotPreviewOperatorUser,
+    applyBulkOperatorUserToLotPreviewRows,
+  } = useDeliveryLotPreview({
+    deliveryModalOpen,
+    deliveryModalPurpose,
+    accessToken,
+    orderId: id,
+    deliverySerialQtyInput,
+    deliveryDate,
+    orderLines,
+    registeredByOrderItemId,
+    deliveryLotBulkOperatorUserValue,
+  });
 
   const resetDeliveryModalForm = useCallback(() => {
     setDeliveryTitle("");
@@ -209,77 +150,16 @@ export function useOrderDetailDeliveryModal({
     setDeliveryLotBulkOperatorUserValue("");
     setDeliverySerialQtyInput("");
     setIsSerialRulePopoverOpen(false);
-    setDeliverySerialPreviewRows([]);
-    setIsLotBulkOperatorPopoverOpen(false);
+    clearSerialPreview();
+    clearLotPreview();
     setIsLotRulePopoverOpen(false);
-    setDeliveryLotPreviewRows([]);
-  }, []);
+  }, [clearSerialPreview, clearLotPreview]);
 
   const closeDeliveryModal = useCallback(() => {
     setDeliveryModalOpen(false);
     resetDeliveryModalForm();
     setDeliveryModalPurpose("actual");
-  }, [resetDeliveryModalForm]);
-
-  const updateDeliveryLotPreviewOperatorUser = useCallback(
-    (index: number, nextOperatorUserId: string) => {
-      setDeliveryLotPreviewRows((prev) => {
-        if (index < 0 || index >= prev.length) return prev;
-        const copy = [...prev];
-        copy[index] = { ...copy[index], operatorUserId: nextOperatorUserId };
-        return copy;
-      });
-    },
-    []
-  );
-
-  const applyBulkOperatorUserToLotPreviewRows = useCallback(() => {
-    const operatorUserId = deliveryManagerUserIdFromSelect(
-      deliveryLotBulkOperatorUserValue
-    );
-    if (operatorUserId == null) return;
-    setDeliveryLotPreviewRows((prev) =>
-      prev.map((row) => ({ ...row, operatorUserId: String(operatorUserId) }))
-    );
-    setIsLotBulkOperatorPopoverOpen(false);
-  }, [deliveryLotBulkOperatorUserValue]);
-
-  useEffect(() => {
-    if (!isLotBulkOperatorPopoverOpen) return;
-    const onDocMouseDown = (event: MouseEvent) => {
-      const target = event.target as Node;
-      if (lotBulkOperatorPopoverRef.current?.contains(target)) return;
-      setIsLotBulkOperatorPopoverOpen(false);
-    };
-    const onDocKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setIsLotBulkOperatorPopoverOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", onDocMouseDown);
-    document.addEventListener("keydown", onDocKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", onDocMouseDown);
-      document.removeEventListener("keydown", onDocKeyDown);
-    };
-  }, [isLotBulkOperatorPopoverOpen]);
-
-  const updateDeliverySerialPreviewSerialNo = useCallback(
-    (index: number, nextSerialNo: string) => {
-      setDeliverySerialPreviewRows((prev) => {
-        if (index < 0 || index >= prev.length) return prev;
-        const copy = [...prev];
-        const row = copy[index];
-        const serialSnapshot =
-          row.serialSnapshot && typeof row.serialSnapshot === "object"
-            ? { ...row.serialSnapshot, serialNo: nextSerialNo }
-            : row.serialSnapshot;
-        copy[index] = { ...row, serialNo: nextSerialNo, serialSnapshot };
-        return copy;
-      });
-    },
-    []
-  );
+  }, [resetDeliveryModalForm, setDeliveryModalOpen]);
 
   const deliveryManagerUserOptions = useMemo(() => {
     const opts = users
@@ -365,295 +245,6 @@ export function useOrderDetailDeliveryModal({
     nextProductionPlanSeq,
   ]);
 
-  const generateSerialPreview = useCallback(async () => {
-    if (
-      !deliveryModalOpen ||
-      deliveryModalPurpose !== "actual" ||
-      !order ||
-      !accessToken ||
-      !id
-    ) {
-      return;
-    }
-
-    const requestId = ++serialPreviewGenRequestRef.current;
-    const poDetail = order as PurchaseOrderDetail;
-    const raw = deliverySerialQtyInput.trim();
-    const qtyRequested = parseThisProductionQtyInput(raw);
-
-    if (!raw || qtyRequested <= 0) {
-      setDeliverySerialPreviewRows([]);
-      return;
-    }
-
-    if (!deliveryDate.trim()) {
-      setDeliverySerialPreviewRows([]);
-      return;
-    }
-
-    const lines = ((poDetail.orderItems ?? poDetail.items ?? []) as PurchaseOrderItem[]);
-    if (lines.length === 0) {
-      setDeliverySerialPreviewRows([]);
-      return;
-    }
-
-    const totalQty = lines.reduce((sum, line) => sum + (Number(line.qty) || 0), 0);
-    const deliveredQty = lines.reduce(
-      (sum, line) => sum + (deliveredByOrderItemId.get(line.id) ?? 0),
-      0
-    );
-    const remainingQty = Math.max(0, totalQty - deliveredQty);
-    const qty = Math.min(qtyRequested, remainingQty);
-
-    if (qty <= 0) {
-      setDeliverySerialPreviewRows([]);
-      return;
-    }
-
-    const yearCode = yearCodeFromOrderDate(
-      deliveryDate.trim(),
-      lotYearCodes
-    );
-    if (!yearCode) {
-      setDeliverySerialPreviewRows([]);
-      return;
-    }
-
-    const partnerCode = String(poDetail.partner?.code ?? "").trim().toUpperCase();
-    if (!partnerCode) {
-      setDeliverySerialPreviewRows([]);
-      return;
-    }
-
-    const qtyEps = 1e-9;
-
-    const plannedRows: Array<{
-      orderItemId: number;
-      lineLabel: string;
-      assignQty: number;
-      detectorElementCode: string;
-      wavelengthCode: string;
-      detectorId: number;
-    }> = [];
-
-    let remainingToAssign = qty;
-    for (const line of lines) {
-      if (remainingToAssign <= qtyEps) break;
-      const prev = deliveredByOrderItemId.get(line.id) ?? 0;
-      const lineRemaining = Math.max(0, line.qty - prev);
-      const assignQty = Math.min(
-        Math.max(0, Math.floor(lineRemaining)),
-        Math.floor(remainingToAssign)
-      );
-      if (assignQty > 0 && resolveOrderLineDetectorId(line) == null) {
-        setDeliverySerialPreviewRows([]);
-        return;
-      }
-
-      plannedRows.push({
-        orderItemId: line.id,
-        lineLabel: firstLineProductWithBusiness(line),
-        assignQty,
-        detectorElementCode: resolveOrderLineDetectorElementInitial(line),
-        wavelengthCode: resolveOrderLineWavelengthCode(line),
-        detectorId: resolveOrderLineDetectorId(line) ?? 0,
-      });
-      remainingToAssign -= assignQty;
-    }
-
-    const sequenceKey = ltSerialSequenceKey(
-      deliveryDate.trim(),
-      yearCode,
-      partnerCode
-    );
-
-    let nextSequenceNo = 1;
-    try {
-      const sequenceResult = await getPurchaseOrderSerialMaxSequence(
-        id,
-        sequenceKey,
-        accessToken
-      );
-      nextSequenceNo = sequenceResult.nextSequence;
-    } catch {
-      if (requestId !== serialPreviewGenRequestRef.current) return;
-      setDeliverySerialPreviewRows([]);
-      return;
-    }
-
-    if (requestId !== serialPreviewGenRequestRef.current) return;
-
-    const nextSerialRows: DeliverySerialPreviewRow[] = [];
-    let sequenceOffset = 0;
-    plannedRows.forEach((row) => {
-      for (let i = 0; i < row.assignQty; i += 1) {
-        const seqNo = nextSequenceNo + sequenceOffset;
-        sequenceOffset += 1;
-        const serialNo = buildLtSerialNo({
-          deliveryDate: deliveryDate.trim(),
-          yearCode,
-          partnerCode,
-          sequenceNo: seqNo,
-        });
-        nextSerialRows.push({
-          key: `oi-${row.orderItemId}-lt-${seqNo}`,
-          orderItemId: row.orderItemId,
-          lineLabel: row.lineLabel,
-          serialNo,
-          sequenceKey,
-          detectorElementCode: row.detectorElementCode,
-          wavelengthCode: row.wavelengthCode,
-          detectorId: row.detectorId,
-          serialSnapshot: {
-            source: "frontend",
-            format: "LT",
-            detectorElementCode: row.detectorElementCode,
-            wavelengthCode: row.wavelengthCode,
-            detectorId: row.detectorId,
-            sequenceKey,
-            serialNo,
-            deliveryDate: deliveryDate.trim(),
-            yearCode,
-            partnerCode,
-            sequenceNo: seqNo,
-          },
-        });
-      }
-    });
-
-    setDeliverySerialPreviewRows(nextSerialRows);
-  }, [
-    deliveryModalOpen,
-    deliveryModalPurpose,
-    order,
-    accessToken,
-    id,
-    deliverySerialQtyInput,
-    deliveryDate,
-    deliveredByOrderItemId,
-    lotYearCodes,
-  ]);
-
-  useEffect(() => {
-    if (!deliveryModalOpen || deliveryModalPurpose !== "actual") return;
-    const timer = window.setTimeout(() => {
-      void generateSerialPreview();
-    }, SERIAL_PREVIEW_DEBOUNCE_MS);
-    return () => window.clearTimeout(timer);
-  }, [deliveryModalOpen, deliveryModalPurpose, generateSerialPreview]);
-
-  const generateLotPreview = useCallback(async () => {
-    if (
-      !deliveryModalOpen ||
-      deliveryModalPurpose !== "plan" ||
-      !accessToken ||
-      !id
-    ) {
-      return;
-    }
-
-    const requestId = ++lotPreviewGenRequestRef.current;
-    const raw = deliverySerialQtyInput.trim();
-    const qtyRequested = parseThisProductionQtyInput(raw);
-
-    if (!raw || qtyRequested <= 0 || !deliveryDate.trim()) {
-      setDeliveryLotPreviewRows([]);
-      return;
-    }
-
-    const totalQty = orderLines.reduce(
-      (sum, line) => sum + (Number(line.qty) || 0),
-      0
-    );
-    const registeredQty = orderLines.reduce(
-      (sum, line) => sum + (registeredByOrderItemId.get(line.id) ?? 0),
-      0
-    );
-    const remainingQty = Math.max(0, totalQty - registeredQty);
-    const qty = Math.min(qtyRequested, remainingQty);
-
-    if (qty <= 0) {
-      setDeliveryLotPreviewRows([]);
-      return;
-    }
-
-    const { items: plannedItems, error } = distributeProductionPlanItems(
-      orderLines,
-      qty,
-      registeredByOrderItemId
-    );
-    if (error) {
-      setDeliveryLotPreviewRows([]);
-      return;
-    }
-
-    try {
-      const result = await getPurchaseOrderLotPreview(
-        id,
-        { quantity: qty, issuedDate: deliveryDate.trim() },
-        accessToken
-      );
-      if (requestId !== lotPreviewGenRequestRef.current) return;
-      const previewRows = result.previews;
-      if (previewRows.length < qty) {
-        setDeliveryLotPreviewRows([]);
-        return;
-      }
-      setDeliveryLotPreviewRows((prev) => {
-        const previousOperatorByKey = new Map(
-          prev.map((row) => [`${row.orderItemId}:${row.offset}`, row.operatorUserId])
-        );
-        const nextRows: OrderDetailDeliveryLotPreviewRow[] = [];
-        let previewIndex = 0;
-        plannedItems.forEach((item) => {
-          const line = orderLines.find(
-            (orderLine) => orderLine.id === item.purchaseOrderItemId
-          );
-          const lineLabel = firstLineProductWithBusiness(line);
-          for (let offset = 0; offset < item.plannedQty; offset += 1) {
-            const preview = previewRows[previewIndex];
-            if (!preview) break;
-            previewIndex += 1;
-            nextRows.push({
-              key:
-                `lot-preview-${item.purchaseOrderItemId}-${offset}-` +
-                `${preview.unitCode || previewIndex}`,
-              orderItemId: item.purchaseOrderItemId,
-              lineLabel,
-              offset,
-              unitCode: preview.unitCode,
-              operatorUserId:
-                previousOperatorByKey.get(
-                  `${item.purchaseOrderItemId}:${offset}`
-                ) ?? "",
-            });
-          }
-        });
-        return nextRows;
-      });
-    } catch {
-      if (requestId !== lotPreviewGenRequestRef.current) return;
-      setDeliveryLotPreviewRows([]);
-    }
-  }, [
-    deliveryModalOpen,
-    deliveryModalPurpose,
-    accessToken,
-    id,
-    deliverySerialQtyInput,
-    deliveryDate,
-    orderLines,
-    registeredByOrderItemId,
-  ]);
-
-  useEffect(() => {
-    if (!deliveryModalOpen || deliveryModalPurpose !== "plan") return;
-    const timer = window.setTimeout(() => {
-      void generateLotPreview();
-    }, LOT_PREVIEW_DEBOUNCE_MS);
-    return () => window.clearTimeout(timer);
-  }, [deliveryModalOpen, deliveryModalPurpose, generateLotPreview]);
-
   const openDeliveryRegistrationModal = useCallback(
     (purpose: "actual" | "plan") => {
       if (!order) return;
@@ -701,6 +292,9 @@ export function useOrderDetailDeliveryModal({
       nextProductionPlanSeq,
       deliveries,
       departmentOptionsFromTree,
+      setDeliveryModalOpen,
+      setDeliverySerialPreviewRows,
+      setDeliveryLotPreviewRows,
     ]
   );
 
@@ -742,7 +336,7 @@ export function useOrderDetailDeliveryModal({
       setLinkUnitsDelivery(delivery);
       setLinkUnitsModalOpen(true);
     },
-    [id, navigate, resetDeliveryModalForm]
+    [id, navigate, resetDeliveryModalForm, setDeliveryModalOpen]
   );
 
   const submitDeliveryModal = useCallback(() => {

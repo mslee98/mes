@@ -1,4 +1,4 @@
-import { useParams, useNavigate } from "react-router";
+import { useParams } from "react-router";
 import { notify } from "../lib/notify";
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
@@ -7,7 +7,7 @@ import ConfirmModal from "../components/common/ConfirmModal";
 import LoadingLottie from "../components/common/LoadingLottie";
 import FormActionBar from "../components/form/FormActionBar";
 import { useAuth } from "../hooks/useAuth";
-import { useConfirmLeave } from "../hooks/useConfirmLeave";
+import { useConfirmLeaveWithGoBack } from "../hooks/useConfirmLeave";
 import OrderLineEditorSection from "../features/order-form/sections/OrderLineEditorSection";
 import { OrderBasicInfoSection } from "../features/order-form/sections/OrderBasicInfoSection";
 import { useOrderFormState } from "../features/order-form/hooks/useOrderFormState";
@@ -19,7 +19,6 @@ import type { PurchaseOrderFile } from "../api/purchaseOrder";
 
 export default function OrderForm() {
   const { orderId } = useParams();
-  const navigate = useNavigate();
   const isNew = orderId == null || orderId === "new";
   const id = isNew ? "" : String(orderId ?? "").trim();
   const { accessToken, user } = useAuth();
@@ -50,6 +49,13 @@ export default function OrderForm() {
     user,
   });
 
+  const leaveConfirm = useConfirmLeaveWithGoBack(
+    form.isDirty,
+    isNew ? "/order" : `/order/${id}`
+  );
+  const { leaveModalOpen, onLeaveConfirm, onLeaveCancel, requestLeave, allowNextNavigation } =
+    leaveConfirm;
+
   const mutations = useOrderFormMutations({
     orderId: id,
     accessToken,
@@ -58,6 +64,7 @@ export default function OrderForm() {
     pendingFilesForCreate: form.pendingFilesForCreate,
     setPendingFilesForCreate: form.setPendingFilesForCreate,
     setItems: form.setItems,
+    allowNextNavigation,
   });
 
   const { saveLine, handleSubmit } = useOrderFormSubmit({
@@ -68,10 +75,6 @@ export default function OrderForm() {
     purchaseOrderTypeCodes: queries.purchaseOrderTypeCodes,
     order: queries.order,
   });
-
-  const leavePath = isNew ? "/order" : `/order/${id}`;
-  const { leaveModalOpen, onLeaveConfirm, onLeaveCancel, requestLeave } =
-    useConfirmLeave(form.isDirty, () => navigate(leavePath));
 
   if (!isNew && queries.orderLoading && !queries.order) {
     return (

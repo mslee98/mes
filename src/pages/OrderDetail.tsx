@@ -9,12 +9,14 @@ import { useAuth } from "../hooks/useAuth";
 import {
   type PurchaseOrderDetail,
   type PurchaseOrderFile,
-  type Partner,
   type Delivery,
   type ProductionPlan,
 } from "../api/purchaseOrder";
 import type { OrderDetailDeliveryMutationVars } from "../features/order-detail/hooks/useOrderDetailMutations";
-import { partnerSelectLabel } from "../domains/partner/display/partnerDisplay";
+import {
+  partnerSelectLabel,
+  resolvePartnerForDisplay,
+} from "../domains/partner/display/partnerDisplay";
 import { partnerCountryFlagUrl } from "../domains/partner/helpers/partnerCountryOptions";
 import { useOrderDetailQueries } from "../features/order-detail/hooks/useOrderDetailQueries";
 import { useOrderDetailDeliveryModal } from "../features/order-detail/hooks/useOrderDetailDeliveryModal";
@@ -35,7 +37,7 @@ function deliveryManagerUserIdFromSelect(selectValue: string): number | null {
 /**
  * 접수 / 생산 계획 / 실제 생산
  * -----------------------------------------------------------------
- * - 접수: PUT `.../purchase-orders/:id` (status=PO_CLOSED) — 발주 즉시 종결.
+ * - 접수: POST `.../purchase-orders/:id/receive` — 발주 즉시 종결(PO_CLOSED).
  * - 생산 계획: POST `.../production-plans` — `ProductionPlanCreatePayload`, 종결 후 등록, 상세는 `/order/:id/plan/:planId`.
  * - 실제 생산: POST `.../deliveries` — `PO_CLOSED` 일 때만 허용; 저장 후 Unit 연결 모달에서 `delivery-items/:id/units`.
  *
@@ -134,12 +136,13 @@ export default function OrderDetail() {
   const canEditOrder = !isPoClosed && isAuthor;
   const canShowReceiveButton = !isPoClosed && isAuthor;
 
-  const partnerName = partnerSelectLabel(
-    po.partner as Partner | undefined,
-    countryCodes
+  const partnerForDisplay = resolvePartnerForDisplay(
+    po.partner,
+    po.partnerSummary
   );
+  const partnerName = partnerSelectLabel(partnerForDisplay, countryCodes);
   const partnerFlagUrl = partnerCountryFlagUrl(
-    String((po.partner as Partner | undefined)?.countryCode ?? "")
+    String(partnerForDisplay?.countryCode ?? "")
   );
   const partnerNameWithFlag = (
     <span className="inline-flex items-center gap-2">

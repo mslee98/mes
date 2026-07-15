@@ -283,6 +283,10 @@ export async function getCommonCodeGroups(
   );
 }
 
+/**
+ * 그룹별 활성 공통코드 목록.
+ * 그룹이 없거나 활성 코드가 0건이면 `200` + `[]` (404 아님). 5xx만 예외로 던집니다.
+ */
 export async function getCommonCodesByGroup(
   groupCode: string,
   accessToken: string

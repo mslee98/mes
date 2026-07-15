@@ -6,6 +6,7 @@ import {
 
 /**
  * 공통코드 그룹별 목록 — `queryKey: ["commonCodes", groupCode]` 통일.
+ * 백엔드: 그룹 없음·활성 코드 0건 → `200` + `[]`. `data ?? []` 기본값이면 충분합니다.
  */
 export function useCommonCodesByGroup(
   groupCode: string,

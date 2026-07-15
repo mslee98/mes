@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router";
+import { Link, useParams, useSearchParams } from "react-router";
 import { notify } from "../lib/notify";
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
@@ -9,6 +9,7 @@ import ComponentCard from "../components/common/ComponentCard";
 import LoadingLottie from "../components/common/LoadingLottie";
 import ActiveStatusBadge from "../components/common/ActiveStatusBadge";
 import { useAuth } from "../hooks/useAuth";
+import { useGoBack } from "../hooks/useGoBack";
 import ConfirmModal from "../components/common/ConfirmModal";
 import {
   deleteProduct,
@@ -79,7 +80,6 @@ function DetailRow({
 export default function ProductDetail() {
   const { productId } = useParams();
   const id = String(productId ?? "").trim();
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [searchParams] = useSearchParams();
@@ -87,6 +87,7 @@ export default function ProductDetail() {
     () => safeReturnOrderPathFromSearchParams(searchParams),
     [searchParams]
   );
+  const goBack = useGoBack("/products");
   const { accessToken, isLoading: isAuthLoading } = useAuth();
 
   const deleteMutation = useMutation({
@@ -97,7 +98,7 @@ export default function ProductDetail() {
       void queryClient.removeQueries({ queryKey: ["product", id] });
       void queryClient.removeQueries({ queryKey: ["productFiles", id] });
       setDeleteOpen(false);
-      navigate("/products");
+      goBack();
     },
     onError: (e: unknown) => {
       const message =

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useNavigate, useParams } from "react-router";
+import { Link, useParams } from "react-router";
 import { notify } from "../lib/notify";
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
@@ -10,6 +10,7 @@ import LoadingLottie from "../components/common/LoadingLottie";
 import ActiveStatusBadge from "../components/common/ActiveStatusBadge";
 import { ReactComponent as PageIcon } from "../icons/page.svg?react";
 import { useAuth } from "../hooks/useAuth";
+import { useGoBack } from "../hooks/useGoBack";
 import {
   deletePartner,
   getPartner,
@@ -114,7 +115,7 @@ function PartnerEmailCopyValue({ email }: { email: string }): React.ReactNode {
 export default function PartnerDetail() {
   const { partnerId } = useParams();
   const id = String(partnerId ?? "").trim();
-  const navigate = useNavigate();
+  const goBack = useGoBack("/partners");
   const queryClient = useQueryClient();
   const [deleteOpen, setDeleteOpen] = useState(false);
   const { accessToken, isLoading: isAuthLoading } = useAuth();
@@ -126,7 +127,7 @@ export default function PartnerDetail() {
       void queryClient.invalidateQueries({ queryKey: ["partners"] });
       void queryClient.removeQueries({ queryKey: ["partner", id] });
       setDeleteOpen(false);
-      navigate("/partners");
+      goBack();
     },
     onError: (e: unknown) => {
       const message =

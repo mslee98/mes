@@ -30,7 +30,7 @@ import {
 } from "../../../lib/format/dueDateDisplay";
 import { buttonClassName } from "../../../lib/ui/buttonStyles";
 import { partnerCountryFlagUrl } from "../../../domains/partner/helpers/partnerCountryOptions";
-import { partnerSelectLabel } from "../../../domains/partner/display/partnerDisplay";
+import { partnerSelectLabel, resolvePartnerForDisplay } from "../../../domains/partner/display/partnerDisplay";
 import {
   BoxIcon,
   CalenderIcon,
@@ -91,7 +91,10 @@ export function UnitDetailHeaderCard({
     "—";
 
   const partner: Partner | undefined =
-    purchaseOrder?.partner ??
+    resolvePartnerForDisplay(
+      purchaseOrder?.partner,
+      purchaseOrder?.partnerSummary
+    ) ??
     (unit.partner?.name || unit.partner?.countryCode
       ? {
           id: String(unit.partner?.id ?? unit.order?.partnerId ?? ""),

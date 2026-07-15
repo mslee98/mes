@@ -45,8 +45,17 @@
 
 ### 2.4 오류 처리
 
-- `createApiError` (`src/lib/apiError.ts`): `!res.ok`일 때 응답 JSON의 `message` 또는 **폴백 메시지**로 `ApiError` 생성.
+- `createApiError` (`src/lib/api/apiError.ts`): `!res.ok`일 때 응답 JSON의 `message` 또는 **폴백 메시지**로 `ApiError` 생성.
 - `auth.ts`의 로그인/refresh는 `ApiError` 대신 `Error` + JSON `message`를 사용하는 부분이 있음.
+
+**공통코드 그룹별 목록** (`GET /common-codes/groups/:groupCode/codes`, 별칭 `/code-groups/:groupCode/codes`):
+
+| 상황 | HTTP |
+|------|------|
+| 그룹 없음·활성 코드 0건 | `200` + `[]` |
+| DB/서버 오류 | `5xx` |
+
+프론트는 `useCommonCodesByGroup` + `data ?? []` 로 처리하며, 목록 API 404용 토스트/모달은 두지 않습니다. 단건 리소스(발주 상세 등)의 404는 각 화면에서 처리합니다. 자세한 표는 [COMMON_CODE.md](./COMMON_CODE.md) §3.
 
 ### 2.5 필드명 정규화
 

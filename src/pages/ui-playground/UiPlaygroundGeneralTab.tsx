@@ -10,6 +10,8 @@ import { BUTTON_ACTION_ROLE_GUIDE, buttonClassName } from "../../lib/ui/buttonSt
 import IconTooltip from "../../components/ui/tooltip/IconTooltip";
 import ButtonTooltip from "../../components/ui/tooltip/ButtonTooltip";
 import { Modal } from "../../components/ui/modal";
+import { Drawer } from "../../components/ui/drawer/Drawer";
+import { Ribbon } from "../../components/ui/ribbon/Ribbon";
 import InfoActionPopover from "../../components/common/InfoActionPopover";
 import { DetectorTypeGuidePopover } from "../../components/common/DetectorTypeGuidePopover";
 import { ProductionPlanOrderReference } from "../../components/order/ProductionPlanOrderReference";
@@ -29,6 +31,8 @@ export function UiPlaygroundGeneralTab({
   otherSuppliersCount,
 }: UiPlaygroundGeneralTabProps) {
   const [modalDemoOpen, setModalDemoOpen] = useState(false);
+  const [drawerRightOpen, setDrawerRightOpen] = useState(false);
+  const [drawerLeftOpen, setDrawerLeftOpen] = useState(false);
 
   return (
     <div className="space-y-6">
@@ -91,6 +95,111 @@ export function UiPlaygroundGeneralTab({
             본문: 폼·타임라인 등 실제 콘텐츠를 이곳에 둡니다.
           </p>
         </Modal>
+      </ComponentCard>
+
+      <ComponentCard
+        title="Drawer"
+        desc="측면·상하단에서 슬라이드되는 패널. `isOpen` / `onClose`로 제어합니다."
+      >
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="button" size="sm" onClick={() => setDrawerRightOpen(true)}>
+            우측 Drawer 열기
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => setDrawerLeftOpen(true)}
+          >
+            좌측 Drawer 열기
+          </Button>
+        </div>
+
+        <Drawer
+          isOpen={drawerRightOpen}
+          onClose={() => setDrawerRightOpen(false)}
+          placement="right"
+          title="우측 Drawer"
+          titleIcon={
+            <svg
+              className="size-5"
+              aria-hidden
+              xmlns="http://www.w3.org/2000/svg"
+              width="24"
+              height="24"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke="currentColor"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M10 11h2v5m-2 0h4m-2.592-8.5h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
+              />
+            </svg>
+          }
+        >
+          <p className="mb-3 text-sm text-gray-600 dark:text-gray-400">
+            디자인 시스템 Drawer 컴포넌트 예시입니다. 배경 클릭·Esc·닫기 버튼으로 닫을 수
+            있습니다.
+          </p>
+          <div className="flex items-center gap-3">
+            <Button variant="outline" size="sm" onClick={() => setDrawerRightOpen(false)}>
+              취소
+            </Button>
+            <Button size="sm" onClick={() => setDrawerRightOpen(false)}>
+              확인
+            </Button>
+          </div>
+        </Drawer>
+
+        <Drawer
+          isOpen={drawerLeftOpen}
+          onClose={() => setDrawerLeftOpen(false)}
+          placement="left"
+          widthClassName="w-80 max-w-[calc(100vw-2rem)]"
+          header={
+            <h5 className="pe-10 text-lg font-semibold text-gray-900 dark:text-white">
+              좌측 Drawer
+            </h5>
+          }
+        >
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            `header` prop으로 커스텀 헤더를 넣을 수 있습니다.
+          </p>
+        </Drawer>
+      </ComponentCard>
+
+      <ComponentCard
+        title="Ribbon"
+        desc="카드·패널에 붙이는 리본 라벨. variant: rounded · shape · filed · hover"
+      >
+        <div className="grid grid-cols-1 gap-5 sm:gap-6 lg:grid-cols-2">
+          <Ribbon variant="rounded" label="Popular">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Rounded 리본 — 좌측 둥근 끝 라벨입니다.
+            </p>
+          </Ribbon>
+
+          <Ribbon variant="shape" label="Popular">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Shape 리본 — 삼각형 꼬리가 붙은 라벨입니다.
+            </p>
+          </Ribbon>
+
+          <Ribbon variant="filed" label="New" color="success">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Filed 리본 — 대각선 코너 배지입니다.
+            </p>
+          </Ribbon>
+
+          <Ribbon variant="hover" label="Popular">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Hover 리본 — 카드에 마우스를 올리면 슬라이드됩니다.
+            </p>
+          </Ribbon>
+        </div>
       </ComponentCard>
 
       <ComponentCard

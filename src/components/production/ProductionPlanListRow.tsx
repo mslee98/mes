@@ -1,5 +1,5 @@
 import { Link } from "react-router";
-import { ChevronDownIcon, PageIcon } from "../../icons";
+import { ArrowTopRightOnSquareIcon, ChevronDownIcon } from "../../icons";
 import { TableCell } from "../ui/table";
 import type { CommonCodeItem } from "../../api/commonCode";
 import type { ProductionPlanListItem } from "../../api/purchaseOrder";
@@ -8,15 +8,19 @@ import {
   dueDateDdayBadgeClassName,
   getDueDateRelative,
 } from "../../lib/format/dueDateDisplay";
-import { buttonClassName } from "../../lib/ui/buttonStyles";
 import { partnerCountrySubline } from "../../domains/delivery/display/deliveryUnitListDisplay";
 import { isProductionPlanDeliveryComplete } from "../../domains/production-plan/helpers/planCompletion";
 import { formatPlanDeliveryAction } from "../../domains/production-plan/helpers/deliveryActionCopy";
 import { resolveDeliveryLinkage } from "../../domains/production-plan/helpers/deliveryLinkage";
 import { ProductionPlanDeliveryLinkageCell } from "./ProductionPlanDeliveryLinkageCell";
 import { ProductionPlanUnitCountRatio } from "./ProductionPlanUnitSummary";
-import { DATA_TABLE_COMPACT_BODY_TEXT_CLASS, DATA_TABLE_COMPACT_MUTED_TEXT_CLASS } from "../list/DataTable/dataTableStyles";
+import {
+  DATA_TABLE_COMPACT_BODY_TEXT_CLASS,
+  DATA_TABLE_COMPACT_MUTED_TEXT_CLASS,
+} from "../list/DataTable/dataTableStyles";
 
+const PLAN_DETAIL_ICON_LINK_CLASS =
+  "inline-flex size-8 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-brand-50 hover:text-brand-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 dark:text-gray-400 dark:hover:bg-brand-500/10 dark:hover:text-brand-400";
 export type ProductionPlanListRowCellsProps = {
   item: ProductionPlanListItem;
   expanded: boolean;
@@ -69,9 +73,9 @@ export function ProductionPlanListRowCells({
   const detailHref = planDetailPath(item);
   const deliveryLinkage = resolveDeliveryLinkage(item);
   const deliveryAction = formatPlanDeliveryAction(item);
+  const planPrimaryLabel = item.planNo?.trim() || planDisplayTitle(item);
 
-  return (
-    <>
+  return (    <>
       <TableCell className="w-10 align-middle px-2 py-2 text-center">
         <ChevronDownIcon
           className={`mx-auto size-5 text-gray-500 transition-transform duration-200 dark:text-gray-400 ${
@@ -83,7 +87,7 @@ export function ProductionPlanListRowCells({
       <TableCell className={`min-w-[18rem] align-middle px-3 py-2 text-start ${DATA_TABLE_COMPACT_BODY_TEXT_CLASS}`}>
         <div className="flex flex-col gap-0.5 leading-tight">
           <span className="break-words font-semibold text-gray-900 dark:text-white">
-            {item.planNo?.trim() || planDisplayTitle(item)}
+            {planPrimaryLabel}
           </span>
           {item.title?.trim() ? (
             <span className={`break-words ${DATA_TABLE_COMPACT_MUTED_TEXT_CLASS}`}>
@@ -91,8 +95,7 @@ export function ProductionPlanListRowCells({
             </span>
           ) : null}
         </div>
-      </TableCell>
-      <TableCell className={`min-w-[8rem] max-w-[12rem] align-middle px-3 py-2 text-start ${DATA_TABLE_COMPACT_BODY_TEXT_CLASS}`}>
+      </TableCell>      <TableCell className={`min-w-[8rem] max-w-[12rem] align-middle px-3 py-2 text-start ${DATA_TABLE_COMPACT_BODY_TEXT_CLASS}`}>
         <div className="break-words font-semibold text-gray-800 dark:text-white/90">
           {item.partnerName?.trim() || "—"}
         </div>
@@ -145,7 +148,7 @@ export function ProductionPlanListRowCells({
           </span>
         </div>
       </TableCell>
-      <TableCell className="min-w-[8.5rem] align-middle px-2 py-2 text-center">
+      <TableCell className="w-11 align-middle px-1 py-2 text-center">
         <div
           className="flex justify-center"
           onClick={(e) => e.stopPropagation()}
@@ -155,16 +158,11 @@ export function ProductionPlanListRowCells({
           {detailHref ? (
             <Link
               to={detailHref}
-              title="생산 계획 상세"
-              aria-label={`${planDisplayTitle(item)} 생산 계획 상세`}
-              className={buttonClassName({
-                actionRole: "navigate",
-                size: "compact",
-              })}
-              onClick={(e) => e.stopPropagation()}
+              title="생산 계획 상세 열기"
+              aria-label={`${planDisplayTitle(item)} 생산 계획 상세 열기`}
+              className={PLAN_DETAIL_ICON_LINK_CLASS}
             >
-              <PageIcon className="size-4 shrink-0" aria-hidden />
-              상세보기
+              <ArrowTopRightOnSquareIcon className="size-[1.125rem]" aria-hidden />
             </Link>
           ) : (
             <span className={DATA_TABLE_COMPACT_MUTED_TEXT_CLASS}>—</span>

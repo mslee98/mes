@@ -54,8 +54,8 @@ export default function UIPlayground() {
           </p>
           <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-gray-600 dark:text-gray-300">
             <li>
-              <strong>General</strong> — Button, Badge, Modal, Tooltip, Query
-              패턴
+              <strong>General</strong> — Button, Badge, Modal, Drawer, Ribbon,
+              Tooltip, Query 패턴
             </li>
             <li>
               <strong>Form</strong> — Input, 서브텍스트(helpText), FormField,
