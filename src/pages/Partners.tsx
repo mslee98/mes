@@ -246,21 +246,21 @@ export default function Partners() {
             </p>
           </div>
         ) : (
-          <DataTable fillWidth>
+          <DataTable fillWidth minWidth={0}>
             <DataTableHeader>
-              <DataTableHeaderCell colSpan={1} compact sortable={false}>
+              <DataTableHeaderCell colSpan={2} compact sortable={false}>
                 <DataTableHeaderLabel>코드</DataTableHeaderLabel>
               </DataTableHeaderCell>
-              <DataTableHeaderCell colSpan={1} compact sortable={false}>
+              <DataTableHeaderCell colSpan={3} compact sortable={false}>
                 <DataTableHeaderLabel>업체명</DataTableHeaderLabel>
               </DataTableHeaderCell>
-              <DataTableHeaderCell colSpan={1} compact sortable={false}>
+              <DataTableHeaderCell colSpan={2} compact sortable={false}>
                 <DataTableHeaderLabel>업체 분류</DataTableHeaderLabel>
               </DataTableHeaderCell>
-              <DataTableHeaderCell colSpan={1} compact sortable={false}>
+              <DataTableHeaderCell colSpan={2} compact sortable={false}>
                 <DataTableHeaderLabel>국가</DataTableHeaderLabel>
               </DataTableHeaderCell>
-              <DataTableHeaderCell colSpan={1} compact sortable={false}>
+              <DataTableHeaderCell colSpan={2} compact sortable={false}>
                 <DataTableHeaderLabel>담당자/연락처</DataTableHeaderLabel>
               </DataTableHeaderCell>
               <DataTableHeaderCell
@@ -276,7 +276,7 @@ export default function Partners() {
               {totalCount === 0 ? (
                 <DataTableRow>
                   <DataTableCell
-                    colSpan={6}
+                    colSpan={12}
                     compact
                     className="justify-center border-r-0 py-6"
                   >
@@ -286,7 +286,7 @@ export default function Partners() {
               ) : (
                 pageItems.map((p) => (
                   <DataTableRow key={p.id}>
-                    <DataTableCell colSpan={1} compact>
+                    <DataTableCell colSpan={2} compact>
                       <Link
                         to={`/partners/${p.id}`}
                         className={DATA_TABLE_COMPACT_LINK_CLASS}
@@ -294,7 +294,7 @@ export default function Partners() {
                         {p.code || "-"}
                       </Link>
                     </DataTableCell>
-                    <DataTableCell colSpan={1} compact>
+                    <DataTableCell colSpan={3} compact>
                       <Link
                         to={`/partners/${p.id}`}
                         className={DATA_TABLE_COMPACT_LINK_CLASS}
@@ -302,17 +302,17 @@ export default function Partners() {
                         {p.name || "-"}
                       </Link>
                     </DataTableCell>
-                    <DataTableCell colSpan={1} compact>
+                    <DataTableCell colSpan={2} compact>
                       {formatPartnerCoreClassificationCell(
                         p,
                         partnerTypeCodes,
                         supplierSegmentCodes
                       )}
                     </DataTableCell>
-                    <DataTableCell colSpan={1} compact>
+                    <DataTableCell colSpan={2} compact>
                       <PartnerCountryCell partner={p} countryCodes={countryCodes} />
                     </DataTableCell>
-                    <DataTableCell colSpan={1} compact>
+                    <DataTableCell colSpan={2} compact>
                       {formatPartnerContactCell(p)}
                     </DataTableCell>
                     <DataTableCell colSpan={1} compact className="border-r-0">

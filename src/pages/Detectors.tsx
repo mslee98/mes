@@ -311,7 +311,7 @@ export default function DetectorsPage() {
             목록을 불러오는 중 오류가 발생했습니다.
           </div>
         ) : (
-          <DataTable minWidth={880}>
+          <DataTable fillWidth minWidth={0}>
             <DataTableHeader>
               <DataTableHeaderCell colSpan={2} compact sortable={false}>
                 <DataTableHeaderLabel>시리즈</DataTableHeaderLabel>
